@@ -11,102 +11,102 @@ const Tile = ({ tile }: TileProps) => {
   const [hovered, setHovered] = useState(false);
   const selectedTile = useGameStore((state) => state.selectedTile);
   const selectTile = useGameStore((state) => state.selectTile);
+  const lands = useGameStore((state) => state.lands);
   const isSelected = selectedTile === tile.id;
 
+  const landInfo = lands[tile.id];
+
+  // Pastel Colors
   const baseColor = useMemo(() => {
     switch (tile.space.type) {
-      case 'START':
-      case 'ISLAND':
-        return '#2f2f2f';
-      case 'STOCK':
-        return '#ef4444';
-      case 'KEY':
-        return '#fbbf24';
+      case 'START': return '#a7f3d0'; // Soft Green
+      case 'ISLAND': return '#93c5fd'; // Soft Blue
+      case 'STOCK': return '#fca5a5'; // Soft Red
+      case 'KEY': return '#fde047'; // Soft Yellow
       case 'COUNTRY': {
         switch (tile.space.continent) {
-          case 'ASIA':
-            return '#fde68a';
-          case 'EUROPE':
-            return '#bfdbfe';
-          case 'AFRICA':
-            return '#bbf7d0';
-          case 'AMERICA':
-            return '#fbcfe8';
-          default:
-            return '#e5e7eb';
+          case 'ASIA': return '#fef08a'; // Pastel Yellow
+          case 'EUROPE': return '#bae6fd'; // Pastel Blue
+          case 'AFRICA': return '#bbf7d0'; // Pastel Green
+          case 'AMERICA': return '#fbcfe8'; // Pastel Pink
+          default: return '#f3f4f6';
         }
       }
-      case 'MINIGAME':
-        return '#c4b5fd';
-      case 'TAX':
-        return '#94a3b8';
-      default:
-        return '#e7e2d2';
+      case 'MINIGAME': return '#ddd6fe'; // Pastel Purple
+      case 'TAX': return '#cbd5e1'; // Pastel Grey
+      default: return '#e2e8f0';
     }
   }, [tile.space.continent, tile.space.type]);
 
-  const tileColor = useMemo(() => {
-    if (isSelected) return '#ffffff';
-    if (hovered) return '#7dd3fc';
-    return baseColor;
-  }, [baseColor, hovered, isSelected]);
+  const tileColor = isSelected ? '#ffffff' : (hovered ? '#e0f2fe' : baseColor);
 
   return (
     <mesh
       position={tile.position}
       rotation={tile.rotation}
-      onPointerOver={(event) => {
-        event.stopPropagation();
-        setHovered(true);
-      }}
-      onPointerOut={(event) => {
-        event.stopPropagation();
-        setHovered(false);
-      }}
-      onClick={(event) => {
-        event.stopPropagation();
-        selectTile(tile.id);
-      }}
-      scale={isSelected || hovered ? 1.08 : 1}
+      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+      onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
+      onClick={(e) => { e.stopPropagation(); selectTile(tile.id); }}
+      scale={isSelected || hovered ? 1.05 : 1}
       castShadow
       receiveShadow
     >
       <boxGeometry args={[1.4, 0.25, 1.4]} />
       <meshStandardMaterial
         color={tileColor}
-        metalness={tile.space.type === 'KEY' ? 0.8 : 0.15}
-        roughness={tile.space.type === 'KEY' ? 0.2 : 0.7}
+        metalness={0.1}
+        roughness={0.6}
         emissive={isSelected ? '#2dd4bf' : '#000000'}
-        emissiveIntensity={isSelected ? 0.35 : 0}
+        emissiveIntensity={isSelected ? 0.3 : 0}
       />
 
-      <Billboard position={[0, 0.36, 0]} follow>
+      {/* Tile Name Label */}
+      <Billboard position={[0, 0.51, 0]} follow={false}>
         <Text
-          fontSize={0.22}
-          color="#0b0b0b"
+          rotation={[-Math.PI / 2, 0, 0]} // Lie flat on tile
+          fontSize={0.25}
+          color="white"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.01}
-          outlineColor="#ffffff"
+          outlineWidth={0.03}
+          outlineColor="#000000"
+          position={[0, 0, 0.3]} // Offset z so it's not buried
+          renderOrder={1}
         >
           {tile.space.name}
         </Text>
-        {typeof tile.space.price === 'number' ? (
+        {typeof tile.space.price === 'number' && (
           <Text
-            position={[0, -0.26, 0]}
-            fontSize={0.14}
-            color="#111827"
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0, -0.3]}
+            fontSize={0.15}
+            color="#fbbf24"
             anchorX="center"
             anchorY="middle"
-            outlineWidth={0.01}
-            outlineColor="#ffffff"
+            outlineWidth={0.02}
+            outlineColor="#000000"
+            renderOrder={1}
           >
             {tile.space.price.toLocaleString()}
           </Text>
-        ) : null}
+        )}
       </Billboard>
+
+      {/* Building Marker if Owned */}
+      {landInfo && (
+        <group position={[0, 0.7, 0]}>
+          {/* Simple House Shape */}
+          <mesh position={[0, 0, 0]} castShadow>
+            <coneGeometry args={[0.4, 0.6, 4]} />
+            <meshStandardMaterial color={landInfo.owner === 'Player 1' ? '#3b82f6' : '#ef4444'} />
+          </mesh>
+          <mesh position={[0, -0.4, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.4, 0.5]} />
+            <meshStandardMaterial color="white" />
+          </mesh>
+        </group>
+      )}
     </mesh>
   );
 };
-
 export default Tile;

@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 
+// Types for Land Ownership
+type LandType = 'LAND' | 'BUILDING' | 'LANDMARK';
+
+type LandState = {
+  owner: string;
+  type: LandType;
+};
+
 type GameState = {
   currentTurn: number;
   playerIndex: number;
@@ -7,26 +15,33 @@ type GameState = {
   dice: [number, number];
   isDouble: boolean;
 
+  // Economy & Land
+  cash: number;
+  lands: Record<number, LandState>;
+
   // Physics integration
   isRolling: boolean;
   rollTrigger: number;
 
   selectTile: (id: number) => void;
-  // movePlayer can be internal mostly, but kept for manual moves if needed
   movePlayer: (steps: number) => void;
   nextTurn: () => void;
+  buyLand: (tileId: number, cost: number) => void;
 
   // Actions
   startRoll: () => void;
   setDiceValues: (rolls: [number, number]) => void;
 };
 
-const useGameStore = create<GameState>((set) => ({
+const useGameStore = create<GameState>((set, get) => ({
   currentTurn: 1,
   playerIndex: 0,
   selectedTile: null,
   dice: [1, 1],
   isDouble: false,
+
+  cash: 3000000, // 300만원 시작
+  lands: {},
 
   isRolling: false,
   rollTrigger: 0,
@@ -46,15 +61,32 @@ const useGameStore = create<GameState>((set) => ({
       isDouble: false,
     })),
 
-  startRoll: () => set((state) => ({
-    isRolling: true,
-    rollTrigger: state.rollTrigger + 1
-  })),
+  buyLand: (tileId, cost) => {
+    const { cash, lands } = get();
+    if (cash >= cost) {
+      set({
+        cash: cash - cost,
+        lands: {
+          ...lands,
+          [tileId]: { owner: 'Player 1', type: 'LAND' }
+        }
+      });
+      console.log(`구입 완료: Tile ${tileId}, 잔액: ${cash - cost}`);
+    } else {
+      console.log('잔액 부족');
+    }
+  },
+
+  startRoll: () => {
+    set((state) => ({
+      isRolling: true,
+      rollTrigger: state.rollTrigger + 1
+    }));
+  },
 
   setDiceValues: ([d1, d2]) => {
     set((state) => {
       const isDouble = d1 === d2;
-      // Move logic
       const newIndex = (state.playerIndex + d1 + d2) % 32;
 
       return {
