@@ -1,7 +1,18 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
+import { Physics, usePlane } from '@react-three/cannon';
 import Overlay from './components/ui/Overlay';
 import Board from './components/3d/Board';
+import Dice from './components/3d/Dice';
+
+const Floor = () => {
+  const [ref] = usePlane(() => ({ rotation: [-Math.PI / 2, 0, 0], position: [0, -0.5, 0] }));
+  return (
+    <mesh ref={ref} visible={false}>
+      <planeGeometry args={[100, 100]} />
+    </mesh>
+  );
+};
 
 const App = () => {
   return (
@@ -20,7 +31,11 @@ const App = () => {
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
-        <Board />
+        <Physics gravity={[0, -30, 0]}>
+          <Floor />
+          <Board />
+          <Dice />
+        </Physics>
         <OrbitControls
           makeDefault
           minPolarAngle={Math.PI / 4}

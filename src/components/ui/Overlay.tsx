@@ -14,6 +14,10 @@ const Overlay = () => {
         <p className="text-lg font-medium">{playerIndex}</p>
         <p className="text-xs uppercase tracking-[0.2em] text-white/60">선택한 칸</p>
         <p className="text-lg font-medium">{selectedTile ?? '없음'}</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+          마지막 주사위
+        </p>
+        <p className="text-lg font-medium">🎲 {dice[0]} 🎲 {dice[1]}</p>
         <p className="text-xs uppercase tracking-[0.2em] text-white/60">주사위</p>
         <div className="flex items-center gap-2">
           {dice.map((d, i) => (
@@ -30,8 +34,8 @@ const Overlay = () => {
       <div className="pointer-events-auto mt-4 flex gap-3">
         <button
           className={`rounded-xl border border-white/20 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white transition ${isDouble
-              ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200'
-              : 'bg-white/10 hover:bg-white/20'
+            ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200'
+            : 'bg-white/10 hover:bg-white/20'
             }`}
           onClick={rollDice}
         >
