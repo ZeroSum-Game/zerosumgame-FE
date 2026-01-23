@@ -36,9 +36,9 @@ type GameState = {
   selectTile: (id: number) => void;
   movePlayer: (steps: number) => void;
   nextTurn: () => void;
-  buyLand: (tileId: number, cost: number) => void;
+  buyLand: () => void;
   setShowBuyModal: (show: boolean, tileInfo?: TileInfo) => void;
-  closeBuyModal: () => void;
+  closeModal: () => void;
 
   // Actions
   startRoll: () => void;
@@ -77,19 +77,34 @@ const useGameStore = create<GameState>((set, get) => ({
       isDouble: false,
     })),
 
-  buyLand: (tileId, cost) => {
-    const { cash, lands } = get();
-    if (cash >= cost) {
+  buyLand: () => {
+    const { cash, lands, currentTileInfo, playerIndex } = get();
+    // Use currentTileInfo or fall back to playerIndex if needed, but per requirements buyLand logic:
+    // "current Turn player cash deduct -> register owner in lands -> close showBuyModal"
+    // We assume the land to buy is at `playerIndex` or `currentTileInfo.index`.
+    // Let's use playerIndex as the source of truth for "current land" if currentTileInfo is not fully set, 
+    // but typically showBuyModal is true implying valid land.
+
+    // Fixed price 500,000 as per UI requirement "Price: 500,000" (acting as the effective price for this step)
+    // Or should we use a stored price? User said "Price: 500,000 (temporary fixed)" for UI. 
+    // I will use 500,000 for the logic too to match.
+    const PRICE = 500000;
+
+    // Identify which tile.
+    // If currentTileInfo is present, use it. Otherwise use playerIndex.
+    const tileId = currentTileInfo?.index ?? playerIndex;
+
+    if (cash >= PRICE) {
       set({
-        cash: cash - cost,
+        cash: cash - PRICE,
         lands: {
           ...lands,
-          [tileId]: { owner: 'Player 1', type: 'LAND' }
+          [tileId]: { owner: `Player 1`, type: 'LAND' } // Fixed owner for now
         },
         showBuyModal: false,
         currentTileInfo: null
       });
-      console.log(`구입 완료: Tile ${tileId}, 잔액: ${cash - cost}`);
+      console.log(`구입 완료: Tile ${tileId}, 잔액: ${cash - PRICE}`);
     } else {
       console.log('잔액 부족');
     }
@@ -102,7 +117,7 @@ const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  closeBuyModal: () => {
+  closeModal: () => {
     set({
       showBuyModal: false,
       currentTileInfo: null

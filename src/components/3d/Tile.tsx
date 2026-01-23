@@ -93,15 +93,10 @@ const Tile = ({ tile }: TileProps) => {
 
       {/* Building Marker if Owned */}
       {landInfo && (
-        <group position={[0, 0.7, 0]}>
-          {/* Simple House Shape */}
+        <group position={[0, 0.5, 0]}>
           <mesh position={[0, 0, 0]} castShadow>
-            <coneGeometry args={[0.4, 0.6, 4]} />
-            <meshStandardMaterial color={landInfo.owner === 'Player 1' ? '#3b82f6' : '#ef4444'} />
-          </mesh>
-          <mesh position={[0, -0.4, 0]} castShadow>
-            <boxGeometry args={[0.5, 0.4, 0.5]} />
-            <meshStandardMaterial color="white" />
+            <coneGeometry args={[0.3, 0.5, 4]} />
+            <meshStandardMaterial color={landInfo.owner === 'Player 1' ? 'blue' : 'red'} />
           </mesh>
         </group>
       )}

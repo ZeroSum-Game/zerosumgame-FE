@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import Tile from './Tile';
 import Player from './Player';
 import { generateBoardTiles } from '../../utils/boardUtils';
+import StockBoard from './StockBoard';
 
 const Board = () => {
   const tiles = useMemo(() => generateBoardTiles(), []);
@@ -18,6 +19,7 @@ const Board = () => {
           <Tile key={tile.id} tile={tile} />
         ))}
         <Player />
+        <StockBoard />
       </group>
     </group>
   );

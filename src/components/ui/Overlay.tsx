@@ -5,18 +5,16 @@ import { BOARD_DATA } from '../../utils/boardUtils';
 const Overlay = () => {
   const {
     currentTurn, selectedTile, playerIndex, nextTurn, dice, isDouble, startRoll, isRolling,
-    cash, lands, buyLand
+    cash, lands, buyLand, showBuyModal, closeModal, currentTileInfo
   } = useGameStore();
 
   // You might need to import BOARD_DATA to know if it's a country
-  const currentSpace = BOARD_DATA[playerIndex];
-  const isLandable = currentSpace.type === 'COUNTRY';
-  const isOwned = !!lands[playerIndex];
-  const canBuy = !isRolling && isLandable && !isOwned && cash >= (currentSpace.price || 0);
 
-  // Simple state to track if we already acted on this tile? 
-  // For now, just show if canBuy is true. 
-  // Real game would need a "phase" state (e.g. MOVED -> ACTION -> NEXT).
+  // Modal logic is now controlled by store `showBuyModal`
+  // We can still get name from currentTileInfo or BOARD_DATA[playerIndex]
+  // Fallback to "Unknown" if not found, but logic implies it should match current position generally
+  // unless triggered for a specific tile.
+  const displayTileName = currentTileInfo?.name || BOARD_DATA[playerIndex]?.name || "기본 땅";
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col items-start p-6 text-sm text-white">
@@ -39,20 +37,20 @@ const Overlay = () => {
       </div>
 
       {/* Buy Modal */}
-      {canBuy && (
+      {showBuyModal && (
         <div className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform rounded-xl border border-white/20 bg-black/80 p-6 shadow-2xl backdrop-blur-md">
-          <h2 className="mb-2 text-xl font-bold text-white">{currentSpace.name} 도착!</h2>
-          <p className="mb-4 text-gray-300">이 땅을 구매하시겠습니까?</p>
-          <p className="mb-6 text-2xl font-bold text-emerald-400">₩ {currentSpace.price?.toLocaleString()}</p>
+          <h2 className="mb-2 text-xl font-bold text-white">구매 팝업</h2>
+          <p className="mb-4 text-gray-300">현재 도착한 땅을 구매하시겠습니까?</p>
+          <p className="mb-6 text-2xl font-bold text-emerald-400">가격: 500,000원</p>
           <div className="flex gap-4">
             <button
-              onClick={() => buyLand(playerIndex, currentSpace.price || 0)}
+              onClick={() => buyLand()}
               className="rounded-lg bg-emerald-600 px-6 py-2 font-bold text-white hover:bg-emerald-500"
             >
               구매
             </button>
             <button
-              onClick={nextTurn} // Skip buying
+              onClick={() => closeModal()}
               className="rounded-lg bg-gray-600 px-6 py-2 font-bold text-white hover:bg-gray-500"
             >
               취소
