@@ -1,191 +1,215 @@
 import { useBox } from '@react-three/cannon';
 import { useFrame } from '@react-three/fiber';
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import useGameStore from '../../store/useGameStore';
 
-const DICE_SIZE = 1;
+const DICE_SIZE = 1.3;
 
-// Face normals in local space for standard UV mapping usually:
-// This depends on how we envision the cube.
-// Let's define:
-// Up (0, 1, 0) -> 2
-// Down (0, -1, 0) -> 5
-// Right (1, 0, 0) -> 4
-// Left (-1, 0, 0) -> 3
-// Front (0, 0, 1) -> 1
-// Back (0, 0, -1) -> 6
-// We will check dot product of these local vectors rotated to world against WorldUp (0, 1, 0).
-// Simpler: Just rotate WorldUp into local space (inverse quat) and check which axis it aligns with.
-// That is equivalent.
+// Proper dice face detection based on which face is pointing up
+const getDiceValue = (mesh: THREE.Mesh): number => {
+  // Get the world up vector
+  const worldUp = new THREE.Vector3(0, 1, 0);
 
-const getDiceValue = (quaternion: THREE.Quaternion) => {
-    const up = new THREE.Vector3(0, 1, 0);
-    up.applyQuaternion(quaternion.clone().invert());
+  // Define face normals in local space and their corresponding values
+  const faces = [
+    { normal: new THREE.Vector3(0, 1, 0), value: 1 },   // Top = 1
+    { normal: new THREE.Vector3(0, -1, 0), value: 6 },  // Bottom = 6
+    { normal: new THREE.Vector3(1, 0, 0), value: 3 },   // Right = 3
+    { normal: new THREE.Vector3(-1, 0, 0), value: 4 },  // Left = 4
+    { normal: new THREE.Vector3(0, 0, 1), value: 2 },   // Front = 2
+    { normal: new THREE.Vector3(0, 0, -1), value: 5 },  // Back = 5
+  ];
 
-    // Now 'up' is the World Up vector represented in Local Space
-    // We want to see which local face normal is closest to this 'up' vector.
-    // Closest means max dot product.
-    // Or simply: check which component is max abs.
+  let maxDot = -Infinity;
+  let result = 1;
 
-    if (Math.abs(up.y) > 0.7) {
-        return up.y > 0 ? 2 : 5;
-    } else if (Math.abs(up.x) > 0.7) {
-        return up.x > 0 ? 4 : 3;
-    } else {
-        return up.z > 0 ? 1 : 6;
+  // Transform each face normal to world space and find which one points most upward
+  faces.forEach(face => {
+    const worldNormal = face.normal.clone().applyQuaternion(mesh.quaternion);
+    const dot = worldNormal.dot(worldUp);
+    if (dot > maxDot) {
+      maxDot = dot;
+      result = face.value;
     }
+  });
+
+  return result;
 };
 
-const SingleDice = forwardRef(({ position, onStop, color }: { position: [number, number, number], onStop: (val: number) => void, color: string }, ref) => {
-    const [meshRef, api] = useBox(() => ({
-        mass: 1,
-        position,
-        args: [DICE_SIZE, DICE_SIZE, DICE_SIZE],
-        material: { friction: 0.3, restitution: 0.5 }
-    }));
+// Dot pattern for each face value
+const DiceDots = ({ value, position, rotation }: { value: number; position: [number, number, number]; rotation: [number, number, number] }) => {
+  const dotSize = 0.12;
+  const offset = 0.32;
 
-    const velocity = useRef([0, 0, 0]);
-    const isRolling = useRef(false);
-    const stoppedDuration = useRef(0);
+  const dotPositions: Record<number, [number, number][]> = {
+    1: [[0, 0]],
+    2: [[-offset, -offset], [offset, offset]],
+    3: [[-offset, -offset], [0, 0], [offset, offset]],
+    4: [[-offset, -offset], [offset, -offset], [-offset, offset], [offset, offset]],
+    5: [[-offset, -offset], [offset, -offset], [0, 0], [-offset, offset], [offset, offset]],
+    6: [[-offset, -offset], [offset, -offset], [-offset, 0], [offset, 0], [-offset, offset], [offset, offset]],
+  };
 
-    useEffect(() => {
-        const unsub = api.velocity.subscribe((v) => (velocity.current = v));
-        return unsub;
-    }, [api.velocity]);
-
-    useImperativeHandle(ref, () => ({
-        throwDice: () => {
-            isRolling.current = true;
-            stoppedDuration.current = -20; // Give it time to start moving
-
-            // Reset position to high above
-            api.wakeUp();
-            api.position.set(position[0], 5 + Math.random(), position[2]);
-            api.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-            api.velocity.set(0, 0, 0);
-            api.angularVelocity.set(0, 0, 0);
-
-            // Apply random impulse and torque
-            const impulse = [
-                (Math.random() - 0.5) * 15,
-                -10,
-                (Math.random() - 0.5) * 15
-            ];
-            const torque = [
-                Math.random() * 20,
-                Math.random() * 20,
-                Math.random() * 20
-            ];
-
-            api.applyImpulse(impulse as [number, number, number], [0, 0, 0]);
-            api.applyTorque(torque as [number, number, number]);
-        }
-    }));
-
-    useFrame(() => {
-        if (!isRolling.current) return;
-
-        const v = velocity.current;
-        // Check if stopped (velocity near 0)
-        if (Math.abs(v[0]) < 0.1 && Math.abs(v[1]) < 0.1 && Math.abs(v[2]) < 0.1) {
-            stoppedDuration.current += 1;
-            // Confirm stop after ~0.5s (30 frames)
-            if (stoppedDuration.current > 30) {
-                isRolling.current = false;
-
-                if (meshRef.current) {
-                    const q = new THREE.Quaternion().copy(meshRef.current.quaternion);
-                    const val = getDiceValue(q);
-                    onStop(val);
-                }
-            }
-        } else {
-            stoppedDuration.current = 0;
-        }
-    });
-
-    return (
-        <mesh ref={meshRef} castShadow>
-            <boxGeometry args={[DICE_SIZE, DICE_SIZE, DICE_SIZE]} />
-            <meshStandardMaterial color={color} vertexColors={false} />
-            {/* Simple markers for faces */}
-            {/* 1 (Front) */}
-            <mesh position={[0, 0, 0.51]}>
-                <sphereGeometry args={[0.1]} />
-                <meshBasicMaterial color="black" />
-            </mesh>
-            {/* 6 (Back) - 6 dots? Just 1 for now or rely on user implementation of dots */}
-            <mesh position={[0, 0, -0.51]}>
-                <sphereGeometry args={[0.2]} /> {/* Differentiation by size for now */}
-                <meshBasicMaterial color="black" />
-            </mesh>
-            {/* 2 (Top) */}
-            <mesh position={[0, 0.51, 0]}>
-                <sphereGeometry args={[0.15]} />
-                <meshBasicMaterial color="blue" />
-            </mesh>
-            {/* 5 (Bottom) */}
-            <mesh position={[0, -0.51, 0]}>
-                <sphereGeometry args={[0.15]} />
-                <meshBasicMaterial color="red" />
-            </mesh>
-            {/* 4 (Right) */}
-            <mesh position={[0.51, 0, 0]}>
-                <sphereGeometry args={[0.12]} />
-                <meshBasicMaterial color="green" />
-            </mesh>
-            {/* 3 (Left) */}
-            <mesh position={[-0.51, 0, 0]}>
-                <sphereGeometry args={[0.12]} />
-                <meshBasicMaterial color="yellow" />
-            </mesh>
+  return (
+    <group position={position} rotation={rotation}>
+      {dotPositions[value]?.map((pos, i) => (
+        <mesh key={i} position={[pos[0], pos[1], 0]}>
+          <circleGeometry args={[dotSize, 16]} />
+          <meshBasicMaterial color="#1a1a1a" />
         </mesh>
-    );
+      ))}
+    </group>
+  );
+};
+
+const SingleDice = forwardRef<
+  { throwDice: () => void },
+  { position: [number, number, number]; onStop: (val: number) => void; color: string }
+>(({ position, onStop, color }, ref) => {
+  const [meshRef, api] = useBox<THREE.Mesh>(() => ({
+    mass: 1,
+    position,
+    args: [DICE_SIZE, DICE_SIZE, DICE_SIZE],
+    material: { friction: 0.4, restitution: 0.3 },
+  }));
+
+  const velocity = useRef([0, 0, 0]);
+  const angularVelocity = useRef([0, 0, 0]);
+  const isRolling = useRef(false);
+  const stoppedFrames = useRef(0);
+
+  useEffect(() => {
+    const unsubV = api.velocity.subscribe((v) => (velocity.current = v));
+    const unsubAV = api.angularVelocity.subscribe((av) => (angularVelocity.current = av));
+    return () => {
+      unsubV();
+      unsubAV();
+    };
+  }, [api]);
+
+  useImperativeHandle(ref, () => ({
+    throwDice: () => {
+      isRolling.current = true;
+      stoppedFrames.current = 0;
+
+      api.wakeUp();
+
+      // Random starting rotation
+      const randRotX = Math.random() * Math.PI * 2;
+      const randRotY = Math.random() * Math.PI * 2;
+      const randRotZ = Math.random() * Math.PI * 2;
+
+      api.position.set(
+        position[0] + (Math.random() - 0.5) * 2,
+        4 + Math.random() * 2,
+        position[2] + (Math.random() - 0.5) * 2
+      );
+      api.rotation.set(randRotX, randRotY, randRotZ);
+      api.velocity.set(0, 0, 0);
+      api.angularVelocity.set(0, 0, 0);
+
+      // Apply random impulse
+      setTimeout(() => {
+        const impulseX = (Math.random() - 0.5) * 8;
+        const impulseZ = (Math.random() - 0.5) * 8;
+        api.applyImpulse([impulseX, -5, impulseZ], [0, 0, 0]);
+
+        // Apply random torque for rotation
+        const torque: [number, number, number] = [
+          (Math.random() - 0.5) * 15,
+          (Math.random() - 0.5) * 15,
+          (Math.random() - 0.5) * 15,
+        ];
+        api.applyTorque(torque);
+      }, 50);
+    },
+  }));
+
+  useFrame(() => {
+    if (!isRolling.current || !meshRef.current) return;
+
+    const v = velocity.current;
+    const av = angularVelocity.current;
+
+    const speed = Math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2);
+    const angSpeed = Math.sqrt(av[0] ** 2 + av[1] ** 2 + av[2] ** 2);
+
+    // Check if dice has settled
+    if (speed < 0.05 && angSpeed < 0.1) {
+      stoppedFrames.current += 1;
+
+      // Wait for 45 frames (~0.75s at 60fps) to confirm stopped
+      if (stoppedFrames.current > 45) {
+        isRolling.current = false;
+        const value = getDiceValue(meshRef.current);
+        onStop(value);
+      }
+    } else {
+      stoppedFrames.current = 0;
+    }
+  });
+
+  const halfSize = DICE_SIZE / 2 + 0.001;
+
+  return (
+    <mesh ref={meshRef} castShadow receiveShadow>
+      <boxGeometry args={[DICE_SIZE, DICE_SIZE, DICE_SIZE]} />
+      <meshStandardMaterial color={color} roughness={0.3} metalness={0.1} />
+
+      {/* Dice dots on each face */}
+      <DiceDots value={1} position={[0, halfSize, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+      <DiceDots value={6} position={[0, -halfSize, 0]} rotation={[Math.PI / 2, 0, 0]} />
+      <DiceDots value={3} position={[halfSize, 0, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <DiceDots value={4} position={[-halfSize, 0, 0]} rotation={[0, -Math.PI / 2, 0]} />
+      <DiceDots value={2} position={[0, 0, halfSize]} rotation={[0, 0, 0]} />
+      <DiceDots value={5} position={[0, 0, -halfSize]} rotation={[0, Math.PI, 0]} />
+    </mesh>
+  );
 });
 
+SingleDice.displayName = 'SingleDice';
+
 const Dice = () => {
-    // Correct store usage
-    const setDiceValues = useGameStore(state => state.setDiceValues);
-    const rollTrigger = useGameStore(s => s.rollTrigger);
+  const setDiceValues = useGameStore((state) => state.setDiceValues);
+  const rollTrigger = useGameStore((state) => state.rollTrigger);
 
-    const dice1Ref = useRef<any>(null);
-    const dice2Ref = useRef<any>(null);
-    const results = useRef<[number | null, number | null]>([null, null]);
+  const dice1Ref = useRef<{ throwDice: () => void }>(null);
+  const dice2Ref = useRef<{ throwDice: () => void }>(null);
+  const results = useRef<[number | null, number | null]>([null, null]);
 
-    // Trigger effect
-    useEffect(() => {
-        if (rollTrigger > 0) {
-            results.current = [null, null];
-            dice1Ref.current?.throwDice();
-            dice2Ref.current?.throwDice();
-        }
-    }, [rollTrigger]);
+  useEffect(() => {
+    if (rollTrigger > 0) {
+      results.current = [null, null];
+      dice1Ref.current?.throwDice();
+      dice2Ref.current?.throwDice();
+    }
+  }, [rollTrigger]);
 
-    const handleStop = (index: 0 | 1, val: number) => {
-        results.current[index] = val;
-        // Check if both finished
-        if (results.current[0] !== null && results.current[1] !== null) {
-            setDiceValues([results.current[0]!, results.current[1]!]);
-        }
-    };
+  const handleStop = (index: 0 | 1, val: number) => {
+    results.current[index] = val;
+    if (results.current[0] !== null && results.current[1] !== null) {
+      setDiceValues([results.current[0], results.current[1]]);
+    }
+  };
 
-    return (
-        <group>
-            <SingleDice
-                ref={dice1Ref}
-                position={[-2, 5, 0]}
-                color="#ffffff"
-                onStop={(v) => handleStop(0, v)}
-            />
-            <SingleDice
-                ref={dice2Ref}
-                position={[2, 5, 0]}
-                color="#eeeeee"
-                onStop={(v) => handleStop(1, v)}
-            />
-        </group>
-    );
+  // Position dice at the center of the board
+  return (
+    <group position={[0, 0, 0]}>
+      <SingleDice
+        ref={dice1Ref}
+        position={[-1.8, 4, 0]}
+        color="#ffffff"
+        onStop={(v) => handleStop(0, v)}
+      />
+      <SingleDice
+        ref={dice2Ref}
+        position={[1.8, 4, 0]}
+        color="#fff5f5"
+        onStop={(v) => handleStop(1, v)}
+      />
+    </group>
+  );
 };
 
 export default Dice;
