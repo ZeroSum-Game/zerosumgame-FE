@@ -8,6 +8,12 @@ type LandState = {
   type: LandType;
 };
 
+type TileInfo = {
+  index: number;
+  name: string;
+  price?: number;
+};
+
 type GameState = {
   currentTurn: number;
   playerIndex: number;
@@ -19,6 +25,10 @@ type GameState = {
   cash: number;
   lands: Record<number, LandState>;
 
+  // Buy Modal
+  showBuyModal: boolean;
+  currentTileInfo: TileInfo | null;
+
   // Physics integration
   isRolling: boolean;
   rollTrigger: number;
@@ -27,6 +37,8 @@ type GameState = {
   movePlayer: (steps: number) => void;
   nextTurn: () => void;
   buyLand: (tileId: number, cost: number) => void;
+  setShowBuyModal: (show: boolean, tileInfo?: TileInfo) => void;
+  closeBuyModal: () => void;
 
   // Actions
   startRoll: () => void;
@@ -42,6 +54,10 @@ const useGameStore = create<GameState>((set, get) => ({
 
   cash: 3000000, // 300만원 시작
   lands: {},
+
+  // Buy Modal initial state
+  showBuyModal: false,
+  currentTileInfo: null,
 
   isRolling: false,
   rollTrigger: 0,
@@ -69,12 +85,28 @@ const useGameStore = create<GameState>((set, get) => ({
         lands: {
           ...lands,
           [tileId]: { owner: 'Player 1', type: 'LAND' }
-        }
+        },
+        showBuyModal: false,
+        currentTileInfo: null
       });
       console.log(`구입 완료: Tile ${tileId}, 잔액: ${cash - cost}`);
     } else {
       console.log('잔액 부족');
     }
+  },
+
+  setShowBuyModal: (show, tileInfo) => {
+    set({
+      showBuyModal: show,
+      currentTileInfo: tileInfo || null
+    });
+  },
+
+  closeBuyModal: () => {
+    set({
+      showBuyModal: false,
+      currentTileInfo: null
+    });
   },
 
   startRoll: () => {

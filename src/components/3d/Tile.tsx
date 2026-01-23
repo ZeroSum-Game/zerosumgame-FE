@@ -54,23 +54,22 @@ const Tile = ({ tile }: TileProps) => {
       <boxGeometry args={[1.4, 0.25, 1.4]} />
       <meshStandardMaterial
         color={tileColor}
+        roughness={0.3}
         metalness={0.1}
-        roughness={0.6}
-        emissive={isSelected ? '#2dd4bf' : '#000000'}
-        emissiveIntensity={isSelected ? 0.3 : 0}
+        emissive={tileColor}
+        emissiveIntensity={0.2}
       />
 
       {/* Tile Name Label */}
-      <Billboard position={[0, 0.51, 0]} follow={false}>
+      <Billboard position={[0, 0.6, 0]} follow={false}>
         <Text
-          rotation={[-Math.PI / 2, 0, 0]} // Lie flat on tile
-          fontSize={0.25}
+          rotation={[-Math.PI / 2, 0, 0]}
+          fontSize={0.35}
           color="white"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.03}
+          outlineWidth={0.05}
           outlineColor="#000000"
-          position={[0, 0, 0.3]} // Offset z so it's not buried
           renderOrder={1}
         >
           {tile.space.name}
@@ -78,8 +77,8 @@ const Tile = ({ tile }: TileProps) => {
         {typeof tile.space.price === 'number' && (
           <Text
             rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, 0, -0.3]}
-            fontSize={0.15}
+            position={[0, 0, 0.45]}
+            fontSize={0.2}
             color="#fbbf24"
             anchorX="center"
             anchorY="middle"

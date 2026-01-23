@@ -18,16 +18,16 @@ const App = () => {
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-gradient-to-br from-[#05050d] via-[#0c0f1f] to-[#1b1b2c]">
       <Canvas
-        camera={{ position: [0, 25, 20], fov: 50 }}
+        camera={{ position: [0, 40, 0], fov: 45 }}
         shadows
         gl={{ antialias: true }}
         className="h-full w-full"
       >
-        <fog attach="fog" args={['#05050d', 20, 60]} />
-        <ambientLight intensity={0.8} />
+        <fog attach="fog" args={['#05050d', 30, 80]} />
+        <ambientLight intensity={2.0} />
         <directionalLight
-          intensity={1.5}
-          position={[10, 20, 10]}
+          intensity={2.5}
+          position={[10, 20, 5]}
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
