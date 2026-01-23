@@ -17,11 +17,40 @@ type TileInfo = {
 // Character types
 export type CharacterType = 'ELON' | 'SAMSUNG' | 'TRUMP' | 'PUTIN';
 
-export const CHARACTER_INFO: Record<CharacterType, { name: string; color: string; emoji: string }> = {
-  ELON: { name: '일론 머스크', color: '#3b82f6', emoji: '🚀' },
-  SAMSUNG: { name: '이재용', color: '#1e40af', emoji: '📱' },
-  TRUMP: { name: '트럼프', color: '#ef4444', emoji: '🏛️' },
-  PUTIN: { name: '푸틴', color: '#dc2626', emoji: '🐻' },
+export type StockSymbol = 'SAMSUNG';
+
+export const CHARACTER_INFO: Record<
+  CharacterType,
+  { name: string; color: string; emoji: string; abilityShort: string; abilityDetail: string }
+> = {
+  ELON: {
+    name: '일론 머스크',
+    color: '#3b82f6',
+    emoji: '🚀',
+    abilityShort: '시작 자금 +₩1,000,000',
+    abilityDetail: '다른 플레이어보다 1,000,000원 더 많은 상태로 시작합니다.',
+  },
+  SAMSUNG: {
+    name: '이재용',
+    color: '#1e40af',
+    emoji: '📱',
+    abilityShort: '삼성전자 주식 보유로 시작',
+    abilityDetail: '게임 시작 시 삼성전자 주식 1주를 보유한 상태로 시작합니다.',
+  },
+  TRUMP: {
+    name: '트럼프',
+    color: '#ef4444',
+    emoji: '🏛️',
+    abilityShort: '내 땅 통행료 +5%',
+    abilityDetail: '본인이 소유한 지역의 통행료에 +5%를 추가로 부과합니다.',
+  },
+  PUTIN: {
+    name: '푸틴',
+    color: '#dc2626',
+    emoji: '🐻',
+    abilityShort: '전쟁 승리확률 +10%',
+    abilityDetail: '전쟁 이벤트 진행 시 승리 확률이 10% 증가합니다.',
+  },
 };
 
 // Player type
@@ -32,6 +61,9 @@ export type Player = {
   position: number;
   cash: number;
   isReady: boolean;
+  stockHoldings: Partial<Record<StockSymbol, number>>;
+  tollRateMultiplier: number;
+  warWinChanceBonus: number;
 };
 
 // Page type
@@ -105,6 +137,9 @@ const useGameStore = create<GameState>((set, get) => ({
       position: 0,
       cash: 3000000,
       isReady: false,
+      stockHoldings: {},
+      tollRateMultiplier: 1,
+      warWinChanceBonus: 0,
     };
     set({ players: [...players, newPlayer] });
   },
@@ -137,7 +172,8 @@ const useGameStore = create<GameState>((set, get) => ({
   },
 
   startGame: () => {
-    const { players } = get();
+    const { players, currentPage } = get();
+    if (currentPage === 'game') return;
     // Check all players are ready and have selected characters
     const allReady = players.every(p => p.isReady && p.character);
     if (!allReady || players.length < 2) return;
@@ -147,6 +183,22 @@ const useGameStore = create<GameState>((set, get) => ({
       currentTurn: 1,
       playerIndex: 0,
       currentPlayerIndex: 0,
+      players: players.map((p) => {
+        if (!p.character) return p;
+
+        switch (p.character) {
+          case 'ELON':
+            return { ...p, cash: p.cash + 1000000 };
+          case 'SAMSUNG':
+            return { ...p, stockHoldings: { ...p.stockHoldings, SAMSUNG: 1 } };
+          case 'TRUMP':
+            return { ...p, tollRateMultiplier: 1.05 };
+          case 'PUTIN':
+            return { ...p, warWinChanceBonus: 0.1 };
+          default:
+            return p;
+        }
+      }),
     });
   },
 

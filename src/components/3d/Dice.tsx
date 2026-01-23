@@ -1,6 +1,6 @@
-import { useBox } from '@react-three/cannon';
 import { useFrame } from '@react-three/fiber';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { useBox } from '@react-three/cannon';
+import { forwardRef, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import useGameStore from '../../store/useGameStore';
 
@@ -74,24 +74,19 @@ const SingleDice = forwardRef<
     material: { friction: 0.4, restitution: 0.3 },
   }));
 
-  const velocity = useRef([0, 0, 0]);
-  const angularVelocity = useRef([0, 0, 0]);
   const isRolling = useRef(false);
-  const stoppedFrames = useRef(0);
-
-  useEffect(() => {
-    const unsubV = api.velocity.subscribe((v) => (velocity.current = v));
-    const unsubAV = api.angularVelocity.subscribe((av) => (angularVelocity.current = av));
-    return () => {
-      unsubV();
-      unsubAV();
-    };
-  }, [api]);
+  const stableFrames = useRef(0);
+  const startedAtMs = useRef(0);
+  const lastPosition = useRef(new THREE.Vector3());
+  const lastQuaternion = useRef(new THREE.Quaternion());
+  const reportedStop = useRef(false);
 
   useImperativeHandle(ref, () => ({
     throwDice: () => {
       isRolling.current = true;
-      stoppedFrames.current = 0;
+      stableFrames.current = 0;
+      startedAtMs.current = Date.now();
+      reportedStop.current = false;
 
       api.wakeUp();
 
@@ -108,6 +103,11 @@ const SingleDice = forwardRef<
       api.rotation.set(randRotX, randRotY, randRotZ);
       api.velocity.set(0, 0, 0);
       api.angularVelocity.set(0, 0, 0);
+
+      if (meshRef.current) {
+        lastPosition.current.copy(meshRef.current.position);
+        lastQuaternion.current.copy(meshRef.current.quaternion);
+      }
 
       // Apply random impulse
       setTimeout(() => {
@@ -129,24 +129,35 @@ const SingleDice = forwardRef<
   useFrame(() => {
     if (!isRolling.current || !meshRef.current) return;
 
-    const v = velocity.current;
-    const av = angularVelocity.current;
+    const elapsedMs = Date.now() - startedAtMs.current;
+    // Give physics a moment to kick in before considering "stopped"
+    if (elapsedMs < 600) {
+      lastPosition.current.copy(meshRef.current.position);
+      lastQuaternion.current.copy(meshRef.current.quaternion);
+      stableFrames.current = 0;
+      return;
+    }
 
-    const speed = Math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2);
-    const angSpeed = Math.sqrt(av[0] ** 2 + av[1] ** 2 + av[2] ** 2);
+    const positionDelta = lastPosition.current.distanceTo(meshRef.current.position);
+    const quatDot = Math.abs(lastQuaternion.current.dot(meshRef.current.quaternion));
+    const rotationDelta = 1 - quatDot;
 
-    // Check if dice has settled
-    if (speed < 0.05 && angSpeed < 0.1) {
-      stoppedFrames.current += 1;
+    lastPosition.current.copy(meshRef.current.position);
+    lastQuaternion.current.copy(meshRef.current.quaternion);
 
-      // Wait for 45 frames (~0.75s at 60fps) to confirm stopped
-      if (stoppedFrames.current > 45) {
-        isRolling.current = false;
-        const value = getDiceValue(meshRef.current);
-        onStop(value);
-      }
+    // Consider "stable" when both movement and rotation changes are tiny.
+    if (positionDelta < 0.002 && rotationDelta < 0.002) {
+      stableFrames.current += 1;
     } else {
-      stoppedFrames.current = 0;
+      stableFrames.current = 0;
+    }
+
+    // Wait for 45 stable frames (~0.75s at 60fps) to confirm stopped.
+    if (!reportedStop.current && stableFrames.current > 45) {
+      reportedStop.current = true;
+      isRolling.current = false;
+      const value = getDiceValue(meshRef.current);
+      onStop(value);
     }
   });
 

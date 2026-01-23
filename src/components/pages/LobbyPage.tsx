@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useGameStore, { CHARACTER_INFO, CharacterType } from '../../store/useGameStore';
 
 const CHARACTERS: CharacterType[] = ['ELON', 'SAMSUNG', 'TRUMP', 'PUTIN'];
@@ -15,6 +15,18 @@ const LobbyPage = () => {
   } = useGameStore();
 
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [activePlayerId, setActivePlayerId] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Keep active player aligned to a non-ready player (if possible).
+    const activeStillValid = players.some((p) => p.id === activePlayerId && !p.isReady);
+    if (activeStillValid) return;
+
+    const firstNonReady = players.find((p) => !p.isReady);
+    setActivePlayerId(firstNonReady?.id ?? null);
+  }, [players, activePlayerId]);
+
+  const activePlayer = players.find((p) => p.id === activePlayerId) ?? null;
 
   const handleAddPlayer = () => {
     if (newPlayerName.trim().length < 2) return;
@@ -55,11 +67,19 @@ const LobbyPage = () => {
                 const info = CHARACTER_INFO[char];
                 const taken = isCharacterTaken(char);
                 const takenBy = players.find(p => p.character === char);
+                const canPick =
+                  !!activePlayer && !activePlayer.isReady && (!taken || takenBy?.id === activePlayer.id);
 
                 return (
-                  <div
+                  <button
                     key={char}
-                    className={`relative overflow-hidden rounded-xl border-2 p-4 transition ${
+                    type="button"
+                    onClick={() => {
+                      if (!activePlayer) return;
+                      selectCharacter(activePlayer.id, char);
+                    }}
+                    disabled={!canPick}
+                    className={`relative overflow-hidden rounded-xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
                       taken
                         ? 'border-green-500/50 bg-green-500/10'
                         : 'border-white/10 bg-white/5 hover:border-white/30'
@@ -75,6 +95,7 @@ const LobbyPage = () => {
 
                     {/* Character name */}
                     <h3 className="text-center text-lg font-bold text-white">{info.name}</h3>
+                    <p className="mt-1 text-center text-xs text-blue-200/80">{info.abilityShort}</p>
 
                     {/* Taken badge */}
                     {taken && takenBy && (
@@ -82,7 +103,12 @@ const LobbyPage = () => {
                         {takenBy.name} 선택
                       </div>
                     )}
-                  </div>
+                    {!taken && activePlayer && (
+                      <div className="mt-2 rounded-full bg-blue-500/20 px-3 py-1 text-center text-xs font-medium text-blue-200">
+                        {activePlayer.name} 선택
+                      </div>
+                    )}
+                  </button>
                 );
               })}
             </div>
@@ -123,8 +149,13 @@ const LobbyPage = () => {
                   className={`rounded-2xl border p-4 backdrop-blur-xl transition ${
                     player.isReady
                       ? 'border-green-500/50 bg-green-500/10'
+                      : activePlayerId === player.id
+                      ? 'border-blue-500/50 bg-blue-500/10 ring-2 ring-blue-400/30'
                       : 'border-white/10 bg-white/5'
                   }`}
+                  onClick={() => {
+                    if (!player.isReady) setActivePlayerId(player.id);
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -141,6 +172,11 @@ const LobbyPage = () => {
                             ? CHARACTER_INFO[player.character].name
                             : '캐릭터 미선택'}
                         </p>
+                        {player.character && (
+                          <p className="mt-1 text-xs text-blue-200/80">
+                            {CHARACTER_INFO[player.character].abilityShort}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -201,6 +237,23 @@ const LobbyPage = () => {
                           준비 완료
                         </button>
                       )}
+
+                      {player.character && (
+                        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-gray-200">
+                          {CHARACTER_INFO[player.character].abilityDetail}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {player.isReady && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => setPlayerReady(player.id, false)}
+                        className="w-full rounded-xl bg-white/10 py-2 font-bold text-white transition hover:bg-white/20"
+                      >
+                        준비 취소
+                      </button>
                     </div>
                   )}
                 </div>
