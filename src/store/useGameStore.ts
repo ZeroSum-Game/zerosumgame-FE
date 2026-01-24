@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { BOARD_DATA, TILE_COUNT, type Continent } from '../utils/boardUtils';
+import { formatKRWKo } from '../utils/formatKRW';
 
 export const GAME_RULES = {
   START_CASH: 2000000,
@@ -231,7 +232,7 @@ const getInitialAssetPrices = (): Record<StockSymbol, number> => ({
   GOLD: STOCK_INFO.GOLD.basePrice,
 });
 
-const formatMoney = (n: number) => `₩${Math.max(0, Math.round(n)).toLocaleString()}`;
+const formatMoney = formatKRWKo;
 
 const getPlayerById = (players: Player[], id: number) => players.find((p) => p.id === id) ?? null;
 

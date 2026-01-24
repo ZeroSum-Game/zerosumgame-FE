@@ -470,6 +470,138 @@
     color: rgba(148, 163, 184, 0.9);
   }
 
+  .dash-player-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .dash-player-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+    padding: 10px 12px;
+  }
+
+  .dash-player-accent {
+    position: absolute;
+    left: 4px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: 999px;
+    filter: blur(0px);
+    opacity: 0.95;
+    pointer-events: none;
+  }
+
+  .dash-player-active {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 22px 70px -70px rgba(0, 0, 0, 0.95);
+  }
+
+  .dash-player-bankrupt {
+    opacity: 0.72;
+  }
+
+  .dash-player-left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1 1 180px;
+  }
+
+  .dash-player-avatar {
+    height: 34px;
+    width: 34px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(0, 0, 0, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex: 0 0 auto;
+  }
+
+  .dash-player-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .dash-player-name {
+    font-weight: 900;
+    font-size: 12px;
+    color: rgba(241, 245, 249, 0.92);
+  }
+
+  .dash-player-badge {
+    flex: 0 0 auto;
+    height: 18px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(0, 0, 0, 0.20);
+    font-size: 11px;
+    font-weight: 800;
+    color: rgba(226, 232, 240, 0.9);
+    white-space: nowrap;
+  }
+
+  .dash-player-badge-dim {
+    color: rgba(148, 163, 184, 0.95);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .dash-player-sub {
+    margin-top: 3px;
+    font-size: 11px;
+    color: rgba(148, 163, 184, 0.78);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dash-player-right {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    text-align: right;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    padding-left: 44px;
+  }
+
+  .dash-player-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .dash-player-stat-label {
+    font-size: 11px;
+    color: rgba(148, 163, 184, 0.82);
+  }
+
+  .dash-player-stat-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    font-size: 12px;
+    color: rgba(241, 245, 249, 0.92);
+    white-space: nowrap;
+  }
+
   .board-ring {
     width: min(920px, 100%);
     aspect-ratio: 1 / 1;
@@ -519,6 +651,7 @@
     justify-content: space-between;
     gap: 8px;
     text-align: left;
+    overflow: hidden;
   }
 
   .asset-card-clickable {
@@ -558,6 +691,9 @@
     font-weight: 900;
     color: rgba(241, 245, 249, 0.92);
     letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .asset-card-meta {
@@ -600,6 +736,7 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 10px;
+    min-width: 0;
   }
 
   .asset-card-price {
@@ -607,12 +744,17 @@
     font-weight: 900;
     font-size: 12px;
     color: rgba(241, 245, 249, 0.92);
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .asset-card-change {
     font-variant-numeric: tabular-nums;
     font-weight: 900;
     font-size: 11px;
+    white-space: nowrap;
   }
 
   .turn-controls {

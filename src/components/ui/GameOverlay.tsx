@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useGameStore, { CHARACTER_INFO, STOCK_INFO, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
+import AssetDetailModal from '../game/AssetDetailModal';
 import BoardRing from '../game/BoardRing';
 import DiceRoller from '../game/DiceRoller';
 import GameLayout from '../game/GameLayout';
 import MarketPanel from '../game/MarketPanel';
 import PlayerPanel from '../game/PlayerPanel';
 import TurnControls from '../game/TurnControls';
+import { formatKRWKo } from '../../utils/formatKRW';
 
-const formatMoney = (n: number) => `₩${Math.max(0, Math.round(n)).toLocaleString()}`;
+const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'];
 
 const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
   const mult = landType === 'LANDMARK' ? 1.8 : 1.0;
   return Math.round(price * mult);
 };
+
+type PriceChange = { prev: number; current: number; delta: number; pct: number };
 
 const GameOverlay = () => {
   const players = useGameStore((state) => state.players);
@@ -42,9 +46,57 @@ const GameOverlay = () => {
 
   const currentPlayer = players[currentPlayerIndex] ?? null;
 
+  const [selectedAsset, setSelectedAsset] = useState<number | null>(null);
+
+  const prevAssetPricesRef = useRef(assetPrices);
+  const prevLandPricesRef = useRef(landPrices);
+  const [assetChange, setAssetChange] = useState<Partial<Record<StockSymbol, PriceChange>>>({});
+  const [landChange, setLandChange] = useState<Record<number, PriceChange>>({});
+
   const [tradeQty, setTradeQty] = useState(1);
   const [minigameSecret, setMinigameSecret] = useState<number | null>(null);
   const [minigameGuess, setMinigameGuess] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (activeModal) setSelectedAsset(null);
+  }, [activeModal]);
+
+  useEffect(() => {
+    if (selectedAsset === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedAsset(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedAsset]);
+
+  useEffect(() => {
+    const prev = prevAssetPricesRef.current;
+    const next: Partial<Record<StockSymbol, PriceChange>> = {};
+    STOCK_SYMBOLS.forEach((symbol) => {
+      const current = assetPrices[symbol];
+      const previous = prev[symbol] ?? current;
+      const delta = current - previous;
+      const pct = previous ? (delta / previous) * 100 : 0;
+      next[symbol] = { prev: previous, current, delta, pct };
+    });
+    setAssetChange(next);
+    prevAssetPricesRef.current = { ...assetPrices };
+  }, [assetPrices]);
+
+  useEffect(() => {
+    const prev = prevLandPricesRef.current;
+    const next: Record<number, PriceChange> = {};
+    Object.entries(landPrices).forEach(([id, price]) => {
+      const tileId = Number(id);
+      const previous = prev[tileId] ?? price;
+      const delta = price - previous;
+      const pct = previous ? (delta / previous) * 100 : 0;
+      next[tileId] = { prev: previous, current: price, delta, pct };
+    });
+    setLandChange(next);
+    prevLandPricesRef.current = { ...landPrices };
+  }, [landPrices]);
 
   useEffect(() => {
     if (!activeModal) return;
@@ -77,6 +129,10 @@ const GameOverlay = () => {
         left={<PlayerPanel />}
         center={
           <BoardRing
+            selectedAssetId={selectedAsset}
+            onSelectAsset={(tileId) => setSelectedAsset(tileId)}
+            assetChange={assetChange}
+            landChange={landChange}
             center={
               <div className="board-center">
                 <DiceRoller />
@@ -87,6 +143,15 @@ const GameOverlay = () => {
         }
         right={<MarketPanel />}
       />
+
+      {selectedAsset !== null && !activeModal && (
+        <AssetDetailModal
+          tileId={selectedAsset}
+          onClose={() => setSelectedAsset(null)}
+          assetChange={assetChange}
+          landChange={landChange}
+        />
+      )}
 
       {/* Modals */}
       {activeModal && (
@@ -119,9 +184,9 @@ const GameOverlay = () => {
                     </button>
                   </div>
 
-                    <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                      <p className="text-sm text-white/60">가격</p>
-                      <p className="mt-1 text-lg font-black text-white">{formatMoney(price)}</p>
+                  <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="text-sm text-white/60">가격</p>
+                      <p className="mt-1 text-lg font-black text-white">{formatKRWKo(price)}</p>
                     </div>
 
                   {space?.description && (
@@ -161,7 +226,7 @@ const GameOverlay = () => {
                   </div>
                   <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
                     <p className="text-sm text-white/60">건설 비용</p>
-                    <p className="mt-1 text-lg font-black text-white">{formatMoney(cost)}</p>
+                    <p className="mt-1 text-lg font-black text-white">{formatKRWKo(cost)}</p>
                   </div>
                   <div className="mt-6 flex gap-3">
                     <button onClick={buildLandmark} className="dash-action dash-action-primary flex-1">
@@ -196,12 +261,12 @@ const GameOverlay = () => {
                   <div className="mt-5 grid gap-3">
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
                       <p className="text-sm text-white/60">통행료</p>
-                      <p className="mt-1 text-lg font-black text-white">{formatMoney(activeModal.toll)}</p>
+                      <p className="mt-1 text-lg font-black text-white">{formatKRWKo(activeModal.toll)}</p>
                     </div>
                     {takeoverPrice && (
                       <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
                         <p className="text-sm text-white/60">인수 제안가 (150%)</p>
-                        <p className="mt-1 text-lg font-black text-white">{formatMoney(takeoverPrice)}</p>
+                        <p className="mt-1 text-lg font-black text-white">{formatKRWKo(takeoverPrice)}</p>
                         <p className="mt-1 text-xs text-white/50">랜드마크가 없을 때만 인수 가능합니다.</p>
                       </div>
                     )}
@@ -237,7 +302,7 @@ const GameOverlay = () => {
                       <h2 className="text-xl font-black text-white">🤝 인수 제안</h2>
                       <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
                       <p className="mt-2 text-sm text-white/70">
-                        {buyer?.name ?? '—'} → {owner?.name ?? '—'} {formatMoney(activeModal.price)}
+                        {buyer?.name ?? '—'} → {owner?.name ?? '—'} {formatKRWKo(activeModal.price)}
                       </p>
                     </div>
                   </div>
@@ -295,7 +360,7 @@ const GameOverlay = () => {
                   <div className="mt-5 space-y-3">
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
                       <p className="text-sm text-white/60">현재 시세</p>
-                      <p className="mt-1 text-lg font-black text-white">{formatMoney(currentPrice)}</p>
+                      <p className="mt-1 text-lg font-black text-white">{formatKRWKo(currentPrice)}</p>
                     </div>
 
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
@@ -323,7 +388,7 @@ const GameOverlay = () => {
                         </button>
                       </div>
                       <p className="mt-2 text-sm text-white/60">
-                        총액: <span className="font-black text-white">{formatMoney(totalCost)}</span>
+                        총액: <span className="font-black text-white">{formatKRWKo(totalCost)}</span>
                       </p>
                     </div>
                   </div>
@@ -370,7 +435,7 @@ const GameOverlay = () => {
 
                   <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
                     <p className="text-sm text-white/60">성공 보상</p>
-                    <p className="mt-1 text-lg font-black text-white">{formatMoney(salary)}</p>
+                    <p className="mt-1 text-lg font-black text-white">{formatKRWKo(salary)}</p>
                   </div>
 
                   <div className="mt-5 grid grid-cols-6 gap-2">
@@ -442,7 +507,7 @@ const GameOverlay = () => {
                 </div>
                 <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
                   <p className="text-sm text-white/60">납부 금액</p>
-                  <p className="mt-1 text-lg font-black text-white">{formatMoney(activeModal.due)}</p>
+                  <p className="mt-1 text-lg font-black text-white">{formatKRWKo(activeModal.due)}</p>
                 </div>
                 <div className="mt-6 flex gap-3">
                   <button onClick={confirmTax} className="dash-action dash-action-danger flex-1">

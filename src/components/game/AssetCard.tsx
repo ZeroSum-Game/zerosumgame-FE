@@ -1,25 +1,15 @@
-import type { ReactNode } from 'react';
-
-const formatKRWCompact = (n: number) => {
-  const v = Math.max(0, Math.round(n));
-  if (v >= 1_000_000_000) return `₩${(v / 1_000_000_000).toFixed(2)}B`;
-  if (v >= 1_000_000) return `₩${(v / 1_000_000).toFixed(2)}M`;
-  if (v >= 1_000) return `₩${(v / 1_000).toFixed(2)}K`;
-  return `₩${v.toLocaleString()}`;
-};
+import { formatKRW, formatKRWKoShort } from '../../utils/formatKRW';
 
 type Props = {
   name: string;
-  meta?: string;
   price: number | null;
   changePct: number | null;
   active?: boolean;
   selected?: boolean;
-  corner?: ReactNode;
   onClick?: () => void;
 };
 
-const AssetCard = ({ name, meta, price, changePct, active, selected, corner, onClick }: Props) => {
+const AssetCard = ({ name, price, changePct, active, selected, onClick }: Props) => {
   const isUp = typeof changePct === 'number' && changePct > 0;
   const isDown = typeof changePct === 'number' && changePct < 0;
 
@@ -37,17 +27,14 @@ const AssetCard = ({ name, meta, price, changePct, active, selected, corner, onC
 
   const body = (
     <>
-      <div className="asset-card-top">
-        <div className="min-w-0">
-          <div className="asset-card-name truncate">{name}</div>
-          <div className="asset-card-meta truncate">{meta ?? '—'}</div>
-        </div>
-        {corner && <div className="asset-card-corner">{corner}</div>}
+      <div className="asset-card-name" title={name}>
+        {name}
       </div>
-
       <div className="asset-card-bottom">
-        <div className="asset-card-price">{price === null ? '—' : formatKRWCompact(price)}</div>
-        <div className={`asset-card-change ${isUp ? 'dash-up' : isDown ? 'dash-down' : 'dash-flat'}`}>
+        <div className="asset-card-price" title={price === null ? '—' : formatKRW(price)}>
+          {price === null ? '—' : formatKRWKoShort(price)}
+        </div>
+        <div className={`asset-card-change ${isUp ? 'dash-up' : isDown ? 'dash-down' : 'dash-flat'}`} title={changeLabel}>
           {changeLabel}
         </div>
       </div>

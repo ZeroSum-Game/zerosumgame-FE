@@ -45,15 +45,14 @@ const DiceRoller = () => {
   }, [dice, ghost]);
 
   return (
-    <div className={`dice-roller ${isRolling ? 'dice-roller-rolling' : ''}`} aria-label="Dice">
+    <div className={`dice-roller ${isRolling ? 'dice-roller-rolling' : ''}`} aria-label="주사위">
       <div className="dice-row">
         <DiceFace value={shown[0] ?? null} />
         <DiceFace value={shown[1] ?? null} />
       </div>
-      <div className="dice-meta">{isRolling ? 'Rolling…' : ' '}</div>
+      <div className="dice-meta">{isRolling ? '굴리는 중…' : ' '}</div>
     </div>
   );
 };
 
 export default DiceRoller;
-

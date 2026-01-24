@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import useGameStore, { STOCK_INFO, TILE_TO_STOCK, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import AssetCard from './AssetCard';
 
-const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'];
+const STOCK_LABEL: Record<StockSymbol, string> = {
+  SAMSUNG: '삼성',
+  SK_HYNIX: '하이닉스',
+  HYUNDAI: '현대차',
+  BITCOIN: '비트코인',
+  GOLD: '금',
+};
 
-const pctChange = (prev: number, current: number) => {
-  if (!prev) return 0;
-  return ((current - prev) / prev) * 100;
+const TILE_LABEL: Partial<Record<number, string>> = {
+  7: '한국', // 대한민국
+  27: '아르헨', // 아르헨티나
 };
 
 const getGridPosition = (tileId: number) => {
@@ -20,54 +26,20 @@ const getGridPosition = (tileId: number) => {
 
 type Props = {
   center?: ReactNode;
+  selectedAssetId: number | null;
+  onSelectAsset: (tileId: number) => void;
+  assetChange: Partial<Record<StockSymbol, { pct: number }>>;
+  landChange: Record<number, { pct: number }>;
 };
 
-const BoardRing = ({ center }: Props) => {
+const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landChange }: Props) => {
   const assetPrices = useGameStore((s) => s.assetPrices);
   const landPrices = useGameStore((s) => s.landPrices);
-  const lands = useGameStore((s) => s.lands);
   const players = useGameStore((s) => s.players);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
-  const selectedTile = useGameStore((s) => s.selectedTile);
-  const selectTile = useGameStore((s) => s.selectTile);
 
   const currentPlayer = players[currentPlayerIndex] ?? null;
   const activeTileId = currentPlayer?.position ?? null;
-
-  const prevAssetPricesRef = useRef(assetPrices);
-  const prevLandPricesRef = useRef(landPrices);
-  const [assetChanges, setAssetChanges] = useState<Record<StockSymbol, number>>({} as Record<StockSymbol, number>);
-  const [landChanges, setLandChanges] = useState<Record<number, number>>({});
-
-  useEffect(() => {
-    const nextAssetChanges: Record<StockSymbol, number> = {} as Record<StockSymbol, number>;
-    STOCK_SYMBOLS.forEach((symbol) => {
-      nextAssetChanges[symbol] = pctChange(prevAssetPricesRef.current[symbol], assetPrices[symbol]);
-    });
-    setAssetChanges(nextAssetChanges);
-    prevAssetPricesRef.current = { ...assetPrices };
-  }, [assetPrices]);
-
-  useEffect(() => {
-    const nextLandChanges: Record<number, number> = {};
-    Object.entries(landPrices).forEach(([id, price]) => {
-      const tileId = Number(id);
-      const prev = prevLandPricesRef.current[tileId];
-      nextLandChanges[tileId] = prev ? pctChange(prev, price) : 0;
-    });
-    setLandChanges(nextLandChanges);
-    prevLandPricesRef.current = { ...landPrices };
-  }, [landPrices]);
-
-  const playersByTile = useMemo(() => {
-    const map = new Map<number, number[]>();
-    players.forEach((p) => {
-      const arr = map.get(p.position) ?? [];
-      arr.push(p.id);
-      map.set(p.position, arr);
-    });
-    return map;
-  }, [players]);
 
   return (
     <div className="board-ring">
@@ -76,12 +48,7 @@ const BoardRing = ({ center }: Props) => {
           const { row, col } = getGridPosition(space.id);
 
           const isActive = activeTileId === space.id;
-          const isSelected = selectedTile === space.id;
-
-          const land = lands[space.id];
-          const owner = land ? players.find((p) => p.id === land.ownerId) ?? null : null;
-
-          const playerIdsHere = playersByTile.get(space.id) ?? [];
+          const isSelected = selectedAssetId === space.id;
           const symbol = space.type === 'STOCK' ? TILE_TO_STOCK[space.id] : undefined;
 
           const price =
@@ -93,34 +60,10 @@ const BoardRing = ({ center }: Props) => {
 
           const changePct =
             space.type === 'COUNTRY'
-              ? landChanges[space.id] ?? 0
+              ? landChange[space.id]?.pct ?? 0
               : symbol
-              ? assetChanges[symbol] ?? 0
+              ? assetChange[symbol]?.pct ?? 0
               : null;
-
-          const meta =
-            space.type === 'STOCK' && symbol
-              ? STOCK_INFO[symbol].nameKr
-              : space.type === 'COUNTRY'
-              ? space.continent ?? 'COUNTRY'
-              : space.type;
-
-          const corner = (
-            <div className="asset-card-corner-stack">
-              {owner?.character && (
-                <span
-                  className="asset-card-dot"
-                  title={`Owner: ${owner.name}`}
-                  style={{ backgroundColor: 'rgba(241, 245, 249, 0.78)' }}
-                />
-              )}
-              {playerIdsHere.length > 0 && (
-                <span className="asset-card-count" title={`${playerIdsHere.length} player(s) here`}>
-                  {playerIdsHere.length}
-                </span>
-              )}
-            </div>
-          );
 
           return (
             <div
@@ -129,14 +72,16 @@ const BoardRing = ({ center }: Props) => {
               style={{ gridRow: row, gridColumn: col }}
             >
               <AssetCard
-                name={space.type === 'STOCK' && symbol ? STOCK_INFO[symbol].name : space.name}
-                meta={meta}
+                name={
+                  space.type === 'STOCK' && symbol
+                    ? STOCK_LABEL[symbol] ?? STOCK_INFO[symbol].nameKr
+                    : TILE_LABEL[space.id] ?? space.name
+                }
                 price={typeof price === 'number' ? price : null}
                 changePct={typeof changePct === 'number' ? changePct : null}
                 active={isActive}
                 selected={isSelected}
-                corner={corner}
-                onClick={() => selectTile(space.id)}
+                onClick={() => onSelectAsset(space.id)}
               />
             </div>
           );
