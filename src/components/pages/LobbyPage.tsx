@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import useGameStore, { CHARACTER_INFO, CharacterType } from '../../store/useGameStore';
 
 const CHARACTERS: CharacterType[] = ['ELON', 'SAMSUNG', 'TRUMP', 'PUTIN'];
+const PLAYER_SLOT_BADGE_CLASSES = [
+  'border-sky-400/30 bg-sky-500/[0.14] text-sky-50',
+  'border-red-400/30 bg-red-500/[0.14] text-red-50',
+  'border-emerald-400/30 bg-emerald-500/[0.14] text-emerald-50',
+  'border-amber-300/30 bg-amber-400/[0.14] text-amber-50',
+] as const;
 
 const LobbyPage = () => {
   const {
@@ -160,7 +166,9 @@ const LobbyPage = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       {/* Player order */}
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-lg font-bold text-white">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg font-bold ${PLAYER_SLOT_BADGE_CLASSES[index % PLAYER_SLOT_BADGE_CLASSES.length]}`}
+                      >
                         {index + 1}
                       </div>
 

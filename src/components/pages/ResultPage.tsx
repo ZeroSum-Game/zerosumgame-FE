@@ -1,6 +1,12 @@
 import useGameStore, { CHARACTER_INFO } from '../../store/useGameStore';
 
 const formatMoney = (n: number) => `₩${Math.max(0, Math.round(n)).toLocaleString()}`;
+const PLAYER_SLOT_ICON_CLASSES = [
+  'border-sky-400/30 bg-sky-500/[0.14]',
+  'border-red-400/30 bg-red-500/[0.14]',
+  'border-emerald-400/30 bg-emerald-500/[0.14]',
+  'border-amber-300/30 bg-amber-400/[0.14]',
+] as const;
 
 const ResultPage = () => {
   const gameResult = useGameStore((state) => state.gameResult);
@@ -52,6 +58,8 @@ const ResultPage = () => {
               {ranking.map((r, idx) => {
                 const p = players.find((x) => x.id === r.playerId) ?? null;
                 const isWinner = r.playerId === winnerId;
+                const slotIndex = players.findIndex((x) => x.id === r.playerId);
+                const iconClass = PLAYER_SLOT_ICON_CLASSES[(slotIndex === -1 ? 0 : slotIndex) % PLAYER_SLOT_ICON_CLASSES.length];
                 return (
                   <div
                     key={r.playerId}
@@ -64,8 +72,7 @@ const ResultPage = () => {
                         {idx + 1}
                       </div>
                       <div
-                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-xl"
-                        style={{ backgroundColor: p?.character ? CHARACTER_INFO[p.character].color + '26' : 'rgba(255,255,255,0.06)' }}
+                        className={`flex h-10 w-10 items-center justify-center rounded-xl border text-xl ${iconClass}`}
                       >
                         {p?.character ? CHARACTER_INFO[p.character].emoji : '🙂'}
                       </div>
@@ -102,4 +109,3 @@ const ResultPage = () => {
 };
 
 export default ResultPage;
-
