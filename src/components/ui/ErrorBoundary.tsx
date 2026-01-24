@@ -24,8 +24,13 @@ class ErrorBoundary extends React.Component<Props, State> {
     if (!this.state.error) return this.props.children;
 
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
-        <div className="mx-auto max-w-3xl rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+      <div className="ui-page p-6">
+        <div className="ui-bg-blobs" aria-hidden="true">
+          <div className="ui-blob -left-24 -top-24 bg-red-500/10" />
+          <div className="ui-blob -right-28 -bottom-28 bg-amber-400/10" />
+        </div>
+
+        <div className="ui-card relative z-10 mx-auto max-w-3xl">
           <h1 className="text-xl font-bold">앱 오류가 발생했어요</h1>
           <p className="mt-2 text-sm text-white/70">
             아래 에러 메시지를 복사해서 보내주면 원인 바로 잡을게요.
@@ -35,7 +40,7 @@ class ErrorBoundary extends React.Component<Props, State> {
           </pre>
           <button
             type="button"
-            className="mt-4 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20"
+            className="ui-btn ui-btn-secondary mt-4 px-4 py-2 text-sm font-semibold"
             onClick={() => window.location.reload()}
           >
             새로고침
@@ -47,4 +52,3 @@ class ErrorBoundary extends React.Component<Props, State> {
 }
 
 export default ErrorBoundary;
-

@@ -1,41 +1,10 @@
 import { useFrame } from '@react-three/fiber';
 import { useBox } from '@react-three/cannon';
-import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import useGameStore from '../../store/useGameStore';
 
 const DICE_SIZE = 1.3;
-
-// Proper dice face detection based on which face is pointing up
-const getDiceValue = (mesh: THREE.Mesh): number => {
-  // Get the world up vector
-  const worldUp = new THREE.Vector3(0, 1, 0);
-
-  // Define face normals in local space and their corresponding values
-  const faces = [
-    { normal: new THREE.Vector3(0, 1, 0), value: 1 },   // Top = 1
-    { normal: new THREE.Vector3(0, -1, 0), value: 6 },  // Bottom = 6
-    { normal: new THREE.Vector3(1, 0, 0), value: 3 },   // Right = 3
-    { normal: new THREE.Vector3(-1, 0, 0), value: 4 },  // Left = 4
-    { normal: new THREE.Vector3(0, 0, 1), value: 2 },   // Front = 2
-    { normal: new THREE.Vector3(0, 0, -1), value: 5 },  // Back = 5
-  ];
-
-  let maxDot = -Infinity;
-  let result = 1;
-
-  // Transform each face normal to world space and find which one points most upward
-  faces.forEach(face => {
-    const worldNormal = face.normal.clone().applyQuaternion(mesh.quaternion);
-    const dot = worldNormal.dot(worldUp);
-    if (dot > maxDot) {
-      maxDot = dot;
-      result = face.value;
-    }
-  });
-
-  return result;
-};
 
 // Dot pattern for each face value
 const DiceDots = ({ value, position, rotation }: { value: number; position: [number, number, number]; rotation: [number, number, number] }) => {
@@ -63,6 +32,34 @@ const DiceDots = ({ value, position, rotation }: { value: number; position: [num
   );
 };
 
+// Calculate dice value from quaternion
+const getDiceValueFromQuaternion = (quat: THREE.Quaternion): number => {
+  const worldUp = new THREE.Vector3(0, 1, 0);
+
+  const faces = [
+    { normal: new THREE.Vector3(0, 1, 0), value: 1 },   // Top = 1
+    { normal: new THREE.Vector3(0, -1, 0), value: 6 },  // Bottom = 6
+    { normal: new THREE.Vector3(1, 0, 0), value: 3 },   // Right = 3
+    { normal: new THREE.Vector3(-1, 0, 0), value: 4 },  // Left = 4
+    { normal: new THREE.Vector3(0, 0, 1), value: 2 },   // Front = 2
+    { normal: new THREE.Vector3(0, 0, -1), value: 5 },  // Back = 5
+  ];
+
+  let maxDot = -Infinity;
+  let result = 1;
+
+  faces.forEach(face => {
+    const worldNormal = face.normal.clone().applyQuaternion(quat);
+    const dot = worldNormal.dot(worldUp);
+    if (dot > maxDot) {
+      maxDot = dot;
+      result = face.value;
+    }
+  });
+
+  return result;
+};
+
 const SingleDice = forwardRef<
   { throwDice: () => void },
   { position: [number, number, number]; onStop: (val: number) => void; color: string }
@@ -74,19 +71,37 @@ const SingleDice = forwardRef<
     material: { friction: 0.4, restitution: 0.3 },
   }));
 
+  const velocity = useRef<[number, number, number]>([0, 0, 0]);
+  const angularVelocity = useRef<[number, number, number]>([0, 0, 0]);
+  const rotation = useRef<[number, number, number]>([0, 0, 0]);
   const isRolling = useRef(false);
-  const stableFrames = useRef(0);
+  const stoppedFrames = useRef(0);
   const startedAtMs = useRef(0);
-  const lastPosition = useRef(new THREE.Vector3());
-  const lastQuaternion = useRef(new THREE.Quaternion());
   const reportedStop = useRef(false);
+  const hasMoved = useRef(false);
+
+  useEffect(() => {
+    const unsubV = api.velocity.subscribe((v) => (velocity.current = v as [number, number, number]));
+    const unsubAV = api.angularVelocity.subscribe(
+      (av) => (angularVelocity.current = av as [number, number, number])
+    );
+    const unsubRot = api.rotation.subscribe(
+      (r) => (rotation.current = r as [number, number, number])
+    );
+    return () => {
+      unsubV();
+      unsubAV();
+      unsubRot();
+    };
+  }, [api]);
 
   useImperativeHandle(ref, () => ({
     throwDice: () => {
       isRolling.current = true;
-      stableFrames.current = 0;
+      stoppedFrames.current = 0;
       startedAtMs.current = Date.now();
       reportedStop.current = false;
+      hasMoved.current = false;
 
       api.wakeUp();
 
@@ -103,11 +118,6 @@ const SingleDice = forwardRef<
       api.rotation.set(randRotX, randRotY, randRotZ);
       api.velocity.set(0, 0, 0);
       api.angularVelocity.set(0, 0, 0);
-
-      if (meshRef.current) {
-        lastPosition.current.copy(meshRef.current.position);
-        lastQuaternion.current.copy(meshRef.current.quaternion);
-      }
 
       // Apply random impulse
       setTimeout(() => {
@@ -130,33 +140,42 @@ const SingleDice = forwardRef<
     if (!isRolling.current || !meshRef.current) return;
 
     const elapsedMs = Date.now() - startedAtMs.current;
-    // Give physics a moment to kick in before considering "stopped"
-    if (elapsedMs < 600) {
-      lastPosition.current.copy(meshRef.current.position);
-      lastQuaternion.current.copy(meshRef.current.quaternion);
-      stableFrames.current = 0;
-      return;
-    }
+    const v = velocity.current;
+    const av = angularVelocity.current;
 
-    const positionDelta = lastPosition.current.distanceTo(meshRef.current.position);
-    const quatDot = Math.abs(lastQuaternion.current.dot(meshRef.current.quaternion));
-    const rotationDelta = 1 - quatDot;
+    const speed = Math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2);
+    const angSpeed = Math.sqrt(av[0] ** 2 + av[1] ** 2 + av[2] ** 2);
 
-    lastPosition.current.copy(meshRef.current.position);
-    lastQuaternion.current.copy(meshRef.current.quaternion);
+    if (speed > 0.2 || angSpeed > 0.2) hasMoved.current = true;
 
-    // Consider "stable" when both movement and rotation changes are tiny.
-    if (positionDelta < 0.002 && rotationDelta < 0.002) {
-      stableFrames.current += 1;
+    // Give physics a moment to kick in (prevents instantly "stopped" at 1,1)
+    if (elapsedMs < 600 || !hasMoved.current) return;
+
+    // Check if dice has settled
+    if (speed < 0.05 && angSpeed < 0.1) {
+      stoppedFrames.current += 1;
     } else {
-      stableFrames.current = 0;
+      stoppedFrames.current = 0;
     }
 
-    // Wait for 45 stable frames (~0.75s at 60fps) to confirm stopped.
-    if (!reportedStop.current && stableFrames.current > 45) {
+    // Wait for 45 frames (~0.75s at 60fps) to confirm stopped.
+    if (!reportedStop.current && stoppedFrames.current > 45) {
       reportedStop.current = true;
       isRolling.current = false;
-      const value = getDiceValue(meshRef.current);
+      // Use rotation from physics engine directly
+      const euler = new THREE.Euler(rotation.current[0], rotation.current[1], rotation.current[2], 'XYZ');
+      const quat = new THREE.Quaternion().setFromEuler(euler);
+      const value = getDiceValueFromQuaternion(quat);
+      onStop(value);
+    }
+
+    // Safety net: if something prevents sleeping, still report after a while.
+    if (!reportedStop.current && elapsedMs > 12000) {
+      reportedStop.current = true;
+      isRolling.current = false;
+      const euler = new THREE.Euler(rotation.current[0], rotation.current[1], rotation.current[2], 'XYZ');
+      const quat = new THREE.Quaternion().setFromEuler(euler);
+      const value = getDiceValueFromQuaternion(quat);
       onStop(value);
     }
   });

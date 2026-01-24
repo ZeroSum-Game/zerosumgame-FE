@@ -14,11 +14,11 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      {/* Background effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
+    <div className="ui-page flex items-center justify-center">
+      <div className="ui-bg-blobs" aria-hidden="true">
+        <div className="ui-blob -left-24 -top-24 bg-sky-500/20" />
+        <div className="ui-blob -bottom-28 -right-28 bg-fuchsia-500/20" />
+        <div className="ui-blob left-1/2 top-1/3 -translate-x-1/2 bg-indigo-500/10" />
       </div>
 
       <div className="relative z-10 w-full max-w-md px-6">
@@ -29,11 +29,11 @@ const LoginPage = () => {
               ZERO SUM
             </span>
           </h1>
-          <p className="text-lg text-blue-300">부자가 되는 보드게임</p>
+          <p className="text-lg text-white/70">부자가 되는 보드게임</p>
         </div>
 
         {/* Login Card */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl">
+        <div className="ui-card-lg">
           <h2 className="mb-6 text-center text-2xl font-bold text-white">게임 입장</h2>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -47,7 +47,7 @@ const LoginPage = () => {
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="이름을 입력하세요"
                 maxLength={10}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                className="ui-input"
               />
               <p className="mt-2 text-xs text-gray-500">2~10자 이내로 입력해주세요</p>
             </div>
@@ -55,7 +55,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={playerName.trim().length < 2}
-              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-4 text-lg font-bold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-500 hover:to-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ui-btn ui-btn-primary w-full py-4 text-lg font-bold"
             >
               입장하기
             </button>
@@ -71,7 +71,7 @@ const LoginPage = () => {
           {['🚀', '📱', '🏛️', '🐻'].map((emoji, i) => (
             <div
               key={i}
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-2xl backdrop-blur transition hover:scale-110 hover:bg-white/20"
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-2xl shadow-lg shadow-black/40 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10"
             >
               {emoji}
             </div>

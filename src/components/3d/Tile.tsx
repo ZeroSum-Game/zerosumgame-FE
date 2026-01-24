@@ -1,6 +1,6 @@
 import { Html, RoundedBox } from '@react-three/drei';
 import { useMemo, useState } from 'react';
-import useGameStore from '../../store/useGameStore';
+import useGameStore, { CHARACTER_INFO } from '../../store/useGameStore';
 import { BoardTile } from '../../utils/boardUtils';
 
 type TileProps = {
@@ -12,8 +12,11 @@ const Tile = ({ tile }: TileProps) => {
   const selectedTile = useGameStore((state) => state.selectedTile);
   const selectTile = useGameStore((state) => state.selectTile);
   const lands = useGameStore((state) => state.lands);
+  const landPrices = useGameStore((state) => state.landPrices);
+  const players = useGameStore((state) => state.players);
   const isSelected = selectedTile === tile.id;
   const landInfo = lands[tile.id];
+  const landOwner = landInfo ? players.find((p) => p.id === landInfo.ownerId) ?? null : null;
 
   // Continent color bands
   const continentColor = useMemo(() => {
@@ -30,21 +33,25 @@ const Tile = ({ tile }: TileProps) => {
   // Base tile color
   const baseColor = useMemo(() => {
     switch (tile.space.type) {
-      case 'START': return '#10b981';
-      case 'ISLAND': return '#0ea5e9';
-      case 'STOCK': return '#f43f5e';
-      case 'KEY': return '#eab308';
-      case 'COUNTRY': return '#f1f5f9';
-      case 'MINIGAME': return '#a855f7';
-      case 'TAX': return '#64748b';
+      case 'START': return '#7dd3fc';
+      case 'ISLAND': return '#93c5fd';
+      case 'STOCK': return '#fca5a5';
+      case 'KEY': return '#fde68a';
+      case 'COUNTRY': return '#f8fafc';
+      case 'MINIGAME': return '#d8b4fe';
+      case 'TAX': return '#cbd5e1';
       default: return '#e2e8f0';
     }
   }, [tile.space.type]);
 
   // Icon based on type
   const tileIcon = useMemo(() => {
+    if (tile.space.name === '전쟁') return '⚔️';
+    if (tile.space.name === '올림픽') return '🏅';
+    if (tile.space.name === '월드컵') return '🏆';
+    if (tile.space.name === '우주여행') return '🏆';
     switch (tile.space.type) {
-      case 'START': return '🚀';
+      case 'START': return '🏁';
       case 'ISLAND': return '🏝️';
       case 'STOCK': return '📈';
       case 'KEY': return '🔑';
@@ -110,11 +117,13 @@ const Tile = ({ tile }: TileProps) => {
             <>
               <mesh position={[0, 0.15, 0]} castShadow>
                 <boxGeometry args={[0.35, 0.25, 0.35]} />
-                <meshStandardMaterial color={landInfo.owner === 'Player 1' ? '#3b82f6' : '#ef4444'} />
+                <meshStandardMaterial color={landOwner?.character ? CHARACTER_INFO[landOwner.character].color : '#38bdf8'} />
               </mesh>
               <mesh position={[0, 0.35, 0]} castShadow>
                 <coneGeometry args={[0.28, 0.2, 4]} />
-                <meshStandardMaterial color={landInfo.owner === 'Player 1' ? '#1d4ed8' : '#dc2626'} />
+                <meshStandardMaterial
+                  color={landOwner?.character ? CHARACTER_INFO[landOwner.character].color : '#0ea5e9'}
+                />
               </mesh>
             </>
           ) : (
@@ -122,17 +131,17 @@ const Tile = ({ tile }: TileProps) => {
             <>
               <mesh position={[0, 0.25, 0]} castShadow>
                 <boxGeometry args={[0.4, 0.45, 0.4]} />
-                <meshStandardMaterial color={landInfo.owner === 'Player 1' ? '#1d4ed8' : '#dc2626'} />
+                <meshStandardMaterial color={landOwner?.character ? CHARACTER_INFO[landOwner.character].color : '#0ea5e9'} />
               </mesh>
               <mesh position={[0, 0.6, 0]} castShadow>
                 <boxGeometry args={[0.3, 0.35, 0.3]} />
-                <meshStandardMaterial color={landInfo.owner === 'Player 1' ? '#3b82f6' : '#ef4444'} />
+                <meshStandardMaterial color="#ffffff" />
               </mesh>
               <mesh position={[0, 0.9, 0]} castShadow>
                 <coneGeometry args={[0.22, 0.35, 4]} />
                 <meshStandardMaterial
-                  color={landInfo.owner === 'Player 1' ? '#60a5fa' : '#f87171'}
-                  emissive={landInfo.owner === 'Player 1' ? '#3b82f6' : '#ef4444'}
+                  color="#fbbf24"
+                  emissive={landOwner?.character ? CHARACTER_INFO[landOwner.character].color : '#38bdf8'}
                   emissiveIntensity={0.3}
                 />
               </mesh>
@@ -152,14 +161,14 @@ const Tile = ({ tile }: TileProps) => {
         <div className="flex flex-col items-center whitespace-nowrap text-center">
           {tileIcon && <span className="text-base">{tileIcon}</span>}
           <span
-            className="rounded bg-black/60 px-1.5 py-0.5 text-[11px] font-bold text-white"
+            className="ui-chip"
             style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
           >
             {tile.space.name}
           </span>
-          {tile.space.price && (
+          {tile.space.type === 'COUNTRY' && (
             <span className="mt-0.5 text-[10px] font-semibold text-yellow-400 drop-shadow">
-              ₩{(tile.space.price / 10000).toFixed(0)}만
+              ₩{(((landPrices[tile.id] ?? tile.space.price ?? 0) as number) / 10000).toFixed(0)}만
             </span>
           )}
         </div>

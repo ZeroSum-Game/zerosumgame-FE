@@ -43,23 +43,23 @@ const LobbyPage = () => {
   const canStartGame = players.length >= 2 && players.every(p => p.isReady && p.character);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6">
-      {/* Background effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -left-40 top-1/4 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute -right-40 bottom-1/4 h-96 w-96 rounded-full bg-purple-500/10 blur-3xl" />
+    <div className="ui-page p-6">
+      <div className="ui-bg-blobs" aria-hidden="true">
+        <div className="ui-blob -left-40 top-1/4 bg-sky-500/10" />
+        <div className="ui-blob -right-40 bottom-1/4 bg-fuchsia-500/10" />
+        <div className="ui-blob left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-indigo-500/10" />
       </div>
 
       <div className="relative z-10 mx-auto max-w-6xl">
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="mb-2 text-4xl font-black text-white">캐릭터 선택</h1>
-          <p className="text-blue-300">플레이어: {players.length} / {maxPlayers}</p>
+          <p className="text-white/70">플레이어: {players.length} / {maxPlayers}</p>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Left: Character Selection */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+          <div className="ui-card">
             <h2 className="mb-6 text-xl font-bold text-white">캐릭터 목록</h2>
 
             <div className="grid grid-cols-2 gap-4">
@@ -79,32 +79,32 @@ const LobbyPage = () => {
                       selectCharacter(activePlayer.id, char);
                     }}
                     disabled={!canPick}
-                    className={`relative overflow-hidden rounded-xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    className={`relative overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-60 ${
                       taken
-                        ? 'border-green-500/50 bg-green-500/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/30'
+                        ? 'border-emerald-400/40 bg-emerald-400/[0.08]'
+                        : 'border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]'
                     }`}
                   >
                     {/* Character emoji */}
                     <div
-                      className="mb-3 flex h-20 w-20 items-center justify-center rounded-full text-4xl mx-auto"
-                      style={{ backgroundColor: info.color + '30' }}
+                      className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 text-4xl shadow-lg shadow-black/40"
+                      style={{ backgroundColor: info.color + '24' }}
                     >
                       {info.emoji}
                     </div>
 
                     {/* Character name */}
                     <h3 className="text-center text-lg font-bold text-white">{info.name}</h3>
-                    <p className="mt-1 text-center text-xs text-blue-200/80">{info.abilityShort}</p>
+                    <p className="mt-1 text-center text-xs text-white/70">{info.abilityShort}</p>
 
                     {/* Taken badge */}
                     {taken && takenBy && (
-                      <div className="mt-2 rounded-full bg-green-500/20 px-3 py-1 text-center text-xs font-medium text-green-400">
+                      <div className="ui-badge ui-badge-success mt-2 w-full justify-center">
                         {takenBy.name} 선택
                       </div>
                     )}
                     {!taken && activePlayer && (
-                      <div className="mt-2 rounded-full bg-blue-500/20 px-3 py-1 text-center text-xs font-medium text-blue-200">
+                      <div className="ui-badge mt-2 w-full justify-center border-sky-400/20 bg-sky-500/[0.12] text-sky-100">
                         {activePlayer.name} 선택
                       </div>
                     )}
@@ -118,7 +118,7 @@ const LobbyPage = () => {
           <div className="space-y-6">
             {/* Add Player */}
             {players.length < maxPlayers && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+              <div className="ui-card">
                 <h2 className="mb-4 text-xl font-bold text-white">플레이어 추가</h2>
                 <div className="flex gap-3">
                   <input
@@ -127,13 +127,13 @@ const LobbyPage = () => {
                     onChange={(e) => setNewPlayerName(e.target.value)}
                     placeholder="플레이어 이름"
                     maxLength={10}
-                    className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition focus:border-blue-500"
+                    className="ui-input flex-1"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
                   />
                   <button
                     onClick={handleAddPlayer}
                     disabled={newPlayerName.trim().length < 2}
-                    className="rounded-xl bg-blue-600 px-6 py-3 font-bold text-white transition hover:bg-blue-500 disabled:opacity-50"
+                    className="ui-btn ui-btn-primary px-6 font-bold"
                   >
                     추가
                   </button>
@@ -146,12 +146,12 @@ const LobbyPage = () => {
               {players.map((player, index) => (
                 <div
                   key={player.id}
-                  className={`rounded-2xl border p-4 backdrop-blur-xl transition ${
+                  className={`ui-card-sm transition ${
                     player.isReady
-                      ? 'border-green-500/50 bg-green-500/10'
+                      ? 'border-emerald-400/40 bg-emerald-500/[0.10]'
                       : activePlayerId === player.id
-                      ? 'border-blue-500/50 bg-blue-500/10 ring-2 ring-blue-400/30'
-                      : 'border-white/10 bg-white/5'
+                      ? 'border-sky-400/40 bg-sky-500/[0.10] ring-2 ring-sky-400/20'
+                      : 'cursor-pointer hover:border-white/20'
                   }`}
                   onClick={() => {
                     if (!player.isReady) setActivePlayerId(player.id);
@@ -183,15 +183,19 @@ const LobbyPage = () => {
                     <div className="flex items-center gap-2">
                       {/* Ready badge */}
                       {player.isReady && (
-                        <span className="rounded-full bg-green-500/20 px-3 py-1 text-xs font-medium text-green-400">
+                        <span className="ui-badge ui-badge-success">
                           준비완료
                         </span>
                       )}
 
                       {/* Remove button */}
                       <button
-                        onClick={() => removePlayer(player.id)}
-                        className="rounded-lg bg-red-500/20 p-2 text-red-400 transition hover:bg-red-500/30"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removePlayer(player.id);
+                        }}
+                        className="ui-icon-btn border-red-400/20 bg-red-500/[0.12] text-red-200 hover:bg-red-500/[0.18]"
+                        aria-label="플레이어 제거"
                       >
                         ✕
                       </button>
@@ -213,12 +217,12 @@ const LobbyPage = () => {
                               key={char}
                               onClick={() => selectCharacter(player.id, char)}
                               disabled={taken && !isSelected}
-                              className={`flex h-12 w-12 items-center justify-center rounded-xl text-xl transition ${
+                              className={`flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 text-xl transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/20 ${
                                 isSelected
-                                  ? 'bg-blue-600 ring-2 ring-blue-400'
+                                  ? 'bg-sky-500/25 ring-2 ring-sky-400/25'
                                   : taken
-                                  ? 'cursor-not-allowed bg-white/5 opacity-30'
-                                  : 'bg-white/10 hover:bg-white/20'
+                                  ? 'cursor-not-allowed bg-white/[0.04] opacity-30'
+                                  : 'bg-white/[0.06] hover:bg-white/[0.10]'
                               }`}
                               title={info.name}
                             >
@@ -231,15 +235,18 @@ const LobbyPage = () => {
                       {/* Ready button */}
                       {player.character && (
                         <button
-                          onClick={() => setPlayerReady(player.id, true)}
-                          className="mt-4 w-full rounded-xl bg-green-600 py-2 font-bold text-white transition hover:bg-green-500"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPlayerReady(player.id, true);
+                          }}
+                          className="ui-btn ui-btn-success mt-4 w-full py-2 font-bold"
                         >
                           준비 완료
                         </button>
                       )}
 
                       {player.character && (
-                        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-gray-200">
+                        <div className="mt-3 rounded-xl border border-white/10 bg-black/[0.25] px-4 py-3 text-xs text-white/80 backdrop-blur">
                           {CHARACTER_INFO[player.character].abilityDetail}
                         </div>
                       )}
@@ -249,8 +256,11 @@ const LobbyPage = () => {
                   {player.isReady && (
                     <div className="mt-4">
                       <button
-                        onClick={() => setPlayerReady(player.id, false)}
-                        className="w-full rounded-xl bg-white/10 py-2 font-bold text-white transition hover:bg-white/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPlayerReady(player.id, false);
+                        }}
+                        className="ui-btn ui-btn-secondary w-full py-2 font-bold"
                       >
                         준비 취소
                       </button>
@@ -274,10 +284,10 @@ const LobbyPage = () => {
             <button
               onClick={startGame}
               disabled={!canStartGame}
-              className={`w-full rounded-2xl py-4 text-xl font-black transition ${
+              className={`ui-btn w-full rounded-2xl py-4 text-xl font-black transition ${
                 canStartGame
-                  ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-black shadow-lg shadow-yellow-500/25 hover:from-yellow-400 hover:to-amber-400'
-                  : 'cursor-not-allowed bg-white/10 text-gray-500'
+                  ? 'ui-btn-cta'
+                  : 'cursor-not-allowed border border-white/10 bg-white/[0.06] text-white/40'
               }`}
             >
               {players.length < 2

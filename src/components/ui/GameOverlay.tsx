@@ -1,191 +1,529 @@
-import useGameStore, { CHARACTER_INFO } from '../../store/useGameStore';
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import useGameStore, { CHARACTER_INFO, STOCK_INFO, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
+import BoardRing from '../game/BoardRing';
+import DiceRoller from '../game/DiceRoller';
+import GameLayout from '../game/GameLayout';
+import MarketPanel from '../game/MarketPanel';
+import PlayerPanel from '../game/PlayerPanel';
+import TurnControls from '../game/TurnControls';
 
-// Stock data
-const STOCK_DATA = [
-  { name: 'SAMSUNG', nameKr: '삼성전자', basePrice: 72500, change: 2.3 },
-  { name: 'SK HYNIX', nameKr: 'SK하이닉스', basePrice: 178000, change: -1.2 },
-  { name: 'HYUNDAI', nameKr: '현대차', basePrice: 215000, change: 0.8 },
-  { name: 'BITCOIN', nameKr: '비트코인', basePrice: 95450000, change: 5.4 },
-  { name: 'GOLD', nameKr: '금', basePrice: 285000, change: -0.3 },
-];
+const formatMoney = (n: number) => `₩${Math.max(0, Math.round(n)).toLocaleString()}`;
 
-const StockPanel = () => {
-  const [prices, setPrices] = useState(STOCK_DATA.map(s => s.basePrice));
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPrices(prev => prev.map((p, i) => {
-        const fluctuation = (Math.random() - 0.5) * STOCK_DATA[i].basePrice * 0.002;
-        return Math.round(p + fluctuation);
-      }));
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="pointer-events-auto w-72 rounded-xl border border-white/20 bg-black/70 p-4 shadow-xl backdrop-blur">
-      <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2">
-        <h2 className="bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-sm font-bold text-transparent">
-          STOCK MARKET
-        </h2>
-        <span className="animate-pulse text-[10px] text-green-400">● LIVE</span>
-      </div>
-      <div className="space-y-2">
-        {STOCK_DATA.map((stock, i) => (
-          <div key={stock.name} className="flex items-center justify-between text-xs">
-            <div className="flex flex-col">
-              <span className="font-semibold text-white">{stock.name}</span>
-              <span className="text-[10px] text-gray-500">{stock.nameKr}</span>
-            </div>
-            <div className="text-right">
-              <div className="font-mono text-gray-200">
-                {prices[i] >= 1000000
-                  ? `${(prices[i] / 10000).toLocaleString()}만`
-                  : prices[i].toLocaleString()
-                }
-              </div>
-              <div className={`text-[10px] font-bold ${stock.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {stock.change >= 0 ? '▲' : '▼'} {Math.abs(stock.change)}%
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
+  const mult = landType === 'LANDMARK' ? 1.8 : 1.0;
+  return Math.round(price * mult);
 };
 
 const GameOverlay = () => {
-  const {
-    currentTurn, playerIndex, nextTurn, dice, isDouble, startRoll, isRolling,
-    buyLand, showBuyModal, closeModal, currentTileInfo,
-    players, currentPlayerIndex
-  } = useGameStore();
+  const players = useGameStore((state) => state.players);
+  const currentPlayerIndex = useGameStore((state) => state.currentPlayerIndex);
 
-  const currentPlayer = players[currentPlayerIndex];
-  const displayTileName = currentTileInfo?.name || BOARD_DATA[playerIndex]?.name || "기본 땅";
-  const displayPrice = currentTileInfo?.price || 500000;
+  const lands = useGameStore((state) => state.lands);
+  const landPrices = useGameStore((state) => state.landPrices);
+  const assetPrices = useGameStore((state) => state.assetPrices);
+
+  const activeModal = useGameStore((state) => state.activeModal);
+  const closeModal = useGameStore((state) => state.closeModal);
+  const queuedModal = useGameStore((state) => state.queuedModal);
+
+  const buyLand = useGameStore((state) => state.buyLand);
+  const buildLandmark = useGameStore((state) => state.buildLandmark);
+  const payTollOrPropose = useGameStore((state) => state.payTollOrPropose);
+  const respondTakeover = useGameStore((state) => state.respondTakeover);
+
+  const setTradeSymbol = useGameStore((state) => state.setTradeSymbol);
+  const buyAsset = useGameStore((state) => state.buyAsset);
+  const sellAsset = useGameStore((state) => state.sellAsset);
+
+  const completeMinigame = useGameStore((state) => state.completeMinigame);
+  const confirmTax = useGameStore((state) => state.confirmTax);
+  const chooseWarTarget = useGameStore((state) => state.chooseWarTarget);
+
+  const currentPlayer = players[currentPlayerIndex] ?? null;
+
+  const [tradeQty, setTradeQty] = useState(1);
+  const [minigameSecret, setMinigameSecret] = useState<number | null>(null);
+  const [minigameGuess, setMinigameGuess] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!activeModal) return;
+    if (activeModal.type === 'ASSET_TRADE') setTradeQty(1);
+    if (activeModal.type === 'MINIGAME') {
+      setMinigameSecret(Math.floor(Math.random() * 6) + 1);
+      setMinigameGuess(null);
+    }
+  }, [activeModal]);
+
+  const canDismiss = useMemo(() => {
+    if (!activeModal) return false;
+    return ['INFO', 'GOLDEN_KEY', 'WAR_RESULT', 'ASSET_TRADE', 'LAND_BUY', 'LAND_UPGRADE', 'MINIGAME'].includes(
+      activeModal.type
+    );
+  }, [activeModal]);
+
+  useEffect(() => {
+    if (!activeModal || !canDismiss) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeModal, canDismiss, closeModal]);
 
   return (
-    <div className="pointer-events-none absolute inset-0 flex flex-col p-4 text-sm text-white">
-      {/* Top row: Game info left, Stock panel right */}
-      <div className="flex justify-between">
-        {/* Left: Game Status */}
-        <div className="pointer-events-auto w-72 space-y-3 rounded-xl border border-white/20 bg-black/70 p-4 shadow-xl backdrop-blur">
-          {/* Current Player */}
-          <div className="flex items-center gap-3 border-b border-white/10 pb-3">
-            {currentPlayer?.character && (
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
-                style={{ backgroundColor: CHARACTER_INFO[currentPlayer.character].color + '40' }}
-              >
-                {CHARACTER_INFO[currentPlayer.character].emoji}
+    <div className="dash-page">
+      <GameLayout
+        left={<PlayerPanel />}
+        center={
+          <BoardRing
+            center={
+              <div className="board-center">
+                <DiceRoller />
+                <TurnControls />
               </div>
+            }
+          />
+        }
+        right={<MarketPanel />}
+      />
+
+      {/* Modals */}
+      {activeModal && (
+        <>
+          <button
+            type="button"
+            className="ui-modal-backdrop"
+            onClick={() => {
+              if (!canDismiss) return;
+              closeModal();
+            }}
+            aria-label="모달 닫기"
+          />
+
+          <div role="dialog" aria-modal="true" className="ui-modal" onClick={(e) => e.stopPropagation()}>
+            {/* LAND BUY */}
+            {activeModal.type === 'LAND_BUY' && (() => {
+              const tileId = activeModal.tileId;
+              const space = BOARD_DATA[tileId];
+              const price = landPrices[tileId] ?? space?.price ?? 0;
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">🏠 토지 구매</h2>
+                      <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
+                      ✕
+                    </button>
+                  </div>
+
+                    <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-sm text-white/60">가격</p>
+                      <p className="mt-1 text-lg font-black text-white">{formatMoney(price)}</p>
+                    </div>
+
+                  {space?.description && (
+                    <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-sm text-white/60">설명</p>
+                      <p className="mt-1 text-sm font-medium leading-relaxed text-white/80">{space.description}</p>
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex gap-3">
+                    <button onClick={buyLand} className="dash-action dash-action-success flex-1">
+                      구매하기
+                    </button>
+                    <button onClick={closeModal} className="dash-action dash-action-secondary flex-1">
+                      취소
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* LAND UPGRADE */}
+            {activeModal.type === 'LAND_UPGRADE' && (() => {
+              const tileId = activeModal.tileId;
+              const space = BOARD_DATA[tileId];
+              const cost = landPrices[tileId] ?? space?.price ?? 0;
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">🏙️ 랜드마크 건설</h2>
+                      <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
+                      ✕
+                    </button>
+                  </div>
+                  <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="text-sm text-white/60">건설 비용</p>
+                    <p className="mt-1 text-lg font-black text-white">{formatMoney(cost)}</p>
+                  </div>
+                  <div className="mt-6 flex gap-3">
+                    <button onClick={buildLandmark} className="dash-action dash-action-primary flex-1">
+                      건설하기
+                    </button>
+                    <button onClick={closeModal} className="dash-action dash-action-secondary flex-1">
+                      나중에
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* LAND VISIT */}
+            {activeModal.type === 'LAND_VISIT' && (() => {
+              const tileId = activeModal.tileId;
+              const space = BOARD_DATA[tileId];
+              const owner = players.find((p) => p.id === activeModal.ownerId) ?? null;
+              const takeoverPrice = activeModal.takeoverPrice;
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">🧾 통행료</h2>
+                      <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
+                      <p className="mt-1 text-sm text-white/70">
+                        소유자: {owner?.character ? CHARACTER_INFO[owner.character].emoji : '🙂'} {owner?.name ?? '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-sm text-white/60">통행료</p>
+                      <p className="mt-1 text-lg font-black text-white">{formatMoney(activeModal.toll)}</p>
+                    </div>
+                    {takeoverPrice && (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                        <p className="text-sm text-white/60">인수 제안가 (150%)</p>
+                        <p className="mt-1 text-lg font-black text-white">{formatMoney(takeoverPrice)}</p>
+                        <p className="mt-1 text-xs text-white/50">랜드마크가 없을 때만 인수 가능합니다.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex gap-3">
+                    {takeoverPrice && (
+                      <button
+                        onClick={() => payTollOrPropose('PROPOSE')}
+                        className="dash-action dash-action-primary flex-1"
+                      >
+                        인수 제안
+                      </button>
+                    )}
+                    <button onClick={() => payTollOrPropose('PAY')} className="dash-action dash-action-danger flex-1">
+                      통행료 지불
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* TAKEOVER RESPONSE */}
+            {activeModal.type === 'LAND_TAKEOVER_RESPONSE' && (() => {
+              const tileId = activeModal.tileId;
+              const space = BOARD_DATA[tileId];
+              const owner = players.find((p) => p.id === activeModal.ownerId) ?? null;
+              const buyer = players.find((p) => p.id === activeModal.buyerId) ?? null;
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">🤝 인수 제안</h2>
+                      <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
+                      <p className="mt-2 text-sm text-white/70">
+                        {buyer?.name ?? '—'} → {owner?.name ?? '—'} {formatMoney(activeModal.price)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex gap-3">
+                    <button onClick={() => respondTakeover(true)} className="dash-action dash-action-success flex-1">
+                      수락
+                    </button>
+                    <button onClick={() => respondTakeover(false)} className="dash-action dash-action-secondary flex-1">
+                      거절 (통행료)
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* ASSET TRADE */}
+            {activeModal.type === 'ASSET_TRADE' && (() => {
+              const symbol = activeModal.symbol;
+              const info = STOCK_INFO[symbol];
+              const currentPrice = assetPrices[symbol];
+              const holding = currentPlayer?.stockHoldings[symbol] ?? 0;
+              const totalCost = currentPrice * tradeQty;
+              const canBuyNow = (currentPlayer?.cash ?? 0) >= totalCost;
+              const canSellNow = holding >= tradeQty;
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">📈 자산 거래</h2>
+                      <p className="mt-1 text-2xl font-black text-white">{info.nameKr}</p>
+                      <p className="text-sm text-white/60">{info.name}</p>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
+                      ✕
+                    </button>
+                  </div>
+
+                  {activeModal.allowedSymbols.length > 1 && (
+                    <div className="mt-4 flex gap-2">
+                      {activeModal.allowedSymbols.map((sym) => (
+                        <button
+                          key={sym}
+                          type="button"
+                          onClick={() => setTradeSymbol(sym)}
+                          className={`dash-action ${
+                            sym === symbol ? 'dash-action-primary' : 'dash-action-secondary'
+                          }`}
+                        >
+                          {STOCK_INFO[sym].nameKr}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-5 space-y-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-sm text-white/60">현재 시세</p>
+                      <p className="mt-1 text-lg font-black text-white">{formatMoney(currentPrice)}</p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-sm text-white/60">보유 수량</p>
+                      <p className="mt-1 text-lg font-black text-white">{holding}개</p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="mb-2 text-sm text-white/60">거래 수량</p>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          className="dash-action dash-action-secondary h-10 w-10 p-0 text-lg font-black"
+                          onClick={() => setTradeQty(Math.max(1, tradeQty - 1))}
+                        >
+                          -
+                        </button>
+                        <span className="min-w-[60px] text-center text-xl font-black text-white">{tradeQty}개</span>
+                        <button
+                          type="button"
+                          className="dash-action dash-action-secondary h-10 w-10 p-0 text-lg font-black"
+                          onClick={() => setTradeQty(tradeQty + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <p className="mt-2 text-sm text-white/60">
+                        총액: <span className="font-black text-white">{formatMoney(totalCost)}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex gap-3">
+                    <button
+                      onClick={() => buyAsset(tradeQty)}
+                      className={`dash-action flex-1 ${canBuyNow ? 'dash-action-success' : 'dash-action-secondary'}`}
+                      disabled={!canBuyNow}
+                    >
+                      매수
+                    </button>
+                    <button
+                      onClick={() => sellAsset(tradeQty)}
+                      className={`dash-action flex-1 ${canSellNow ? 'dash-action-danger' : 'dash-action-secondary'}`}
+                      disabled={!canSellNow}
+                    >
+                      매도
+                    </button>
+                    <button onClick={closeModal} className="dash-action dash-action-secondary flex-1">
+                      닫기
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* MINIGAME */}
+            {activeModal.type === 'MINIGAME' && (() => {
+              const salary = activeModal.salary;
+              const secret = minigameSecret ?? 1;
+              const guessed = minigameGuess;
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">🎮 미니게임</h2>
+                      <p className="mt-1 text-sm text-white/70">숫자 맞추기! 1~6 중 하나를 선택하세요.</p>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="text-sm text-white/60">성공 보상</p>
+                    <p className="mt-1 text-lg font-black text-white">{formatMoney(salary)}</p>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-6 gap-2">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`dash-action w-full p-0 text-lg font-black ${
+                          guessed === i + 1 ? 'dash-action-primary' : 'dash-action-secondary'
+                        }`}
+                        onClick={() => setMinigameGuess(i + 1)}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 flex gap-3">
+                    <button
+                      type="button"
+                      className="dash-action dash-action-success flex-1"
+                      disabled={!minigameGuess}
+                      onClick={() => {
+                        const guess = minigameGuess ?? 1;
+                        completeMinigame(guess === secret);
+                      }}
+                    >
+                      선택 완료
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* GOLDEN KEY */}
+            {activeModal.type === 'GOLDEN_KEY' && (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">🔑 황금열쇠</h2>
+                    <p className="mt-1 text-2xl font-black text-white">{activeModal.title}</p>
+                  </div>
+                  <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
+                    ✕
+                  </button>
+                </div>
+                <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-sm text-white/70">{activeModal.description}</p>
+                  {queuedModal?.type === 'WAR_SELECT' && (
+                    <p className="mt-2 text-xs text-white/70">확인 후 전쟁 선포를 진행할 수 있어요.</p>
+                  )}
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <button onClick={closeModal} className="dash-action dash-action-primary flex-1">
+                    확인
+                  </button>
+                </div>
+              </>
             )}
-            <div>
-              <p className="text-xs text-white/50">현재 턴</p>
-              <p className="text-lg font-bold">{currentPlayer?.name || 'Player'}</p>
-            </div>
-          </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-widest text-white/50">턴</span>
-            <span className="text-xl font-bold">{currentTurn}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-widest text-white/50">자산</span>
-            <span className="text-lg font-bold text-emerald-400">₩{(currentPlayer?.cash || 0).toLocaleString()}</span>
-          </div>
-          <div className="border-t border-white/10 pt-2">
-            <span className="text-[10px] uppercase tracking-widest text-white/50">현재 위치</span>
-            <p className="text-base font-semibold">{BOARD_DATA[playerIndex]?.name}</p>
-          </div>
-          <div className="flex items-center gap-2 border-t border-white/10 pt-2">
-            <span className="text-[10px] uppercase tracking-widest text-white/50">주사위</span>
-            <span className="text-lg">🎲 {dice[0]}</span>
-            <span className="text-lg">🎲 {dice[1]}</span>
-            {isDouble && <span className="rounded bg-yellow-500/30 px-1.5 py-0.5 text-[10px] font-bold text-yellow-300">더블!</span>}
-          </div>
-        </div>
+            {/* TAX */}
+            {activeModal.type === 'TAX' && (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">🏛️ 국세청</h2>
+                    <p className="mt-1 text-sm text-white/70">총 자산의 15%를 납부합니다. 현금이 부족하면 강제 매각됩니다.</p>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-sm text-white/60">납부 금액</p>
+                  <p className="mt-1 text-lg font-black text-white">{formatMoney(activeModal.due)}</p>
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <button onClick={confirmTax} className="dash-action dash-action-danger flex-1">
+                    납부
+                  </button>
+                </div>
+              </>
+            )}
 
-        {/* Right: Stock Panel */}
-        <StockPanel />
-      </div>
+            {/* WAR SELECT */}
+            {activeModal.type === 'WAR_SELECT' && (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">⚔️ 전쟁 선포</h2>
+                    <p className="mt-1 text-sm text-white/70">공격 대상을 선택하세요.</p>
+                    {activeModal.byCard && <p className="mt-1 text-xs text-white/70">황금열쇠 전쟁: 승률 +5%</p>}
+                  </div>
+                </div>
+                <div className="mt-5 space-y-2">
+                  {players
+                    .filter((p) => !p.isBankrupt && p.id !== currentPlayer?.id)
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="dash-action dash-action-secondary w-full justify-between px-4 py-3 text-left font-black"
+                        onClick={() => chooseWarTarget(p.id)}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-lg">{p.character ? CHARACTER_INFO[p.character].emoji : '🙂'}</span>
+                          {p.name}
+                        </span>
+                        <span className="text-xs text-white/50">선택</span>
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
 
-      {/* Player List - Bottom Left */}
-      <div className="pointer-events-auto mt-4 w-72 rounded-xl border border-white/20 bg-black/70 p-3 shadow-xl backdrop-blur">
-        <p className="mb-2 text-[10px] uppercase tracking-widest text-white/50">플레이어</p>
-        <div className="space-y-2">
-          {players.map((player, idx) => (
-            <div
-              key={player.id}
-              className={`flex items-center gap-2 rounded-lg p-2 ${
-                idx === currentPlayerIndex ? 'bg-white/10 ring-1 ring-yellow-500/50' : ''
-              }`}
-            >
-              {player.character && (
-                <span className="text-lg">{CHARACTER_INFO[player.character].emoji}</span>
-              )}
-              <div className="flex-1">
-                <p className="text-sm font-medium">{player.name}</p>
-                <p className="text-xs text-emerald-400">₩{player.cash.toLocaleString()}</p>
-              </div>
-              {idx === currentPlayerIndex && (
-                <span className="text-[10px] text-yellow-400">▶</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+            {/* WAR RESULT */}
+            {activeModal.type === 'WAR_RESULT' && (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">📣 {activeModal.title}</h2>
+                    <p className="mt-2 text-sm text-white/70">{activeModal.description}</p>
+                  </div>
+                  <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
+                    ✕
+                  </button>
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <button onClick={closeModal} className="dash-action dash-action-primary flex-1">
+                    확인
+                  </button>
+                </div>
+              </>
+            )}
 
-      {/* Bottom: Action buttons */}
-      <div className="mt-auto flex justify-center gap-3">
-        <button
-          className={`pointer-events-auto rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold uppercase tracking-wide transition ${
-            isDouble
-              ? 'bg-yellow-500/30 text-yellow-200 hover:bg-yellow-500/40'
-              : 'bg-white/10 text-white hover:bg-white/20'
-          }`}
-          onClick={() => {
-            if (!isRolling) startRoll();
-          }}
-          disabled={isRolling}
-        >
-          {isRolling ? '굴리는 중...' : isDouble ? '더블! 다시 굴리기' : '주사위 굴리기'}
-        </button>
-        <button
-          className="pointer-events-auto rounded-xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-white/20"
-          onClick={nextTurn}
-        >
-          턴 종료
-        </button>
-      </div>
-
-      {/* Buy Modal */}
-      {showBuyModal && (
-        <div className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/20 bg-black/90 p-6 shadow-2xl backdrop-blur-md">
-          <h2 className="mb-1 text-xl font-bold text-white">🏠 토지 구매</h2>
-          <p className="mb-4 text-2xl font-bold text-yellow-400">{displayTileName}</p>
-          <p className="mb-6 text-lg text-gray-300">
-            가격: <span className="font-bold text-emerald-400">₩{displayPrice.toLocaleString()}</span>
-          </p>
-          <div className="flex gap-4">
-            <button
-              onClick={() => buyLand()}
-              className="flex-1 rounded-lg bg-emerald-600 px-6 py-3 font-bold text-white transition hover:bg-emerald-500"
-            >
-              구매하기
-            </button>
-            <button
-              onClick={() => closeModal()}
-              className="flex-1 rounded-lg bg-gray-700 px-6 py-3 font-bold text-white transition hover:bg-gray-600"
-            >
-              취소
-            </button>
+            {/* INFO */}
+            {activeModal.type === 'INFO' && (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">{activeModal.title}</h2>
+                    <p className="mt-2 text-sm text-white/70">{activeModal.description}</p>
+                  </div>
+                  <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
+                    ✕
+                  </button>
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <button onClick={closeModal} className="dash-action dash-action-primary flex-1">
+                    확인
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        </div>
+        </>
       )}
     </div>
   );
