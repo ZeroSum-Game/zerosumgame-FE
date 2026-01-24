@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { useMemo } from 'react';
 import useGameStore, { STOCK_INFO, TILE_TO_STOCK, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
+import { getPlayerSlotColor } from '../../utils/playerSlotColors';
 import AssetCard from './AssetCard';
 
 const STOCK_LABEL: Record<StockSymbol, string> = {
@@ -41,6 +43,16 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
   const currentPlayer = players[currentPlayerIndex] ?? null;
   const activeTileId = currentPlayer?.position ?? null;
 
+  const occupantColorsByTile = useMemo(() => {
+    const map = new Map<number, string[]>();
+    players.forEach((p, index) => {
+      const arr = map.get(p.position) ?? [];
+      arr.push(getPlayerSlotColor(index));
+      map.set(p.position, arr);
+    });
+    return map;
+  }, [players]);
+
   return (
     <div className="board-ring">
       <div className="board-ring-grid">
@@ -50,6 +62,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
           const isActive = activeTileId === space.id;
           const isSelected = selectedAssetId === space.id;
           const symbol = space.type === 'STOCK' ? TILE_TO_STOCK[space.id] : undefined;
+          const occupantColors = occupantColorsByTile.get(space.id) ?? [];
 
           const price =
             space.type === 'COUNTRY'
@@ -81,6 +94,8 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
                 changePct={typeof changePct === 'number' ? changePct : null}
                 active={isActive}
                 selected={isSelected}
+                occupantColors={occupantColors}
+                showPrice={false}
                 onClick={() => onSelectAsset(space.id)}
               />
             </div>

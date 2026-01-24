@@ -30,6 +30,11 @@ export const STOCK_INFO: Record<StockSymbol, { name: string; nameKr: string; bas
   GOLD: { name: 'GOLD', nameKr: '금', basePrice: 285000 },
 };
 
+const SAMSUNG_START_SHARES = 10;
+const SAMSUNG_START_STOCK_VALUE = SAMSUNG_START_SHARES * STOCK_INFO.SAMSUNG.basePrice;
+const SAMSUNG_START_DIVIDEND_MIN = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_RULES.DIVIDEND_MIN);
+const SAMSUNG_START_DIVIDEND_MAX = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_RULES.DIVIDEND_MAX);
+
 export const TILE_TO_STOCK: Record<number, StockSymbol> = {
   4: 'HYUNDAI',
   9: 'GOLD',
@@ -53,8 +58,8 @@ export const CHARACTER_INFO: Record<
     name: '이재용',
     color: '#1e40af',
     emoji: '📱',
-    abilityShort: '삼성전자 주식 1주',
-    abilityDetail: '게임 시작 시 삼성전자 주식 1주를 보유한 상태로 시작합니다.',
+    abilityShort: `삼성전자 주식 ${SAMSUNG_START_SHARES}주`,
+    abilityDetail: `게임 시작 시 삼성전자 주식 ${SAMSUNG_START_SHARES}주(약 ${formatKRWKo(SAMSUNG_START_STOCK_VALUE)})를 보유한 상태로 시작합니다. 배당금은 매 턴 변동(대략 ${formatKRWKo(SAMSUNG_START_DIVIDEND_MIN)}~${formatKRWKo(SAMSUNG_START_DIVIDEND_MAX)}/턴).`,
   },
   TRUMP: {
     name: '트럼프',
@@ -898,7 +903,7 @@ const useGameStore = create<GameState>((set, get) => {
             case 'ELON':
               return { ...base, cash: base.cash + 1000000 };
             case 'SAMSUNG':
-              return { ...base, stockHoldings: { ...base.stockHoldings, SAMSUNG: 1 } };
+              return { ...base, stockHoldings: { ...base.stockHoldings, SAMSUNG: SAMSUNG_START_SHARES } };
             case 'TRUMP':
               return { ...base, tollRateMultiplier: 1.05 };
             case 'PUTIN':
