@@ -9,6 +9,7 @@ import MarketPanel from '../game/MarketPanel';
 import PlayerPanel from '../game/PlayerPanel';
 import TurnControls from '../game/TurnControls';
 import { formatKRWKo } from '../../utils/formatKRW';
+import { apiPurchaseLand, apiTradeStock } from '../../services/api';
 
 const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'];
 
@@ -31,15 +32,133 @@ const GameOverlay = () => {
   const closeModal = useGameStore((state) => state.closeModal);
   const queuedModal = useGameStore((state) => state.queuedModal);
   const rollStage = useGameStore((state) => state.rollStage);
+  const isRolling = useGameStore((state) => state.isRolling);
 
-  const buyLand = useGameStore((state) => state.buyLand);
-  const buildLandmark = useGameStore((state) => state.buildLandmark);
+  const buyLandLocal = useGameStore((state) => state.buyLand);
+  const buildLandmarkLocal = useGameStore((state) => state.buildLandmark);
   const payTollOrPropose = useGameStore((state) => state.payTollOrPropose);
   const respondTakeover = useGameStore((state) => state.respondTakeover);
 
   const setTradeSymbol = useGameStore((state) => state.setTradeSymbol);
-  const buyAsset = useGameStore((state) => state.buyAsset);
-  const sellAsset = useGameStore((state) => state.sellAsset);
+  const buyAssetLocal = useGameStore((state) => state.buyAsset);
+  const sellAssetLocal = useGameStore((state) => state.sellAsset);
+
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // 백엔드 API를 호출하는 래퍼 함수들
+  const buyLand = async () => {
+    if (!activeModal || activeModal.type !== 'LAND_BUY') return;
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      const result = await apiPurchaseLand('BUY', activeModal.tileId);
+      // 성공 시 store 업데이트
+      useGameStore.setState((state) => ({
+        players: state.players.map((p) =>
+          p.id === result.playerId ? { ...p, cash: Number(result.cash) } : p
+        ),
+        lands: { ...state.lands, [result.nodeIdx]: { ownerId: currentPlayer?.id || 0, type: 'LAND' as const } },
+        activeModal: null,
+        phase: 'IDLE',
+      }));
+    } catch (e: any) {
+      setApiError(e.message || '구매 실패');
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  const buildLandmark = async () => {
+    if (!activeModal || activeModal.type !== 'LAND_UPGRADE') return;
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      const result = await apiPurchaseLand('LANDMARK', activeModal.tileId);
+      useGameStore.setState((state) => ({
+        players: state.players.map((p) =>
+          p.id === result.playerId ? { ...p, cash: Number(result.cash) } : p
+        ),
+        lands: { ...state.lands, [result.nodeIdx]: { ownerId: currentPlayer?.id || 0, type: 'LANDMARK' as const } },
+        activeModal: null,
+        phase: 'IDLE',
+      }));
+    } catch (e: any) {
+      setApiError(e.message || '랜드마크 건설 실패');
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  // 프론트엔드 심볼을 백엔드 심볼로 변환
+  const toBackendStockSymbol = (symbol: StockSymbol): 'SAMSUNG' | 'TESLA' | 'LOCKHEED' | 'GOLD' | 'BITCOIN' => {
+    const mapping: Record<StockSymbol, 'SAMSUNG' | 'TESLA' | 'LOCKHEED' | 'GOLD' | 'BITCOIN'> = {
+      SAMSUNG: 'SAMSUNG',
+      SK_HYNIX: 'TESLA',
+      HYUNDAI: 'LOCKHEED',
+      GOLD: 'GOLD',
+      BITCOIN: 'BITCOIN',
+    };
+    return mapping[symbol];
+  };
+
+  const buyAsset = async (quantity: number) => {
+    if (!activeModal || activeModal.type !== 'ASSET_TRADE') return;
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      const backendSymbol = toBackendStockSymbol(activeModal.symbol);
+      const result = await apiTradeStock(backendSymbol, quantity, 'BUY');
+      useGameStore.setState((state) => ({
+        players: state.players.map((p) =>
+          p.id === result.playerId
+            ? {
+                ...p,
+                cash: Number(result.cash),
+                stockHoldings: {
+                  ...p.stockHoldings,
+                  [activeModal.symbol]: (p.stockHoldings[activeModal.symbol] || 0) + quantity,
+                },
+              }
+            : p
+        ),
+      }));
+      closeModal();
+    } catch (e: any) {
+      setApiError(e.message || '매수 실패');
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  const sellAsset = async (quantity: number) => {
+    if (!activeModal || activeModal.type !== 'ASSET_TRADE') return;
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      const backendSymbol = toBackendStockSymbol(activeModal.symbol);
+      const result = await apiTradeStock(backendSymbol, quantity, 'SELL');
+      useGameStore.setState((state) => ({
+        players: state.players.map((p) =>
+          p.id === result.playerId
+            ? {
+                ...p,
+                cash: Number(result.cash),
+                stockHoldings: {
+                  ...p.stockHoldings,
+                  [activeModal.symbol]: Math.max(0, (p.stockHoldings[activeModal.symbol] || 0) - quantity),
+                },
+              }
+            : p
+        ),
+      }));
+      closeModal();
+    } catch (e: any) {
+      setApiError(e.message || '매도 실패');
+    } finally {
+      setApiLoading(false);
+    }
+  };
 
   const completeMinigame = useGameStore((state) => state.completeMinigame);
   const confirmTax = useGameStore((state) => state.confirmTax);
@@ -129,18 +248,20 @@ const GameOverlay = () => {
       <GameLayout
         left={<PlayerPanel />}
         center={
-          <BoardRing
-            selectedAssetId={selectedAsset}
-            onSelectAsset={(tileId) => setSelectedAsset(tileId)}
-            assetChange={assetChange}
-            landChange={landChange}
-            center={
-              <div className={`board-center ${rollStage !== 'IDLE' ? 'board-center-rolling' : ''}`}>
-                <DiceRoller />
-                <TurnControls />
-              </div>
-            }
-          />
+          <div className={isRolling ? 'board-shake-y' : ''}>
+            <BoardRing
+              selectedAssetId={selectedAsset}
+              onSelectAsset={(tileId) => setSelectedAsset(tileId)}
+              assetChange={assetChange}
+              landChange={landChange}
+              center={
+                <div className={`board-center ${rollStage !== 'IDLE' ? 'board-center-rolling' : ''}`}>
+                  <DiceRoller />
+                  <TurnControls />
+                </div>
+              }
+            />
+          </div>
         }
         right={<MarketPanel />}
       />
@@ -197,11 +318,17 @@ const GameOverlay = () => {
                     </div>
                   )}
 
+                  {apiError && (
+                    <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
+                      {apiError}
+                    </div>
+                  )}
+
                   <div className="mt-6 flex gap-3">
-                    <button onClick={buyLand} className="dash-action dash-action-success flex-1">
-                      구매하기
+                    <button onClick={() => void buyLand()} disabled={apiLoading} className="dash-action dash-action-success flex-1 disabled:opacity-50">
+                      {apiLoading ? '처리 중...' : '구매하기'}
                     </button>
-                    <button onClick={closeModal} className="dash-action dash-action-secondary flex-1">
+                    <button onClick={closeModal} disabled={apiLoading} className="dash-action dash-action-secondary flex-1 disabled:opacity-50">
                       취소
                     </button>
                   </div>
@@ -229,11 +356,17 @@ const GameOverlay = () => {
                     <p className="text-sm text-white/60">건설 비용</p>
                     <p className="mt-1 text-lg font-black text-white">{formatKRWKo(cost)}</p>
                   </div>
+                  {apiError && (
+                    <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
+                      {apiError}
+                    </div>
+                  )}
+
                   <div className="mt-6 flex gap-3">
-                    <button onClick={buildLandmark} className="dash-action dash-action-primary flex-1">
-                      건설하기
+                    <button onClick={() => void buildLandmark()} disabled={apiLoading} className="dash-action dash-action-primary flex-1 disabled:opacity-50">
+                      {apiLoading ? '처리 중...' : '건설하기'}
                     </button>
-                    <button onClick={closeModal} className="dash-action dash-action-secondary flex-1">
+                    <button onClick={closeModal} disabled={apiLoading} className="dash-action dash-action-secondary flex-1 disabled:opacity-50">
                       나중에
                     </button>
                   </div>

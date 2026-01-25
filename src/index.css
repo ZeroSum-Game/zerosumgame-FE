@@ -797,6 +797,40 @@
     animation: boardCenterPulse 860ms ease-in-out infinite;
   }
 
+  @keyframes boardShakeY {
+    0% { transform: translateY(0); }
+    20% { transform: translateY(-4px); }
+    45% { transform: translateY(2px); }
+    70% { transform: translateY(-1px); }
+    100% { transform: translateY(0); }
+  }
+
+  .board-shake-y {
+    animation: boardShakeY 360ms ease-in-out;
+    will-change: transform;
+  }
+
+  .board-piece-stack {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .board-piece-img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    transform-origin: 50% 100%;
+    transform: rotateZ(-45deg) rotateX(-60deg);
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.55));
+    backface-visibility: hidden;
+  }
+
   .asset-card {
     width: 100%;
     height: 100%;
