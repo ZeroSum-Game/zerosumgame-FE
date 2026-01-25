@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
-import useGameStore, { STOCK_INFO, TILE_TO_STOCK, type StockSymbol } from '../../store/useGameStore';
+import useGameStore, { CHARACTER_INFO, STOCK_INFO, TILE_TO_STOCK, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
 import { getRegionForBoardSpace } from '../../utils/regionCues';
@@ -54,6 +54,18 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
     return map;
   }, [players]);
 
+  const occupantAvatarsByTile = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; src: string }[]>();
+    players.forEach((p) => {
+      if (p.isBankrupt) return;
+      const src = p.character ? CHARACTER_INFO[p.character].avatar : (p.avatar || '/assets/characters/default.png');
+      const arr = map.get(p.position) ?? [];
+      arr.push({ id: p.id, name: p.name, src });
+      map.set(p.position, arr);
+    });
+    return map;
+  }, [players]);
+
   return (
     <div className="board-ring">
       <div className="board-ring-grid">
@@ -64,6 +76,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
           const isSelected = selectedAssetId === space.id;
           const symbol = space.type === 'STOCK' ? TILE_TO_STOCK[space.id] : undefined;
           const occupantColors = occupantColorsByTile.get(space.id) ?? [];
+          const occupantAvatars = occupantAvatarsByTile.get(space.id) ?? [];
           const region = getRegionForBoardSpace(space, { stockSymbol: symbol });
 
           const price =
@@ -86,21 +99,37 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
               className="board-ring-cell"
               style={{ gridRow: row, gridColumn: col }}
             >
-              <AssetCard
-                name={
-                  space.type === 'STOCK' && symbol
-                    ? STOCK_LABEL[symbol] ?? STOCK_INFO[symbol].nameKr
-                    : TILE_LABEL[space.id] ?? space.name
-                }
-                price={typeof price === 'number' ? price : null}
-                changePct={typeof changePct === 'number' ? changePct : null}
-                active={isActive}
-                selected={isSelected}
-                occupantColors={occupantColors}
-                region={region}
-                showPrice={false}
-                onClick={() => onSelectAsset(space.id)}
-              />
+              <div className="relative h-full w-full">
+                <AssetCard
+                  name={
+                    space.type === 'STOCK' && symbol
+                      ? STOCK_LABEL[symbol] ?? STOCK_INFO[symbol].nameKr
+                      : TILE_LABEL[space.id] ?? space.name
+                  }
+                  price={typeof price === 'number' ? price : null}
+                  changePct={typeof changePct === 'number' ? changePct : null}
+                  active={isActive}
+                  selected={isSelected}
+                  occupantColors={occupantColors}
+                  region={region}
+                  showPrice={false}
+                  onClick={() => onSelectAsset(space.id)}
+                />
+
+                {occupantAvatars.length > 0 && (
+                  <div className="board-piece-stack" aria-hidden="true">
+                    {occupantAvatars.slice(0, 4).map((o) => (
+                      <img
+                        key={o.id}
+                        src={o.src}
+                        alt={o.name}
+                        className="board-piece-img"
+                        draggable={false}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}

@@ -1,4 +1,5 @@
 import { getToken, removeToken } from './auth';
+import { toInt, toNumber } from '../utils/parseNumber';
 
 // 인증 헤더 생성
 const getAuthHeaders = (): HeadersInit => {
@@ -27,7 +28,15 @@ export const apiGetMe = async (): Promise<ApiMe | null> => {
       headers: getAuthHeaders(),
     });
     if (!res.ok) return null;
-    return (await res.json()) as ApiMe;
+    const body = (await res.json()) as any;
+    return {
+      userId: toInt(body?.userId),
+      playerId: toInt(body?.playerId),
+      cash: toNumber(body?.cash),
+      location: toInt(body?.location),
+      totalAsset: body?.totalAsset != null ? toNumber(body.totalAsset) : undefined,
+      character: body?.character ?? null,
+    };
   } catch {
     return null;
   }
@@ -43,7 +52,12 @@ export const apiSetCharacter = async (backendCharacter: string) => {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error || '캐릭터 선택에 실패했어요.');
   }
-  return (await res.json()) as { playerId: number; character: string; cash: string | number };
+  const body = (await res.json()) as any;
+  return {
+    playerId: toInt(body?.playerId),
+    character: String(body?.character ?? ''),
+    cash: toNumber(body?.cash),
+  };
 };
 
 // 유저 프로필 조회
@@ -74,8 +88,9 @@ export type ApiMapNode = {
   continent: string;
   basePrice: number;
   baseToll: number;
-  ownerId?: number | null;
-  isLandmark?: boolean;
+  ownerId: number | null;
+  isLandmark: boolean;
+  purchasePrice: number;
 };
 
 export const apiGetMap = async (): Promise<ApiMapNode[] | null> => {
@@ -84,7 +99,21 @@ export const apiGetMap = async (): Promise<ApiMapNode[] | null> => {
       headers: getAuthHeaders(),
     });
     if (!res.ok) return null;
-    return (await res.json()) as ApiMapNode[];
+    const body = (await res.json()) as any[];
+    return (Array.isArray(body) ? body : []).map((node) => {
+      const land = Array.isArray(node?.gameLands) && node.gameLands.length > 0 ? node.gameLands[0] : null;
+      return {
+        nodeIdx: toInt(node?.nodeIdx),
+        name: String(node?.name ?? ''),
+        type: String(node?.type ?? ''),
+        continent: String(node?.continent ?? ''),
+        basePrice: toNumber(node?.basePrice),
+        baseToll: toNumber(node?.baseToll),
+        ownerId: land?.ownerId != null ? toInt(land.ownerId) : null,
+        isLandmark: Boolean(land?.isLandmark),
+        purchasePrice: land?.purchasePrice != null ? toNumber(land.purchasePrice) : 0,
+      } satisfies ApiMapNode;
+    });
   } catch {
     return null;
   }
@@ -105,7 +134,14 @@ export const apiGetMarket = async (): Promise<ApiMarket | null> => {
       headers: getAuthHeaders(),
     });
     if (!res.ok) return null;
-    return (await res.json()) as ApiMarket;
+    const body = (await res.json()) as any;
+    return {
+      samsung: toNumber(body?.samsung),
+      tesla: toNumber(body?.tesla),
+      lockheed: toNumber(body?.lockheed),
+      gold: toNumber(body?.gold),
+      bitcoin: toNumber(body?.bitcoin),
+    };
   } catch {
     return null;
   }
@@ -137,7 +173,24 @@ export const apiTradeStock = async (
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error || '주식 거래에 실패했어요.');
   }
-  return (await res.json()) as ApiStockTradeResult;
+  const body = (await res.json()) as any;
+  const assets = body?.assets ?? {};
+  return {
+    playerId: toInt(body?.playerId),
+    roomId: toInt(body?.roomId),
+    cash: toNumber(body?.cash),
+    assets: {
+      samsung: toInt(assets?.samsung),
+      tesla: toInt(assets?.tesla),
+      lockheed: toInt(assets?.lockheed),
+      gold: toInt(assets?.gold),
+      bitcoin: toInt(assets?.bitcoin),
+    },
+    price: toNumber(body?.price),
+    quantity: toInt(body?.quantity),
+    type: (String(body?.type ?? '') as ApiStockTradeResult['type']) || type,
+    symbol: String(body?.symbol ?? symbol),
+  };
 };
 
 // 땅 구매/인수/랜드마크/매각
@@ -161,16 +214,34 @@ export const apiPurchaseLand = async (
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error || '땅 거래에 실패했어요.');
   }
-  return (await res.json()) as ApiPurchaseResult;
+  const body = (await res.json()) as any;
+  return {
+    playerId: toInt(body?.playerId),
+    cash: toNumber(body?.cash),
+    nodeIdx: toInt(body?.nodeIdx),
+    action: String(body?.action ?? action),
+  };
 };
 
 // 플레이어 자산 조회
+export type ApiPlayerLand = {
+  nodeIdx: number;
+  isLandmark: boolean;
+  purchasePrice: number;
+};
+
 export type ApiPlayerAssets = {
   cash: number;
-  lands: number[];
-  stocks: Record<string, number>;
-  totalLandValue: number;
-  totalStockValue: number;
+  lands: ApiPlayerLand[];
+  assets: {
+    samsung: number;
+    tesla: number;
+    lockheed: number;
+    gold: number;
+    bitcoin: number;
+  };
+  landTotal: number;
+  stockTotal: number;
   totalAsset: number;
 };
 
@@ -180,7 +251,28 @@ export const apiGetPlayerAssets = async (userId: number): Promise<ApiPlayerAsset
       headers: getAuthHeaders(),
     });
     if (!res.ok) return null;
-    return (await res.json()) as ApiPlayerAssets;
+    const body = (await res.json()) as any;
+    const assets = body?.assets ?? {};
+    const landsRaw = Array.isArray(body?.lands) ? body.lands : [];
+    const lands: ApiPlayerLand[] = landsRaw.map((l: any) => ({
+      nodeIdx: toInt(l?.nodeIdx),
+      isLandmark: Boolean(l?.isLandmark),
+      purchasePrice: toNumber(l?.purchasePrice),
+    }));
+    return {
+      cash: toNumber(body?.cash),
+      lands,
+      assets: {
+        samsung: toInt(assets?.samsung),
+        tesla: toInt(assets?.tesla),
+        lockheed: toInt(assets?.lockheed),
+        gold: toInt(assets?.gold),
+        bitcoin: toInt(assets?.bitcoin),
+      },
+      landTotal: toNumber(body?.landTotal),
+      stockTotal: toNumber(body?.stockTotal),
+      totalAsset: toNumber(body?.totalAsset),
+    };
   } catch {
     return null;
   }
@@ -201,7 +293,12 @@ export const apiGetWarRate = async (opponentUserId: number): Promise<ApiWarRate 
       body: JSON.stringify({ opponentUserId }),
     });
     if (!res.ok) return null;
-    return (await res.json()) as ApiWarRate;
+    const body = (await res.json()) as any;
+    return {
+      myAsset: toNumber(body?.myAsset),
+      oppAsset: toNumber(body?.oppAsset),
+      winRate: toNumber(body?.winRate),
+    };
   } catch {
     return null;
   }
@@ -218,7 +315,21 @@ export const apiWorldCup = async (nodeIdx: number) => {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error || '월드컵 개최에 실패했어요.');
   }
-  return (await res.json()) as { roomId: number; hostId: number; nodeIdx: number };
+  const body = (await res.json()) as any;
+  return { roomId: toInt(body?.roomId), hostId: toInt(body?.hostId), nodeIdx: toInt(body?.nodeIdx) };
+};
+
+export const apiWarLose = async (loserUserId: number) => {
+  const res = await fetch('/api/game/war/lose', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ loserUserId }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || '전쟁 패배 처리에 실패했어요.');
+  }
+  return (await res.json().catch(() => null)) as { ok: boolean } | null;
 };
 
 export const apiLogout = () => {

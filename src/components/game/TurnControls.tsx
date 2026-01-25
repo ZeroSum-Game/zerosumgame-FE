@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import useGameStore from '../../store/useGameStore';
+import { useGameSocketContext } from '../pages/GamePage';
 
 let sharedDiceAudioCtx: AudioContext | null = null;
 
@@ -101,12 +102,12 @@ const TurnControls = () => {
   const isRolling = useGameStore((s) => s.isRolling);
   const rollStage = useGameStore((s) => s.rollStage);
 
-  const startRoll = useGameStore((s) => s.startRoll);
-  const releaseRoll = useGameStore((s) => s.releaseRoll);
-  const endTurn = useGameStore((s) => s.endTurn);
+  // 백엔드 연동: useGameSocketContext 사용
+  const { rollDice, endTurn, error, isMyTurn } = useGameSocketContext();
+  const myTurn = isMyTurn();
 
-  const canRoll = phase === 'IDLE' && !activeModal && (!hasRolledThisTurn || extraRolls > 0) && !isRolling;
-  const canEndTurn = phase === 'IDLE' && !activeModal && hasRolledThisTurn && !isRolling;
+  const canRoll = myTurn && phase === 'IDLE' && !activeModal && (!hasRolledThisTurn || extraRolls > 0) && !isRolling;
+  const canEndTurn = myTurn && phase === 'IDLE' && !activeModal && hasRolledThisTurn && !isRolling;
 
   const isHoldRolling = rollStage === 'HOLDING';
   const isSettling = rollStage === 'SETTLING';
@@ -115,17 +116,21 @@ const TurnControls = () => {
   const action = rollButtonActive ? 'ROLL' : canEndTurn ? 'END TURN' : null;
   const disabled = !action || (action === 'ROLL' ? !rollButtonActive : action === 'END TURN' ? !canEndTurn : true);
 
-  let label = action === 'ROLL' ? '누르고 굴리기' : action === 'END TURN' ? '턴 종료' : '대기';
+  let label = action === 'ROLL' ? '주사위 굴리기' : action === 'END TURN' ? '턴 종료' : '대기';
   if (phase === 'MOVING') label = '이동 중…';
-  if (isHoldRolling) label = '굴리는 중… (놓으면 멈춤)';
+  if (isHoldRolling) label = '굴리는 중…';
   if (isSettling) label = '멈추는 중…';
   if (activeModal) label = '처리 필요';
 
   const hint =
+    error ? error :
+    !myTurn
+      ? '다른 플레이어의 턴입니다.'
+      :
     canRoll && extraRolls > 0
       ? `추가 굴리기: ${extraRolls}`
       : canRoll
-      ? '버튼을 누르고 유지하면 굴려요.'
+      ? '버튼을 클릭하여 주사위를 굴려요.'
       : canEndTurn
       ? '확인 후 턴을 종료하세요.'
       : activeModal
@@ -135,47 +140,23 @@ const TurnControls = () => {
       : ' ';
 
   const { startRolling, stopRollingWithClick } = useDiceSounds();
-  const holdingRef = useRef(false);
   const [pressing, setPressing] = useState(false);
 
-  const beginHold = async (e: { preventDefault?: () => void } | null) => {
-    if (disabled || action !== 'ROLL') return;
+  const handleRoll = async () => {
     if (!canRoll) return;
-    e?.preventDefault?.();
-    holdingRef.current = true;
     setPressing(true);
-    startRoll();
     await startRolling();
+    rollDice(); // 백엔드로 주사위 굴리기 요청
+    setTimeout(async () => {
+      await stopRollingWithClick();
+      setPressing(false);
+    }, 500);
   };
 
-  const releaseHold = async () => {
-    if (!holdingRef.current) return;
-    holdingRef.current = false;
-    setPressing(false);
-    releaseRoll();
-    await stopRollingWithClick();
+  const handleEndTurn = () => {
+    if (!canEndTurn) return;
+    endTurn(); // 백엔드로 턴 종료 요청
   };
-
-  useEffect(() => {
-    if (!pressing) return;
-
-    const onUp = () => void releaseHold();
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchend', onUp, { passive: true });
-    window.addEventListener('touchcancel', onUp, { passive: true });
-    return () => {
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchend', onUp);
-      window.removeEventListener('touchcancel', onUp);
-    };
-  }, [pressing]);
-
-  useEffect(() => {
-    if (!pressing) return;
-    if (rollStage === 'HOLDING') return;
-    holdingRef.current = false;
-    setPressing(false);
-  }, [pressing, rollStage]);
 
   return (
     <div className="turn-controls">
@@ -184,25 +165,20 @@ const TurnControls = () => {
         className={[
           'dash-btn',
           disabled ? 'dash-btn-disabled' : 'dash-btn-primary',
-          isHoldRolling ? 'dash-btn-holding' : '',
+          pressing ? 'dash-btn-holding' : '',
         ].join(' ')}
         disabled={disabled}
         onClick={() => {
-          if (action === 'END TURN' && canEndTurn) endTurn();
+          if (action === 'ROLL' && canRoll) {
+            void handleRoll();
+          } else if (action === 'END TURN' && canEndTurn) {
+            handleEndTurn();
+          }
         }}
-        onMouseDown={(e) => {
-          if (e.button !== 0) return;
-          void beginHold(e);
-        }}
-        onMouseUp={() => void releaseHold()}
-        onMouseLeave={() => void releaseHold()}
-        onTouchStart={(e) => void beginHold(e)}
-        onTouchEnd={() => void releaseHold()}
-        onTouchCancel={() => void releaseHold()}
       >
         {label}
       </button>
-      <div className="turn-controls-hint">{hint}</div>
+      <div className={`turn-controls-hint ${error ? 'text-red-400' : ''}`}>{hint}</div>
     </div>
   );
 };

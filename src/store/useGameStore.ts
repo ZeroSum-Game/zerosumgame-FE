@@ -86,11 +86,13 @@ export type LandState = {
 
 export type Player = {
   id: number;
+  userId: number;
   name: string;
   avatar: string;
   character: CharacterType | null;
   position: number;
   cash: number;
+  totalAsset?: number;
   isReady: boolean;
   isBankrupt: boolean;
   stockHoldings: Partial<Record<StockSymbol, number>>;
@@ -125,6 +127,7 @@ export type ModalState =
   | { type: 'LAND_VISIT'; tileId: number; ownerId: number; toll: number; takeoverPrice?: number }
   | { type: 'LAND_TAKEOVER_RESPONSE'; tileId: number; buyerId: number; ownerId: number; price: number; toll: number }
   | { type: 'ASSET_TRADE'; allowedSymbols: StockSymbol[]; symbol: StockSymbol }
+  | { type: 'WORLD_CUP' }
   | { type: 'MINIGAME'; salary: number }
   | { type: 'GOLDEN_KEY'; title: string; description: string }
   | { type: 'WAR_SELECT'; byCard: boolean }
@@ -141,6 +144,17 @@ type GameResult = {
   ranking: { playerId: number; netWorth: number }[];
   reason: string;
   endedAtRound: number;
+};
+
+export type WarPayload = {
+  active: boolean;
+  warLine: number | null;
+  warNode: number | null;
+  turnsLeft: number;
+  recoveryActive: boolean;
+  recoveryLine: number;
+  recoveryNode: number;
+  adjacentLines: number[];
 };
 
 type GoldenKeyDef = {
@@ -170,7 +184,9 @@ type GameState = {
   selectedTile: number | null;
   lands: Record<number, LandState>;
   landPrices: Record<number, number>;
+  landTolls: Record<number, number>;
   assetPrices: Record<StockSymbol, number>;
+  war: WarPayload | null;
 
   activeModal: ModalState | null;
   queuedModal: ModalState | null;
@@ -826,7 +842,9 @@ const useGameStore = create<GameState>((set, get) => {
     selectedTile: null,
     lands: {},
     landPrices: getBaseLandPrices(),
+    landTolls: {},
     assetPrices: getInitialAssetPrices(),
+    war: null,
 
     activeModal: null,
     queuedModal: null,
@@ -842,24 +860,26 @@ const useGameStore = create<GameState>((set, get) => {
 
     gameResult: null,
 
-    addPlayer: (name) => {
-      const { players, maxPlayers } = get();
-      if (players.length >= maxPlayers) return;
-      const newPlayer: Player = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        name,
-        avatar: '/assets/characters/default.png',
-        character: null,
-        position: 0,
-        cash: GAME_RULES.START_CASH,
-        isReady: false,
-        isBankrupt: false,
-        stockHoldings: {},
-        tollRateMultiplier: 1,
-        warWinChanceBonus: 0,
-      };
-      set({ players: [...players, newPlayer] });
-    },
+	    addPlayer: (name) => {
+	      const { players, maxPlayers } = get();
+	      if (players.length >= maxPlayers) return;
+	      const id = Date.now() + Math.floor(Math.random() * 1000);
+	      const newPlayer: Player = {
+	        id,
+	        userId: id,
+	        name,
+	        avatar: '/assets/characters/default.png',
+	        character: null,
+	        position: 0,
+	        cash: GAME_RULES.START_CASH,
+	        isReady: false,
+	        isBankrupt: false,
+	        stockHoldings: {},
+	        tollRateMultiplier: 1,
+	        warWinChanceBonus: 0,
+	      };
+	      set({ players: [...players, newPlayer] });
+	    },
 
     removePlayer: (id) => {
       const { players } = get();
@@ -906,7 +926,9 @@ const useGameStore = create<GameState>((set, get) => {
         selectedTile: null,
         lands: {},
         landPrices: getBaseLandPrices(),
+        landTolls: {},
         assetPrices: getInitialAssetPrices(),
+        war: null,
         activeModal: null,
         queuedModal: null,
         eventLog: [],
@@ -963,7 +985,9 @@ const useGameStore = create<GameState>((set, get) => {
         selectedTile: null,
         lands: {},
         landPrices: getBaseLandPrices(),
+        landTolls: {},
         assetPrices: getInitialAssetPrices(),
+        war: null,
         activeModal: null,
         queuedModal: null,
         eventLog: [],
@@ -1005,7 +1029,9 @@ const useGameStore = create<GameState>((set, get) => {
         selectedTile: null,
         lands: {},
         landPrices: getBaseLandPrices(),
+        landTolls: {},
         assetPrices: getInitialAssetPrices(),
+        war: null,
         activeModal: null,
         queuedModal: null,
         eventLog: [],
