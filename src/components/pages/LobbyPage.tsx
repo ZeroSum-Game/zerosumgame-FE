@@ -34,6 +34,7 @@ const LobbyPage = () => {
   const [connecting, setConnecting] = useState(true);
 
   const socketRef = useRef<Awaited<ReturnType<typeof connectSocket>> | null>(null);
+  const preserveSocketRef = useRef(false);
 
   const myUserId = me?.userId ?? null;
   const myLobbyPlayer = useMemo(() => {
@@ -68,6 +69,53 @@ const LobbyPage = () => {
       };
     };
 
+    const handlers = {
+      connect: () => setConnecting(false),
+      connectError: () => {
+        setConnecting(false);
+        setError('서버 연결에 실패했어요. (socket)');
+      },
+      joinSuccess: (payload: any) => {
+        if (!alive) return;
+        setRoomStatus(String(payload?.roomStatus ?? 'WAITING'));
+        setLobby(mapLobby(payload?.lobby));
+      },
+      joinError: (payload: any) => {
+        if (!alive) return;
+        setError(payload?.message || '방 참가에 실패했어요.');
+      },
+      lobbyUpdate: (payload: any) => {
+        if (!alive) return;
+        setLobby(mapLobby(payload));
+      },
+      readyError: (payload: any) => {
+        if (!alive) return;
+        setError(payload?.message || '준비 처리에 실패했어요.');
+      },
+      startError: (payload: any) => {
+        if (!alive) return;
+        setError(payload?.message || '게임 시작에 실패했어요.');
+      },
+      characterUpdate: (payload: any) => {
+        if (!alive) return;
+        setLobby((prev) => {
+          if (!prev) return prev;
+          const userId = Number(payload?.userId);
+          const character = fromBackendCharacter(payload?.character);
+          return {
+            ...prev,
+            players: prev.players.map((p) => (p.userId === userId ? { ...p, character } : p)),
+          };
+        });
+      },
+      gameStart: () => {
+        if (!alive) return;
+        preserveSocketRef.current = true;
+        setRoomStatus('PLAYING');
+        setCurrentPage('game');
+      },
+    };
+
     void (async () => {
       setConnecting(true);
       setError(null);
@@ -91,50 +139,15 @@ const LobbyPage = () => {
         if (!alive) return;
         socketRef.current = socket;
 
-        socket.on('connect', () => setConnecting(false));
-        socket.on('connect_error', () => {
-          setConnecting(false);
-          setError('서버 연결에 실패했어요. (socket)');
-        });
-
-        socket.on('join_success', (payload: any) => {
-          if (!alive) return;
-          setRoomStatus(String(payload?.roomStatus ?? 'WAITING'));
-          setLobby(mapLobby(payload?.lobby));
-        });
-        socket.on('join_error', (payload: any) => {
-          if (!alive) return;
-          setError(payload?.message || '방 참가에 실패했어요.');
-        });
-        socket.on('lobby_update', (payload: any) => {
-          if (!alive) return;
-          setLobby(mapLobby(payload));
-        });
-        socket.on('ready_error', (payload: any) => {
-          if (!alive) return;
-          setError(payload?.message || '준비 처리에 실패했어요.');
-        });
-        socket.on('start_error', (payload: any) => {
-          if (!alive) return;
-          setError(payload?.message || '게임 시작에 실패했어요.');
-        });
-        socket.on('character_update', (payload: any) => {
-          if (!alive) return;
-          setLobby((prev) => {
-            if (!prev) return prev;
-            const userId = Number(payload?.userId);
-            const character = fromBackendCharacter(payload?.character);
-            return {
-              ...prev,
-              players: prev.players.map((p) => (p.userId === userId ? { ...p, character } : p)),
-            };
-          });
-        });
-        socket.on('game_start', () => {
-          if (!alive) return;
-          setRoomStatus('PLAYING');
-          setCurrentPage('game');
-        });
+        socket.on('connect', handlers.connect);
+        socket.on('connect_error', handlers.connectError);
+        socket.on('join_success', handlers.joinSuccess);
+        socket.on('join_error', handlers.joinError);
+        socket.on('lobby_update', handlers.lobbyUpdate);
+        socket.on('ready_error', handlers.readyError);
+        socket.on('start_error', handlers.startError);
+        socket.on('character_update', handlers.characterUpdate);
+        socket.on('game_start', handlers.gameStart);
 
         socket.emit('join_room', 1);
       } catch (e: any) {
@@ -145,7 +158,20 @@ const LobbyPage = () => {
 
     return () => {
       alive = false;
-      socketRef.current?.disconnect();
+      if (socketRef.current) {
+        socketRef.current.off('connect', handlers.connect);
+        socketRef.current.off('connect_error', handlers.connectError);
+        socketRef.current.off('join_success', handlers.joinSuccess);
+        socketRef.current.off('join_error', handlers.joinError);
+        socketRef.current.off('lobby_update', handlers.lobbyUpdate);
+        socketRef.current.off('ready_error', handlers.readyError);
+        socketRef.current.off('start_error', handlers.startError);
+        socketRef.current.off('character_update', handlers.characterUpdate);
+        socketRef.current.off('game_start', handlers.gameStart);
+      }
+      if (!preserveSocketRef.current) {
+        socketRef.current?.disconnect();
+      }
       socketRef.current = null;
     };
   }, [setCurrentPage]);

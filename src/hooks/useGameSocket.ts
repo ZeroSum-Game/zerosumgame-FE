@@ -166,6 +166,32 @@ export const useGameSocket = (roomId: number = 1) => {
         }
         socketRef.current = socket;
 
+        const clearHandlers = () => {
+          const events = [
+            'connect',
+            'connect_error',
+            'join_error',
+            'join_success',
+            'game_start',
+            'dice_rolled',
+            'playerMove',
+            'market_update',
+            'drawCard',
+            'asset_update',
+            'turn_update',
+            'war_state',
+            'war_start',
+            'war_end',
+            'worldcup',
+            'landmark_destroyed',
+            'game_end',
+            'roll_error',
+            'turn_error',
+          ];
+          events.forEach((event) => socket.off(event));
+        };
+        clearHandlers();
+
         // 연결 성공
         socket.on('connect', () => {
           console.log('[GameSocket] Connected');
