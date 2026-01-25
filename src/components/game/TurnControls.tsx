@@ -103,10 +103,11 @@ const TurnControls = () => {
   const rollStage = useGameStore((s) => s.rollStage);
 
   // 백엔드 연동: useGameSocketContext 사용
-  const { rollDice, endTurn, error } = useGameSocketContext();
+  const { rollDice, endTurn, error, isMyTurn } = useGameSocketContext();
+  const myTurn = isMyTurn();
 
-  const canRoll = phase === 'IDLE' && !activeModal && (!hasRolledThisTurn || extraRolls > 0) && !isRolling;
-  const canEndTurn = phase === 'IDLE' && !activeModal && hasRolledThisTurn && !isRolling;
+  const canRoll = myTurn && phase === 'IDLE' && !activeModal && (!hasRolledThisTurn || extraRolls > 0) && !isRolling;
+  const canEndTurn = myTurn && phase === 'IDLE' && !activeModal && hasRolledThisTurn && !isRolling;
 
   const isHoldRolling = rollStage === 'HOLDING';
   const isSettling = rollStage === 'SETTLING';
@@ -123,6 +124,9 @@ const TurnControls = () => {
 
   const hint =
     error ? error :
+    !myTurn
+      ? '다른 플레이어의 턴입니다.'
+      :
     canRoll && extraRolls > 0
       ? `추가 굴리기: ${extraRolls}`
       : canRoll

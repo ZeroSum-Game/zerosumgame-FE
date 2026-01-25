@@ -143,8 +143,11 @@ const PlayerSummary = () => {
         </div>
         <div className="dash-metric">
           <div className="dash-metric-label">총자산</div>
-          <div className="dash-metric-value" title={formatKRW(totals?.total ?? currentPlayer?.cash ?? 0)}>
-            {formatKRWKoShort(totals?.total ?? currentPlayer?.cash ?? 0)}
+          <div
+            className="dash-metric-value"
+            title={formatKRW(currentPlayer?.totalAsset ?? totals?.total ?? currentPlayer?.cash ?? 0)}
+          >
+            {formatKRWKoShort(currentPlayer?.totalAsset ?? totals?.total ?? currentPlayer?.cash ?? 0)}
           </div>
         </div>
       </div>
@@ -269,7 +272,7 @@ const PlayerRoster = () => {
         isBankrupt: p.isBankrupt,
         isActive: p.id === currentPlayer?.id,
         cash: p.cash,
-        total: totals.total,
+        total: p.totalAsset ?? totals.total,
         positionName: posName,
       };
     });

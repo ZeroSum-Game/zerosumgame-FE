@@ -110,6 +110,14 @@ const LobbyPage = () => {
           if (!alive) return;
           setLobby(mapLobby(payload));
         });
+        socket.on('ready_error', (payload: any) => {
+          if (!alive) return;
+          setError(payload?.message || '준비 처리에 실패했어요.');
+        });
+        socket.on('start_error', (payload: any) => {
+          if (!alive) return;
+          setError(payload?.message || '게임 시작에 실패했어요.');
+        });
         socket.on('character_update', (payload: any) => {
           if (!alive) return;
           setLobby((prev) => {
