@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useGameStore, { CHARACTER_INFO, CharacterType } from '../../store/useGameStore';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
+import SpaceBackdrop from '../ui/SpaceBackdrop';
 import { apiGetMe, apiLogout, apiSetCharacter } from '../../services/api';
 import { connectSocket } from '../../services/socketio';
 import { fromBackendCharacter, toBackendCharacter } from '../../utils/characterMapping';
@@ -143,6 +144,8 @@ const LobbyPage = () => {
 
   return (
     <div className="ui-page p-6">
+      <SpaceBackdrop />
+
       <div className="ui-bg-blobs" aria-hidden="true">
         <div className="ui-blob -left-40 top-1/4 bg-sky-500/10" />
         <div className="ui-blob -right-40 bottom-1/4 bg-fuchsia-500/10" />
