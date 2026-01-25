@@ -54,7 +54,7 @@ const LobbyPage = () => {
           <p className="text-white/70">플레이어: {players.length} / {maxPlayers}</p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-2">
+        <div className="grid items-start gap-8 lg:grid-cols-2">
           {/* Left: Character Selection */}
           <div className="ui-card">
             <h2 className="mb-6 text-xl font-bold text-white">캐릭터 목록</h2>
