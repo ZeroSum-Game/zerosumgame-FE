@@ -66,7 +66,6 @@ const PlayerToken = ({ playerId, tokenIndex }: { playerId: number; tokenIndex: n
   if (!player || player.isBankrupt) return null;
 
   const color = player.character ? CHARACTER_INFO[player.character].color : '#60a5fa';
-  const emoji = player.character ? CHARACTER_INFO[player.character].emoji : '🙂';
   const isActive = currentPlayerIndex >= 0 && currentPlayerId === playerId;
 
   return (
@@ -128,7 +127,11 @@ const PlayerToken = ({ playerId, tokenIndex }: { playerId: number; tokenIndex: n
             isActive ? 'border-amber-300/40 bg-black/60' : 'border-white/10 bg-black/40'
           }`}
         >
-          <span className="text-sm">{emoji}</span>
+          <img
+            src={player.avatar || '/assets/characters/default.png'}
+            alt={player.name}
+            className="h-5 w-5 rounded-full object-cover ring-2 ring-white/20"
+          />
           <span className="max-w-[88px] truncate">{player.name}</span>
         </div>
       </Html>

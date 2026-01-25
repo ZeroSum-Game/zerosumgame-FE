@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useGameStore, { STOCK_INFO, type StockSymbol } from '../../store/useGameStore';
 import { formatKRWKoShort } from '../../utils/formatKRW';
+import { getRegionForStockSymbol } from '../../utils/regionCues';
 
 const MAJOR_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'];
 
@@ -38,9 +39,10 @@ const MarketPanel = () => {
             const price = assetPrices[symbol];
             const change = changes[symbol] ?? 0;
             const isUp = change >= 0;
+            const region = getRegionForStockSymbol(symbol);
 
             return (
-              <div key={symbol} className="dash-market-row">
+              <div key={symbol} className="dash-market-row region-cue" data-region={region}>
                 <div className="min-w-0">
                   <div className="dash-market-name">{info.nameKr}</div>
                   <div className="dash-market-sub">{info.name}</div>

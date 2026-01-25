@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import useGameStore, { CHARACTER_INFO, CharacterType } from '../../store/useGameStore';
+import { CHARACTER_THEME } from '../../utils/characterTheme';
 
 const CHARACTERS: CharacterType[] = ['ELON', 'SAMSUNG', 'TRUMP', 'PUTIN'];
 const PLAYER_SLOT_BADGE_CLASSES = [
@@ -12,7 +13,6 @@ const PLAYER_SLOT_BADGE_CLASSES = [
 const LobbyPage = () => {
   const {
     players,
-    addPlayer,
     removePlayer,
     selectCharacter,
     setPlayerReady,
@@ -20,7 +20,6 @@ const LobbyPage = () => {
     maxPlayers,
   } = useGameStore();
 
-  const [newPlayerName, setNewPlayerName] = useState('');
   const [activePlayerId, setActivePlayerId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -33,14 +32,6 @@ const LobbyPage = () => {
   }, [players, activePlayerId]);
 
   const activePlayer = players.find((p) => p.id === activePlayerId) ?? null;
-
-  const handleAddPlayer = () => {
-    if (newPlayerName.trim().length < 2) return;
-    if (players.length >= maxPlayers) return;
-
-    addPlayer(newPlayerName.trim());
-    setNewPlayerName('');
-  };
 
   const isCharacterTaken = (character: CharacterType) => {
     return players.some(p => p.character === character);
@@ -71,6 +62,7 @@ const LobbyPage = () => {
             <div className="grid grid-cols-2 gap-4">
               {CHARACTERS.map((char) => {
                 const info = CHARACTER_INFO[char];
+                const theme = CHARACTER_THEME[char];
                 const taken = isCharacterTaken(char);
                 const takenBy = players.find(p => p.character === char);
                 const canPick =
@@ -93,10 +85,13 @@ const LobbyPage = () => {
                   >
                     {/* Character emoji */}
                     <div
-                      className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 text-4xl shadow-lg shadow-black/40"
-                      style={{ backgroundColor: info.color + '24' }}
+                      className={`mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 shadow-lg shadow-black/40 ${theme.bgClass}`}
                     >
-                      {info.emoji}
+                      <img
+                        src={info.avatar || '/assets/characters/default.png'}
+                        alt={info.name}
+                        className={`h-20 w-20 rounded-full object-cover ring-2 ${theme.ringClass}`}
+                      />
                     </div>
 
                     {/* Character name */}
@@ -122,31 +117,6 @@ const LobbyPage = () => {
 
           {/* Right: Player List */}
           <div className="space-y-6">
-            {/* Add Player */}
-            {players.length < maxPlayers && (
-              <div className="ui-card">
-                <h2 className="mb-4 text-xl font-bold text-white">플레이어 추가</h2>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={newPlayerName}
-                    onChange={(e) => setNewPlayerName(e.target.value)}
-                    placeholder="플레이어 이름"
-                    maxLength={10}
-                    className="ui-input flex-1"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
-                  />
-                  <button
-                    onClick={handleAddPlayer}
-                    disabled={newPlayerName.trim().length < 2}
-                    className="ui-btn ui-btn-primary px-6 font-bold"
-                  >
-                    추가
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Player Cards */}
             <div className="space-y-4">
               {players.map((player, index) => (
@@ -217,6 +187,7 @@ const LobbyPage = () => {
                       <div className="flex gap-2">
                         {CHARACTERS.map((char) => {
                           const info = CHARACTER_INFO[char];
+                          const theme = CHARACTER_THEME[char];
                           const taken = isCharacterTaken(char);
                           const isSelected = player.character === char;
 
@@ -234,7 +205,11 @@ const LobbyPage = () => {
                               }`}
                               title={info.name}
                             >
-                              {info.emoji}
+                              <img
+                                src={info.avatar || '/assets/characters/default.png'}
+                                alt={info.name}
+                                className={`h-10 w-10 rounded-full object-cover ring-2 ${theme.ringClass}`}
+                              />
                             </button>
                           );
                         })}

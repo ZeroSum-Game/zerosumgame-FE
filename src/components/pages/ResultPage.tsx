@@ -17,6 +17,9 @@ const ResultPage = () => {
   const ranking = gameResult?.ranking ?? [];
   const winnerId = gameResult?.winnerId ?? null;
   const winner = winnerId ? players.find((p) => p.id === winnerId) ?? null : null;
+  const winnerSlotIndex = winnerId ? players.findIndex((p) => p.id === winnerId) : -1;
+  const winnerIconClass =
+    PLAYER_SLOT_ICON_CLASSES[(winnerSlotIndex === -1 ? 0 : winnerSlotIndex) % PLAYER_SLOT_ICON_CLASSES.length];
 
   return (
     <div className="ui-page flex items-center justify-center p-6">
@@ -38,10 +41,13 @@ const ResultPage = () => {
             <p className="text-sm font-bold text-white/80">우승</p>
             <div className="mt-3 flex items-center gap-4">
               <div
-                className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 text-3xl shadow-lg shadow-black/40"
-                style={{ backgroundColor: winner?.character ? CHARACTER_INFO[winner.character].color + '26' : 'rgba(255,255,255,0.06)' }}
+                className={`flex h-16 w-16 items-center justify-center rounded-full border shadow-lg shadow-black/40 ${winnerIconClass}`}
               >
-                {winner?.character ? CHARACTER_INFO[winner.character].emoji : '🏆'}
+                <img
+                  src={winner?.avatar || '/assets/characters/default.png'}
+                  alt={winner?.name ?? '우승'}
+                  className="h-16 w-16 rounded-full object-cover ring-2 ring-white/20"
+                />
               </div>
               <div className="flex-1">
                 <p className="text-2xl font-black text-amber-300">{winner?.name ?? '—'}</p>
@@ -72,9 +78,13 @@ const ResultPage = () => {
                         {idx + 1}
                       </div>
                       <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl border text-xl ${iconClass}`}
+                        className={`flex h-10 w-10 items-center justify-center rounded-full border ${iconClass}`}
                       >
-                        {p?.character ? CHARACTER_INFO[p.character].emoji : '🙂'}
+                        <img
+                          src={p?.avatar || '/assets/characters/default.png'}
+                          alt={p?.name ?? '플레이어'}
+                          className="h-10 w-10 rounded-full object-cover ring-2 ring-white/20"
+                        />
                       </div>
                       <div>
                         <p className="text-sm font-black text-white">{p?.name ?? '—'}</p>

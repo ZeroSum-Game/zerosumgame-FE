@@ -1,4 +1,5 @@
 import { formatKRW, formatKRWKoShort } from '../../utils/formatKRW';
+import type { Region } from '../../utils/regionCues';
 
 type Props = {
   name: string;
@@ -7,6 +8,7 @@ type Props = {
   active?: boolean;
   selected?: boolean;
   occupantColors?: string[];
+  region?: Region | null;
   showPrice?: boolean;
   onClick?: () => void;
 };
@@ -21,7 +23,7 @@ const hexToRgba = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const AssetCard = ({ name, price, changePct, active, selected, occupantColors, showPrice = true, onClick }: Props) => {
+const AssetCard = ({ name, price, changePct, active, selected, occupantColors, region, showPrice = true, onClick }: Props) => {
   const isUp = typeof changePct === 'number' && changePct > 0;
   const isDown = typeof changePct === 'number' && changePct < 0;
 
@@ -32,6 +34,7 @@ const AssetCard = ({ name, price, changePct, active, selected, occupantColors, s
 
   const classes = [
     'asset-card',
+    'region-cue',
     active ? 'asset-card-active' : '',
     selected ? 'asset-card-selected' : '',
     onClick ? 'asset-card-clickable' : '',
@@ -77,14 +80,14 @@ const AssetCard = ({ name, price, changePct, active, selected, occupantColors, s
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={classes} style={cardStyle}>
+      <button type="button" onClick={onClick} className={classes} style={cardStyle} data-region={region ?? undefined}>
         {body}
       </button>
     );
   }
 
   return (
-    <div className={classes} style={cardStyle}>
+    <div className={classes} style={cardStyle} data-region={region ?? undefined}>
       {body}
     </div>
   );

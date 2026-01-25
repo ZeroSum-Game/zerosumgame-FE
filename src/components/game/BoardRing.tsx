@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import useGameStore, { STOCK_INFO, TILE_TO_STOCK, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
+import { getRegionForBoardSpace } from '../../utils/regionCues';
 import AssetCard from './AssetCard';
 
 const STOCK_LABEL: Record<StockSymbol, string> = {
@@ -63,6 +64,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
           const isSelected = selectedAssetId === space.id;
           const symbol = space.type === 'STOCK' ? TILE_TO_STOCK[space.id] : undefined;
           const occupantColors = occupantColorsByTile.get(space.id) ?? [];
+          const region = getRegionForBoardSpace(space, { stockSymbol: symbol });
 
           const price =
             space.type === 'COUNTRY'
@@ -95,6 +97,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
                 active={isActive}
                 selected={isSelected}
                 occupantColors={occupantColors}
+                region={region}
                 showPrice={false}
                 onClick={() => onSelectAsset(space.id)}
               />

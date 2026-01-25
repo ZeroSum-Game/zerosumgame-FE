@@ -45,33 +45,33 @@ export const TILE_TO_STOCK: Record<number, StockSymbol> = {
 
 export const CHARACTER_INFO: Record<
   CharacterType,
-  { name: string; color: string; emoji: string; abilityShort: string; abilityDetail: string }
+  { name: string; color: string; avatar: string; abilityShort: string; abilityDetail: string }
 > = {
   ELON: {
     name: '일론 머스크',
-    color: '#3b82f6',
-    emoji: '🚀',
+    color: '#3b82f6', // 파
+    avatar: '/assets/characters/musk.png',
     abilityShort: '시작 자금 +₩1,000,000',
     abilityDetail: '다른 플레이어보다 1,000,000원 더 많은 상태로 시작합니다.',
   },
   SAMSUNG: {
     name: '이재용',
-    color: '#1e40af',
-    emoji: '📱',
+    color: '#f59e0b', // 노
+    avatar: '/assets/characters/lee.png',
     abilityShort: `삼성전자 주식 ${SAMSUNG_START_SHARES}주`,
     abilityDetail: `게임 시작 시 삼성전자 주식 ${SAMSUNG_START_SHARES}주(약 ${formatKRWKo(SAMSUNG_START_STOCK_VALUE)})를 보유한 상태로 시작합니다. 배당금은 매 턴 변동(대략 ${formatKRWKo(SAMSUNG_START_DIVIDEND_MIN)}~${formatKRWKo(SAMSUNG_START_DIVIDEND_MAX)}/턴).`,
   },
   TRUMP: {
     name: '트럼프',
-    color: '#ef4444',
-    emoji: '🏛️',
+    color: '#ef4444', // 빨
+    avatar: '/assets/characters/trump.png',
     abilityShort: '내 땅 통행료 +5%',
     abilityDetail: '본인이 소유한 지역의 통행료에 +5%를 추가로 부과합니다.',
   },
   PUTIN: {
     name: '푸틴',
-    color: '#dc2626',
-    emoji: '🐻',
+    color: '#22c55e', // 초
+    avatar: '/assets/characters/putin.png',
     abilityShort: '전쟁 승리확률 +10%',
     abilityDetail: '전쟁 이벤트 진행 시 승리 확률이 10% 증가합니다.',
   },
@@ -87,6 +87,7 @@ export type LandState = {
 export type Player = {
   id: number;
   name: string;
+  avatar: string;
   character: CharacterType | null;
   position: number;
   cash: number;
@@ -133,6 +134,7 @@ export type ModalState =
 
 type PageType = 'login' | 'lobby' | 'game' | 'result';
 type PhaseType = 'IDLE' | 'ROLLING' | 'MOVING' | 'MODAL' | 'GAME_OVER';
+type RollStage = 'IDLE' | 'HOLDING' | 'SETTLING';
 
 type GameResult = {
   winnerId: number | null;
@@ -177,6 +179,10 @@ type GameState = {
 
   isRolling: boolean;
   rollTrigger: number;
+  rollReleaseTrigger: number;
+  rollStage: RollStage;
+  pendingDice: [number, number] | null;
+  rollStartedAt: number | null;
 
   gameResult: GameResult | null;
 
@@ -193,6 +199,7 @@ type GameState = {
   closeModal: () => void;
 
   startRoll: () => void;
+  releaseRoll: () => void;
   setDiceValues: (rolls: [number, number]) => void;
   endTurn: () => void;
 
@@ -817,6 +824,10 @@ const useGameStore = create<GameState>((set, get) => {
 
     isRolling: false,
     rollTrigger: 0,
+    rollReleaseTrigger: 0,
+    rollStage: 'IDLE',
+    pendingDice: null,
+    rollStartedAt: null,
 
     gameResult: null,
 
@@ -826,6 +837,7 @@ const useGameStore = create<GameState>((set, get) => {
       const newPlayer: Player = {
         id: Date.now() + Math.floor(Math.random() * 1000),
         name,
+        avatar: '/assets/characters/default.png',
         character: null,
         position: 0,
         cash: GAME_RULES.START_CASH,
@@ -848,7 +860,9 @@ const useGameStore = create<GameState>((set, get) => {
       const isTaken = players.some((p) => p.character === character && p.id !== playerId);
       if (isTaken) return;
       set({
-        players: players.map((p) => (p.id === playerId ? { ...p, character } : p)),
+        players: players.map((p) =>
+          p.id === playerId ? { ...p, character, avatar: CHARACTER_INFO[character].avatar } : p
+        ),
       });
     },
 
@@ -887,6 +901,10 @@ const useGameStore = create<GameState>((set, get) => {
         eventLog: [],
         isRolling: false,
         rollTrigger: 0,
+        rollReleaseTrigger: 0,
+        rollStage: 'IDLE',
+        pendingDice: null,
+        rollStartedAt: null,
         gameResult: null,
         players: players.map((p) => {
           const base: Player = {
@@ -940,6 +958,10 @@ const useGameStore = create<GameState>((set, get) => {
         eventLog: [],
         isRolling: false,
         rollTrigger: 0,
+        rollReleaseTrigger: 0,
+        rollStage: 'IDLE',
+        pendingDice: null,
+        rollStartedAt: null,
         gameResult: null,
         players: state.players.map((p) => ({
           ...p,
@@ -978,6 +1000,10 @@ const useGameStore = create<GameState>((set, get) => {
         eventLog: [],
         isRolling: false,
         rollTrigger: 0,
+        rollReleaseTrigger: 0,
+        rollStage: 'IDLE',
+        pendingDice: null,
+        rollStartedAt: null,
         gameResult: null,
       });
     },
@@ -999,6 +1025,7 @@ const useGameStore = create<GameState>((set, get) => {
       if (state.currentPage !== 'game') return;
       if (state.phase !== 'IDLE') return;
       if (state.activeModal) return;
+      if (state.isRolling) return;
 
       const currentPlayer = state.players[state.currentPlayerIndex];
       if (!currentPlayer || currentPlayer.isBankrupt) return;
@@ -1006,12 +1033,30 @@ const useGameStore = create<GameState>((set, get) => {
       const canRoll = !state.hasRolledThisTurn || state.extraRolls > 0;
       if (!canRoll) return;
 
+      const d1 = Math.floor(Math.random() * 6) + 1;
+      const d2 = Math.floor(Math.random() * 6) + 1;
+
       set((s) => ({
         isRolling: true,
         rollTrigger: s.rollTrigger + 1,
+        rollStage: 'HOLDING',
+        pendingDice: [d1, d2],
+        rollStartedAt: Date.now(),
         phase: 'ROLLING',
         extraRolls: s.hasRolledThisTurn ? Math.max(0, s.extraRolls - 1) : s.extraRolls,
         hasRolledThisTurn: true,
+      }));
+    },
+
+    releaseRoll: () => {
+      const state = get();
+      if (state.currentPage !== 'game') return;
+      if (!state.isRolling) return;
+      if (state.rollStage !== 'HOLDING') return;
+
+      set((s) => ({
+        rollStage: 'SETTLING',
+        rollReleaseTrigger: s.rollReleaseTrigger + 1,
       }));
     },
 
@@ -1032,6 +1077,9 @@ const useGameStore = create<GameState>((set, get) => {
           isDouble: true,
           extraRolls: 0,
           consecutiveDoubles: 0,
+          rollStage: 'IDLE',
+          pendingDice: null,
+          rollStartedAt: null,
           phase: 'IDLE',
           players: s.players.map((p, idx) =>
             idx === s.currentPlayerIndex ? { ...p, position: WAR_TILE_ID } : p
@@ -1052,6 +1100,9 @@ const useGameStore = create<GameState>((set, get) => {
         isDouble,
         extraRolls: isDouble ? s.extraRolls + 1 : s.extraRolls,
         consecutiveDoubles: newConsecutiveDoubles,
+        rollStage: 'IDLE',
+        pendingDice: null,
+        rollStartedAt: null,
         phase: 'MOVING',
       }));
 

@@ -80,9 +80,9 @@ const PlayerSummary = () => {
   const lands = useGameStore((s) => s.lands);
   const dice = useGameStore((s) => s.dice);
   const hasRolledThisTurn = useGameStore((s) => s.hasRolledThisTurn);
+  const rollStage = useGameStore((s) => s.rollStage);
 
   const currentPlayer = players[currentPlayerIndex] ?? null;
-  const currentPlayerColor = getPlayerSlotColor(currentPlayerIndex);
 
   const totals = useMemo(() => {
     if (!currentPlayer) return null;
@@ -101,16 +101,11 @@ const PlayerSummary = () => {
           <div className="min-w-0">
             <div className="dash-kicker">이번 턴</div>
             <div className="dash-title-row">
-              <div
-                className="dash-avatar"
-                style={{
-                  borderColor: hexToRgba(currentPlayerColor, 0.22),
-                  backgroundColor: hexToRgba(currentPlayerColor, 0.14),
-                  boxShadow: `0 22px 70px -60px ${hexToRgba(currentPlayerColor, 0.65)}`,
-                }}
-              >
-                {currentPlayer?.character ? CHARACTER_INFO[currentPlayer.character].emoji : '🙂'}
-              </div>
+              <img
+                src={currentPlayer?.avatar || '/assets/characters/default.png'}
+                alt={currentPlayer?.name ?? '플레이어'}
+                className="h-9 w-9 rounded-full object-cover ring-2 ring-white/20 shadow-lg shadow-black/40"
+              />
               <div className="min-w-0">
                 <div className="dash-title truncate">{currentPlayer?.name ?? '—'}</div>
               <div className="dash-subtitle">
@@ -122,7 +117,7 @@ const PlayerSummary = () => {
 
         {hasRolledThisTurn && (
           <div className="dash-chip font-mono">
-            {dice[0]} + {dice[1]} = {dice[0] + dice[1]}
+            {rollStage !== 'IDLE' ? '— + — = —' : `${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`}
           </div>
         )}
       </div>
@@ -255,7 +250,7 @@ const PlayerRoster = () => {
       return {
         id: p.id,
         name: p.name,
-        emoji: p.character ? CHARACTER_INFO[p.character].emoji : '🙂',
+        avatar: p.avatar || '/assets/characters/default.png',
         color,
         isBankrupt: p.isBankrupt,
         isActive: p.id === currentPlayer?.id,
@@ -292,17 +287,11 @@ const PlayerRoster = () => {
               }}
             />
             <div className="dash-player-left">
-              <div
-                className="dash-player-avatar"
-                aria-hidden="true"
-                style={{
-                  borderColor: hexToRgba(r.color, 0.25),
-                  backgroundColor: hexToRgba(r.color, 0.10),
-                  boxShadow: `0 18px 55px -40px ${hexToRgba(r.color, 0.45)}`,
-                }}
-              >
-                {r.emoji}
-              </div>
+              <img
+                src={r.avatar || '/assets/characters/default.png'}
+                alt={r.name}
+                className="h-[34px] w-[34px] shrink-0 rounded-full bg-black/20 object-cover ring-2 ring-white/20"
+              />
               <div className="min-w-0">
                 <div className="dash-player-name-row">
                   <div className="dash-player-name truncate">{r.name}</div>

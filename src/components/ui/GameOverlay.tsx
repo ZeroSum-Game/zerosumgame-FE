@@ -30,6 +30,7 @@ const GameOverlay = () => {
   const activeModal = useGameStore((state) => state.activeModal);
   const closeModal = useGameStore((state) => state.closeModal);
   const queuedModal = useGameStore((state) => state.queuedModal);
+  const rollStage = useGameStore((state) => state.rollStage);
 
   const buyLand = useGameStore((state) => state.buyLand);
   const buildLandmark = useGameStore((state) => state.buildLandmark);
@@ -134,7 +135,7 @@ const GameOverlay = () => {
             assetChange={assetChange}
             landChange={landChange}
             center={
-              <div className="board-center">
+              <div className={`board-center ${rollStage !== 'IDLE' ? 'board-center-rolling' : ''}`}>
                 <DiceRoller />
                 <TurnControls />
               </div>
@@ -252,8 +253,14 @@ const GameOverlay = () => {
                     <div>
                       <h2 className="text-xl font-black text-white">🧾 통행료</h2>
                       <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
-                      <p className="mt-1 text-sm text-white/70">
-                        소유자: {owner?.character ? CHARACTER_INFO[owner.character].emoji : '🙂'} {owner?.name ?? '—'}
+                      <p className="mt-1 flex items-center gap-2 text-sm text-white/70">
+                        <span>소유자:</span>
+                        <img
+                          src={owner?.avatar || '/assets/characters/default.png'}
+                          alt={owner?.name ?? '소유자'}
+                          className="h-5 w-5 rounded-full object-cover ring-2 ring-white/20"
+                        />
+                        <span>{owner?.name ?? '—'}</span>
                       </p>
                     </div>
                   </div>
@@ -538,7 +545,11 @@ const GameOverlay = () => {
                         onClick={() => chooseWarTarget(p.id)}
                       >
                         <span className="flex items-center gap-2">
-                          <span className="text-lg">{p.character ? CHARACTER_INFO[p.character].emoji : '🙂'}</span>
+                          <img
+                            src={p.avatar || '/assets/characters/default.png'}
+                            alt={p.name}
+                            className="h-6 w-6 rounded-full object-cover ring-2 ring-white/20"
+                          />
                           {p.name}
                         </span>
                         <span className="text-xs text-white/50">선택</span>
