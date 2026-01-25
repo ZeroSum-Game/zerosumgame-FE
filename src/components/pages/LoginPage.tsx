@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import useGameStore, { CHARACTER_INFO, type CharacterType } from '../../store/useGameStore';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
+import SpaceBackdrop from '../ui/SpaceBackdrop';
 
 const CHARACTER_ORDER: CharacterType[] = ['ELON', 'SAMSUNG', 'TRUMP', 'PUTIN'];
 
@@ -14,6 +15,8 @@ const LoginPage = () => {
 
   return (
     <div className="ui-page flex items-center justify-center">
+      <SpaceBackdrop />
+
       <div className="ui-bg-blobs" aria-hidden="true">
         <div className="ui-blob -left-24 -top-24 bg-sky-500/20" />
         <div className="ui-blob -bottom-28 -right-28 bg-fuchsia-500/20" />
