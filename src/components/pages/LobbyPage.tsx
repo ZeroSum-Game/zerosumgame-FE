@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import useGameStore, { CHARACTER_INFO, CharacterType } from '../../store/useGameStore';
+import useGameStore, { CHARACTER_INFO, CharacterType, GAME_RULES } from '../../store/useGameStore';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
 import SpaceBackdrop from '../ui/SpaceBackdrop';
 import { apiGetMe, apiLogout, apiSetCharacter } from '../../services/api';
@@ -108,8 +108,52 @@ const LobbyPage = () => {
           };
         });
       },
-      gameStart: () => {
+      gameStart: (payload: any) => {
         if (!alive) return;
+        const playersPayload = Array.isArray(payload?.players) ? payload.players : [];
+        if (playersPayload.length > 0) {
+          const players = playersPayload.map((p: any, idx: number) => {
+            const character = fromBackendCharacter(p?.character);
+            const baseCash = GAME_RULES.START_CASH;
+            const bonusCash = character === 'ELON' ? 1000000 : 0;
+            const cash = baseCash + bonusCash;
+            const holdings = character === 'SAMSUNG' ? { SAMSUNG: 10 } : {};
+            return {
+              id: Number(p?.playerId ?? p?.id ?? idx + 1),
+              userId: Number(p?.userId ?? 0),
+              name: String(p?.nickname ?? `Player ${p?.userId ?? idx + 1}`),
+              avatar: character ? CHARACTER_INFO[character].avatar : '/assets/characters/default.png',
+              character,
+              position: typeof p?.location === 'number' ? p.location : 0,
+              cash,
+              totalAsset: cash,
+              isReady: true,
+              isBankrupt: false,
+              stockHoldings: holdings,
+              tollRateMultiplier: character === 'TRUMP' ? 1.05 : 1.0,
+              warWinChanceBonus: character === 'PUTIN' ? 0.1 : 0,
+            };
+          });
+
+          const currentTurnUserId = Number(payload?.currentTurn ?? 0);
+          const turnPlayerId = Number(payload?.turnPlayerId ?? 0);
+          const currentPlayerIndex =
+            turnPlayerId > 0
+              ? players.findIndex((p: any) => p.id === turnPlayerId)
+              : players.findIndex((p: any) => p.userId === currentTurnUserId);
+
+          useGameStore.setState({
+            players,
+            currentPlayerIndex: currentPlayerIndex >= 0 ? currentPlayerIndex : 0,
+            phase: 'IDLE',
+            round: 1,
+            hasRolledThisTurn: false,
+            extraRolls: 0,
+            dice: [1, 1],
+            activeModal: null,
+            queuedModal: null,
+          });
+        }
         preserveSocketRef.current = true;
         setRoomStatus('PLAYING');
         setCurrentPage('game');
