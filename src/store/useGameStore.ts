@@ -199,6 +199,7 @@ type GameState = {
   rollStage: RollStage;
   pendingDice: [number, number] | null;
   rollStartedAt: number | null;
+  rollingUserId: number | null; // 현재 주사위를 굴리는 유저 ID (관전 기능용)
 
   gameResult: GameResult | null;
 
@@ -857,6 +858,7 @@ const useGameStore = create<GameState>((set, get) => {
     rollStage: 'IDLE',
     pendingDice: null,
     rollStartedAt: null,
+    rollingUserId: null,
 
     gameResult: null,
 

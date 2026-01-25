@@ -970,6 +970,59 @@
     text-align: center;
   }
 
+  /* 관전 모드 스타일 */
+  .turn-controls-spectate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(0, 0, 0, 0.40);
+    backdrop-filter: blur(8px);
+  }
+
+  .spectate-dice-animation {
+    display: flex;
+    gap: 8px;
+  }
+
+  .spectate-dice {
+    font-size: 32px;
+    animation: spectateDiceShake 0.3s ease-in-out infinite;
+  }
+
+  .spectate-dice.delay {
+    animation-delay: 0.15s;
+  }
+
+  @keyframes spectateDiceShake {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(15deg); }
+  }
+
+  .spectate-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(241, 245, 249, 0.90);
+  }
+
+  .dice-result {
+    font-size: 16px;
+    font-weight: 900;
+    color: #22c55e;
+  }
+
+  .turn-controls-waiting {
+    padding: 12px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.30);
+    font-size: 13px;
+    color: rgba(148, 163, 184, 0.85);
+  }
+
   .dash-btn {
     height: 46px;
     min-width: 240px;
@@ -1008,6 +1061,14 @@
     border: 1px solid rgba(255, 255, 255, 0.10);
     background: rgba(255, 255, 255, 0.03);
     color: rgba(148, 163, 184, 0.75);
+  }
+
+  .dash-btn-result {
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    transform: scale(1.02);
+    box-shadow: 0 0 20px -8px rgba(34, 197, 94, 0.4);
   }
 
   .dash-btn:focus-visible {

@@ -23,6 +23,22 @@ type LobbyState = {
   players: LobbyPlayer[];
 };
 
+type OrderPickResult = {
+  userId: number;
+  playerId: number;
+  cardNumber: number;
+  turnOrder: number;
+  nickname: string;
+};
+
+type OrderPickingState = {
+  isPickingOrder: boolean;
+  availableCards: number[];
+  pickedCards: number[];
+  myPickedCard: number | null;
+  orderResults: OrderPickResult[] | null;
+};
+
 const LobbyPage = () => {
   const setCurrentPage = useGameStore((s) => s.setCurrentPage);
   const maxPlayers = useGameStore((s) => s.maxPlayers);
@@ -32,11 +48,21 @@ const LobbyPage = () => {
   const [roomStatus, setRoomStatus] = useState<string>('WAITING');
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(true);
+  const [orderPicking, setOrderPicking] = useState<OrderPickingState>({
+    isPickingOrder: false,
+    availableCards: [],
+    pickedCards: [],
+    myPickedCard: null,
+    orderResults: null,
+  });
 
   const socketRef = useRef<Awaited<ReturnType<typeof connectSocket>> | null>(null);
   const preserveSocketRef = useRef(false);
+  const myUserIdRef = useRef<number | null>(null);
 
   const myUserId = me?.userId ?? null;
+  myUserIdRef.current = myUserId;
+
   const myLobbyPlayer = useMemo(() => {
     if (!myUserId || !lobby) return null;
     return lobby.players.find((p) => p.userId === myUserId) ?? null;
@@ -107,6 +133,41 @@ const LobbyPage = () => {
             players: prev.players.map((p) => (p.userId === userId ? { ...p, character } : p)),
           };
         });
+      },
+      orderPickingStart: (payload: any) => {
+        if (!alive) return;
+        console.log('[Lobby] order_picking_start:', payload);
+        setOrderPicking({
+          isPickingOrder: true,
+          availableCards: payload.availableCards || [],
+          pickedCards: [],
+          myPickedCard: null,
+          orderResults: null,
+        });
+      },
+      orderCardPicked: (payload: any) => {
+        if (!alive) return;
+        console.log('[Lobby] order_card_picked:', payload);
+        const pickedUserId = Number(payload?.userId);
+        const cardNumber = Number(payload?.cardNumber);
+        const currentMyUserId = myUserIdRef.current;
+        setOrderPicking((prev) => ({
+          ...prev,
+          pickedCards: payload.pickedCards || [],
+          myPickedCard: pickedUserId === currentMyUserId ? cardNumber : prev.myPickedCard,
+        }));
+      },
+      orderPickingComplete: (payload: any) => {
+        if (!alive) return;
+        console.log('[Lobby] order_picking_complete:', payload);
+        setOrderPicking((prev) => ({
+          ...prev,
+          orderResults: payload.orderResults || [],
+        }));
+      },
+      pickError: (payload: any) => {
+        if (!alive) return;
+        setError(payload?.message || '카드 선택 실패');
       },
       gameStart: (payload: any) => {
         if (!alive) return;
@@ -191,6 +252,10 @@ const LobbyPage = () => {
         socket.on('ready_error', handlers.readyError);
         socket.on('start_error', handlers.startError);
         socket.on('character_update', handlers.characterUpdate);
+        socket.on('order_picking_start', handlers.orderPickingStart);
+        socket.on('order_card_picked', handlers.orderCardPicked);
+        socket.on('order_picking_complete', handlers.orderPickingComplete);
+        socket.on('pick_error', handlers.pickError);
         socket.on('game_start', handlers.gameStart);
 
         socket.emit('join_room', 1);
@@ -211,6 +276,10 @@ const LobbyPage = () => {
         socketRef.current.off('ready_error', handlers.readyError);
         socketRef.current.off('start_error', handlers.startError);
         socketRef.current.off('character_update', handlers.characterUpdate);
+        socketRef.current.off('order_picking_start', handlers.orderPickingStart);
+        socketRef.current.off('order_card_picked', handlers.orderCardPicked);
+        socketRef.current.off('order_picking_complete', handlers.orderPickingComplete);
+        socketRef.current.off('pick_error', handlers.pickError);
         socketRef.current.off('game_start', handlers.gameStart);
       }
       if (!preserveSocketRef.current) {
@@ -219,6 +288,111 @@ const LobbyPage = () => {
       socketRef.current = null;
     };
   }, [setCurrentPage]);
+
+  const handlePickCard = (cardNumber: number) => {
+    if (!socketRef.current || orderPicking.myPickedCard !== null) return;
+    if (orderPicking.pickedCards.includes(cardNumber)) return;
+    socketRef.current.emit('pick_order_card', cardNumber);
+  };
+
+  // 순서 뽑기 모달
+  if (orderPicking.isPickingOrder) {
+    return (
+      <div className="ui-page p-6">
+        <SpaceBackdrop />
+        <div className="ui-bg-blobs" aria-hidden="true">
+          <div className="ui-blob -left-40 top-1/4 bg-amber-500/10" />
+          <div className="ui-blob -right-40 bottom-1/4 bg-emerald-500/10" />
+        </div>
+
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center">
+          <div className="ui-card-lg w-full max-w-2xl text-center">
+            <h1 className="mb-2 text-3xl font-black text-white">🎴 순서 뽑기</h1>
+            <p className="mb-8 text-white/70">
+              {orderPicking.orderResults
+                ? '순서가 결정되었습니다!'
+                : orderPicking.myPickedCard
+                ? '다른 플레이어가 선택하는 중...'
+                : '카드를 선택하여 게임 순서를 정하세요'}
+            </p>
+
+            {/* 순서 결과 표시 */}
+            {orderPicking.orderResults ? (
+              <div className="space-y-4">
+                <div className="text-lg font-bold text-amber-300">🏆 게임 순서</div>
+                <div className="flex flex-wrap justify-center gap-4">
+                  {orderPicking.orderResults.map((result) => {
+                    const player = lobby?.players.find((p) => p.userId === result.userId);
+                    const character = player?.character;
+                    const avatar = character ? CHARACTER_INFO[character].avatar : '/assets/characters/default.png';
+                    return (
+                      <div
+                        key={result.userId}
+                        className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-4"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20 text-xl font-black text-amber-300">
+                          {result.turnOrder}
+                        </div>
+                        <img src={avatar} alt={result.nickname} className="h-12 w-12 rounded-full object-cover" />
+                        <div className="text-sm font-bold text-white">{result.nickname}</div>
+                        <div className="text-xs text-white/60">카드: {result.cardNumber}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-6 text-white/60">잠시 후 게임이 시작됩니다...</div>
+              </div>
+            ) : (
+              /* 카드 선택 UI */
+              <div className="flex flex-wrap justify-center gap-4">
+                {orderPicking.availableCards.map((cardNum) => {
+                  const isPicked = orderPicking.pickedCards.includes(cardNum);
+                  const isMyPick = orderPicking.myPickedCard === cardNum;
+                  const canPick = orderPicking.myPickedCard === null && !isPicked;
+
+                  return (
+                    <button
+                      key={cardNum}
+                      type="button"
+                      onClick={() => handlePickCard(cardNum)}
+                      disabled={!canPick}
+                      className={`relative h-32 w-24 rounded-xl border-2 text-4xl font-black transition-all ${
+                        isMyPick
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 ring-4 ring-emerald-400/30'
+                          : isPicked
+                          ? 'cursor-not-allowed border-white/20 bg-white/[0.02] text-white/30'
+                          : canPick
+                          ? 'border-white/30 bg-white/[0.06] text-white hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-300'
+                          : 'cursor-not-allowed border-white/10 bg-white/[0.02] text-white/50'
+                      }`}
+                    >
+                      {isPicked && !isMyPick ? (
+                        <span className="text-2xl">✓</span>
+                      ) : (
+                        cardNum
+                      )}
+                      {isMyPick && (
+                        <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">
+                          선택!
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 선택 현황 */}
+            {!orderPicking.orderResults && (
+              <div className="mt-8 text-sm text-white/60">
+                선택 완료: {orderPicking.pickedCards.length} / {orderPicking.availableCards.length}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ui-page p-6">

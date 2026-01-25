@@ -51,12 +51,29 @@ const mapBackendPlayer = (p: any, index: number): Player => {
   };
 };
 
+export type OrderPickResult = {
+  userId: number;
+  playerId: number;
+  cardNumber: number;
+  turnOrder: number;
+  nickname: string;
+};
+
+export type OrderPickingState = {
+  isPickingOrder: boolean;
+  availableCards: number[];
+  pickedCards: number[];
+  myPickedCard: number | null;
+  orderResults: OrderPickResult[] | null;
+};
+
 export type GameSocketState = {
   connected: boolean;
   error: string | null;
   currentTurnUserId: number | null;
   myUserId: number | null;
   roomId: number | null;
+  orderPicking: OrderPickingState;
 };
 
 export const useGameSocket = (roomId: number = 1) => {
@@ -67,6 +84,13 @@ export const useGameSocket = (roomId: number = 1) => {
     currentTurnUserId: null,
     myUserId: null,
     roomId: null,
+    orderPicking: {
+      isPickingOrder: false,
+      availableCards: [],
+      pickedCards: [],
+      myPickedCard: null,
+      orderResults: null,
+    },
   });
 
   const store = useGameStore.getState();
@@ -173,6 +197,7 @@ export const useGameSocket = (roomId: number = 1) => {
             'join_error',
             'join_success',
             'game_start',
+            'dice_rolling_started',
             'dice_rolled',
             'playerMove',
             'market_update',
@@ -187,6 +212,10 @@ export const useGameSocket = (roomId: number = 1) => {
             'game_end',
             'roll_error',
             'turn_error',
+            'order_picking_start',
+            'order_card_picked',
+            'order_picking_complete',
+            'pick_error',
           ];
           events.forEach((event) => socket.off(event));
         };
@@ -284,9 +313,70 @@ export const useGameSocket = (roomId: number = 1) => {
           void hydratePlayersAssets(nextPlayers.map((p) => p.userId));
         });
 
+        // 순서 뽑기 시작
+        socket.on('order_picking_start', (data: any) => {
+          console.log('[GameSocket] order_picking_start:', data);
+          setState((s) => ({
+            ...s,
+            orderPicking: {
+              isPickingOrder: true,
+              availableCards: data.availableCards || [],
+              pickedCards: [],
+              myPickedCard: null,
+              orderResults: null,
+            },
+          }));
+        });
+
+        // 카드 선택됨
+        socket.on('order_card_picked', (data: any) => {
+          console.log('[GameSocket] order_card_picked:', data);
+          const pickedUserId = toInt(data?.userId);
+          const cardNumber = toInt(data?.cardNumber);
+          const currentMyUserId = myUserIdRef.current;
+
+          setState((s) => ({
+            ...s,
+            orderPicking: {
+              ...s.orderPicking,
+              pickedCards: data.pickedCards || [],
+              myPickedCard: pickedUserId === currentMyUserId ? cardNumber : s.orderPicking.myPickedCard,
+            },
+          }));
+        });
+
+        // 순서 뽑기 완료
+        socket.on('order_picking_complete', (data: any) => {
+          console.log('[GameSocket] order_picking_complete:', data);
+          setState((s) => ({
+            ...s,
+            orderPicking: {
+              ...s.orderPicking,
+              orderResults: data.orderResults || [],
+            },
+          }));
+        });
+
+        // 카드 선택 에러
+        socket.on('pick_error', (data: any) => {
+          console.error('[GameSocket] pick_error:', data);
+          setState((s) => ({ ...s, error: data.message || '카드 선택 실패' }));
+        });
+
         // 게임 시작 이벤트
         socket.on('game_start', (data: any) => {
           console.log('[GameSocket] game_start:', data);
+          // 순서 뽑기 상태 초기화
+          setState((s) => ({
+            ...s,
+            orderPicking: {
+              isPickingOrder: false,
+              availableCards: [],
+              pickedCards: [],
+              myPickedCard: null,
+              orderResults: null,
+            },
+          }));
 
           const players: Player[] = (data.players || []).map((p: any, idx: number) => mapBackendPlayer(p, idx));
 
@@ -314,27 +404,50 @@ export const useGameSocket = (roomId: number = 1) => {
           void hydratePlayersAssets(players.map((p) => p.userId));
         });
 
-        // 주사위 굴림 결과 (본인에게만)
+        // 주사위 굴리기 시작 (모든 플레이어에게 - 관전자도 애니메이션 볼 수 있게)
+        socket.on('dice_rolling_started', (data: any) => {
+          console.log('[GameSocket] dice_rolling_started:', data);
+          const rollingUserId = toInt(data?.userId);
+
+          useGameStore.setState({
+            isRolling: true,
+            rollStage: 'HOLDING',
+            rollingUserId: rollingUserId, // 누가 주사위를 굴리는지 저장
+          });
+        });
+
+        // 주사위 굴림 결과 (모든 플레이어에게)
         socket.on('dice_rolled', (data: any) => {
           console.log('[GameSocket] dice_rolled:', data);
 
-          useGameStore.setState((state) => ({
+          // 먼저 SETTLING 단계로 전환하여 결과 애니메이션 표시
+          useGameStore.setState({
             dice: [data.dice1, data.dice2],
             isDouble: data.isDouble,
-            hasRolledThisTurn: true,
-            extraRolls: data.hasExtraTurn ? 1 : 0,
-            rollStage: 'IDLE',
-            isRolling: false,
-            players: state.players.map((p) => {
-              if (p.userId !== toInt(data?.userId)) return p;
-              return {
-                ...p,
-                position: toInt(data?.player?.location, p.position),
-                cash: toNumber(data?.player?.cash, p.cash),
-                totalAsset: data?.player?.totalAsset != null ? toNumber(data.player.totalAsset) : p.totalAsset,
-              };
-            }),
-          }));
+            rollStage: 'SETTLING',
+            pendingDice: [data.dice1, data.dice2],
+          });
+
+          // 잠시 후 최종 상태로 전환
+          setTimeout(() => {
+            useGameStore.setState((state) => ({
+              hasRolledThisTurn: true,
+              extraRolls: data.hasExtraTurn ? 1 : 0,
+              rollStage: 'IDLE',
+              isRolling: false,
+              rollingUserId: null,
+              pendingDice: null,
+              players: state.players.map((p) => {
+                if (p.userId !== toInt(data?.userId)) return p;
+                return {
+                  ...p,
+                  position: toInt(data?.player?.location, p.position),
+                  cash: toNumber(data?.player?.cash, p.cash),
+                  totalAsset: data?.player?.totalAsset != null ? toNumber(data.player.totalAsset) : p.totalAsset,
+                };
+              }),
+            }));
+          }, 500);
 
           if (data?.turnUserId != null) {
             setState((s) => ({ ...s, currentTurnUserId: toInt(data.turnUserId) }));
@@ -638,12 +751,20 @@ export const useGameSocket = (roomId: number = 1) => {
     return state.currentTurnUserId === state.myUserId;
   }, [state.currentTurnUserId, state.myUserId]);
 
+  // 순서 카드 선택
+  const pickOrderCard = useCallback((cardNumber: number) => {
+    if (!socketRef.current) return;
+    setState((s) => ({ ...s, error: null }));
+    socketRef.current.emit('pick_order_card', cardNumber);
+  }, []);
+
   return {
     socket: socketRef.current,
     ...state,
     rollDice,
     endTurn,
     isMyTurn,
+    pickOrderCard,
   };
 };
 

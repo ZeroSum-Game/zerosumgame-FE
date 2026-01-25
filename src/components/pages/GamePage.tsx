@@ -6,6 +6,7 @@ type GameSocketContextType = GameSocketState & {
   rollDice: () => void;
   endTurn: () => void;
   isMyTurn: () => boolean;
+  pickOrderCard: (cardNumber: number) => void;
   socket: ReturnType<typeof useGameSocket>['socket'];
 };
 
