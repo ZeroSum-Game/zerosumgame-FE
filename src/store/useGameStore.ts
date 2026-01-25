@@ -59,7 +59,7 @@ export const CHARACTER_INFO: Record<
     color: '#f59e0b', // 노
     avatar: '/assets/characters/lee.png',
     abilityShort: `삼성전자 주식 ${SAMSUNG_START_SHARES}주`,
-    abilityDetail: `게임 시작 시 삼성전자 주식 ${SAMSUNG_START_SHARES}주(약 ${formatKRWKo(SAMSUNG_START_STOCK_VALUE)})를 보유한 상태로 시작합니다. 배당금은 매 턴 변동(대략 ${formatKRWKo(SAMSUNG_START_DIVIDEND_MIN)}~${formatKRWKo(SAMSUNG_START_DIVIDEND_MAX)}/턴).`,
+    abilityDetail: `게임 시작 시 삼성전자 주식 ${SAMSUNG_START_SHARES}주를 보유한 상태로 시작합니다.`,
   },
   TRUMP: {
     name: '트럼프',

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import useGameStore, { CHARACTER_INFO, STOCK_INFO, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
+import { CHARACTER_THEME } from '../../utils/characterTheme';
 import { formatKRW, formatKRWKoShort } from '../../utils/formatKRW';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
 
@@ -83,6 +84,7 @@ const PlayerSummary = () => {
   const rollStage = useGameStore((s) => s.rollStage);
 
   const currentPlayer = players[currentPlayerIndex] ?? null;
+  const currentPlayerTheme = currentPlayer?.character ? CHARACTER_THEME[currentPlayer.character] : null;
 
   const totals = useMemo(() => {
     if (!currentPlayer) return null;
@@ -101,11 +103,21 @@ const PlayerSummary = () => {
           <div className="min-w-0">
             <div className="dash-kicker">이번 턴</div>
             <div className="dash-title-row">
-              <img
-                src={currentPlayer?.avatar || '/assets/characters/default.png'}
-                alt={currentPlayer?.name ?? '플레이어'}
-                className="h-9 w-9 rounded-full object-cover ring-2 ring-white/20 shadow-lg shadow-black/40"
-              />
+              <div
+                className={[
+                  'h-9 w-9 rounded-full border border-white/10 p-[2px] shadow-lg shadow-black/40',
+                  currentPlayerTheme?.bgClass ?? 'bg-white/[0.06]',
+                ].join(' ')}
+              >
+                <img
+                  src={currentPlayer?.avatar || '/assets/characters/default.png'}
+                  alt={currentPlayer?.name ?? '플레이어'}
+                  className={[
+                    'h-full w-full rounded-full object-cover ring-2',
+                    currentPlayerTheme?.ringClass ?? 'ring-white/20',
+                  ].join(' ')}
+                />
+              </div>
               <div className="min-w-0">
                 <div className="dash-title truncate">{currentPlayer?.name ?? '—'}</div>
               <div className="dash-subtitle">
@@ -246,12 +258,14 @@ const PlayerRoster = () => {
       });
 
       const posName = BOARD_DATA[p.position]?.name ?? `타일 ${p.position}`;
-      const color = getPlayerSlotColor(index);
+      const color = p.character ? CHARACTER_INFO[p.character].color : getPlayerSlotColor(index);
+      const theme = p.character ? CHARACTER_THEME[p.character] : null;
       return {
         id: p.id,
         name: p.name,
         avatar: p.avatar || '/assets/characters/default.png',
         color,
+        theme,
         isBankrupt: p.isBankrupt,
         isActive: p.id === currentPlayer?.id,
         cash: p.cash,
@@ -287,11 +301,21 @@ const PlayerRoster = () => {
               }}
             />
             <div className="dash-player-left">
-              <img
-                src={r.avatar || '/assets/characters/default.png'}
-                alt={r.name}
-                className="h-[34px] w-[34px] shrink-0 rounded-full bg-black/20 object-cover ring-2 ring-white/20"
-              />
+              <div
+                className={[
+                  'h-[34px] w-[34px] shrink-0 rounded-full border border-white/10 p-[2px] shadow-lg shadow-black/30',
+                  r.theme?.bgClass ?? 'bg-black/20',
+                ].join(' ')}
+              >
+                <img
+                  src={r.avatar || '/assets/characters/default.png'}
+                  alt={r.name}
+                  className={[
+                    'h-full w-full rounded-full object-cover ring-2',
+                    r.theme?.ringClass ?? 'ring-white/20',
+                  ].join(' ')}
+                />
+              </div>
               <div className="min-w-0">
                 <div className="dash-player-name-row">
                   <div className="dash-player-name truncate">{r.name}</div>
