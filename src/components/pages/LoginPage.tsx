@@ -1,17 +1,37 @@
-import { useMemo } from 'react';
+import { useEffect } from 'react';
 import useGameStore, { CHARACTER_INFO, type CharacterType } from '../../store/useGameStore';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
 import SpaceBackdrop from '../ui/SpaceBackdrop';
+import { apiGetMe } from '../../services/api';
+import { extractTokenFromUrl, setToken, isAuthenticated } from '../../services/auth';
 
 const CHARACTER_ORDER: CharacterType[] = ['ELON', 'SAMSUNG', 'TRUMP', 'PUTIN'];
 
 const LoginPage = () => {
-  const { addPlayer, setCurrentPage } = useGameStore();
+  const setCurrentPage = useGameStore((s) => s.setCurrentPage);
 
-  const guestName = useMemo(() => {
-    const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-    return `게스트-${suffix}`;
-  }, []);
+  useEffect(() => {
+    let alive = true;
+
+    // OAuth 콜백에서 토큰 추출
+    const urlToken = extractTokenFromUrl();
+    if (urlToken) {
+      setToken(urlToken);
+    }
+
+    void (async () => {
+      // 이미 인증된 상태인지 확인
+      if (!isAuthenticated()) return;
+
+      const me = await apiGetMe();
+      if (!alive) return;
+      if (me) setCurrentPage('lobby');
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [setCurrentPage]);
 
   return (
     <div className="ui-page flex items-center justify-center">
@@ -67,9 +87,7 @@ const LoginPage = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    // TODO: Replace with real Google OAuth flow + user profile.
-                    addPlayer(guestName);
-                    setCurrentPage('lobby');
+                    window.location.href = '/auth/google';
                   }}
                   className="flex w-full items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/90 px-6 py-5 text-lg font-black text-slate-900 shadow-lg shadow-black/40 transition hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/25"
                 >

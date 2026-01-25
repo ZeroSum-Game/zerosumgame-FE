@@ -218,6 +218,17 @@ type GameState = {
   completeMinigame: (success: boolean) => void;
   confirmTax: () => void;
   chooseWarTarget: (defenderId: number) => void;
+
+  // Backend sync helpers
+  setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
+  showModal: (modal: ModalState) => void;
+  syncPlayerFromBackend: (data: {
+    playerId: number;
+    cash: number;
+    location: number;
+    totalAsset?: number;
+    character?: string | null;
+  }) => void;
 };
 
 const STOCK_SYMBOLS = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'] as const satisfies readonly StockSymbol[];
@@ -1496,6 +1507,31 @@ const useGameStore = create<GameState>((set, get) => {
         phase: 'MODAL',
       });
       checkGameEnd();
+    },
+
+    // Backend sync helpers
+    setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => {
+      set((s) => ({
+        assetPrices: { ...s.assetPrices, ...prices },
+      }));
+    },
+
+    showModal: (modal: ModalState) => {
+      set({ activeModal: modal, phase: 'MODAL' });
+    },
+
+    syncPlayerFromBackend: (data) => {
+      set((s) => ({
+        players: s.players.map((p) =>
+          p.id === data.playerId
+            ? {
+                ...p,
+                cash: data.cash,
+                position: data.location,
+              }
+            : p
+        ),
+      }));
     },
   };
 });
