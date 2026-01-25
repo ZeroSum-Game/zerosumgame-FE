@@ -173,7 +173,10 @@ const LobbyPage = () => {
                 const info = CHARACTER_INFO[char];
                 const theme = CHARACTER_THEME[char];
                 const taken = isCharacterTaken(char);
-                const canPick = !connecting && !!myUserId && !taken && roomStatus === 'WAITING';
+                const isMyCharacter = myLobbyPlayer?.character === char;
+                const amIReady = myLobbyPlayer?.ready ?? false;
+                // 준비 상태면 캐릭터 변경 불가, 다른 사람이 선택한 캐릭터도 선택 불가
+                const canPick = !connecting && !!myUserId && !taken && roomStatus === 'WAITING' && !amIReady;
 
                 return (
                   <button
@@ -192,7 +195,9 @@ const LobbyPage = () => {
                     }}
                     disabled={!canPick}
                     className={`relative overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-60 ${
-                      taken
+                      isMyCharacter
+                        ? 'border-sky-400/40 bg-sky-500/[0.15] ring-2 ring-sky-400/30'
+                        : taken
                         ? 'border-white/15 bg-white/[0.03]'
                         : 'border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]'
                     }`}
@@ -213,9 +218,17 @@ const LobbyPage = () => {
                     <p className="mt-1 text-center text-xs text-white/70">{info.abilityShort}</p>
 
                     {/* Taken badge */}
-                    {taken ? (
+                    {isMyCharacter ? (
+                      <div className="ui-badge mt-2 w-full justify-center border-sky-400/30 bg-sky-500/[0.2] text-sky-100 font-bold">
+                        내 캐릭터
+                      </div>
+                    ) : taken ? (
                       <div className="ui-badge mt-2 w-full justify-center border-white/10 bg-black/20 text-white/70">
                         선택됨
+                      </div>
+                    ) : amIReady ? (
+                      <div className="ui-badge mt-2 w-full justify-center border-white/10 bg-black/20 text-white/50">
+                        준비 해제 후 선택
                       </div>
                     ) : (
                       <div className="ui-badge mt-2 w-full justify-center border-sky-400/20 bg-sky-500/[0.12] text-sky-100">
@@ -238,7 +251,7 @@ const LobbyPage = () => {
                     {connecting ? '서버 연결 중…' : '방에 접속한 유저들이 보여요.'}
                   </p>
                 </div>
-                {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && !isHost && (
+                {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && (
                   <button
                     type="button"
                     className={`ui-btn ${myLobbyPlayer.ready ? 'ui-btn-secondary' : 'ui-btn-success'}`}
