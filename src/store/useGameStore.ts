@@ -20,12 +20,12 @@ export const GAME_RULES = {
 
 export type CharacterType = 'ELON' | 'SAMSUNG' | 'TRUMP' | 'PUTIN';
 
-export type StockSymbol = 'SAMSUNG' | 'SK_HYNIX' | 'HYUNDAI' | 'BITCOIN' | 'GOLD';
+export type StockSymbol = 'SAMSUNG' | 'TESLA' | 'LOCKHEED' | 'BITCOIN' | 'GOLD';
 
 export const STOCK_INFO: Record<StockSymbol, { name: string; nameKr: string; basePrice: number }> = {
   SAMSUNG: { name: 'SAMSUNG', nameKr: '삼성전자', basePrice: 72500 },
-  SK_HYNIX: { name: 'SK HYNIX', nameKr: 'SK하이닉스', basePrice: 178000 },
-  HYUNDAI: { name: 'HYUNDAI', nameKr: '현대차', basePrice: 215000 },
+  TESLA: { name: 'TESLA', nameKr: '테슬라', basePrice: 248000 },
+  LOCKHEED: { name: 'LOCKHEED', nameKr: '록히드마틴', basePrice: 485000 },
   BITCOIN: { name: 'BITCOIN', nameKr: '비트코인', basePrice: 95450000 },
   GOLD: { name: 'GOLD', nameKr: '금', basePrice: 285000 },
 };
@@ -36,9 +36,9 @@ const SAMSUNG_START_DIVIDEND_MIN = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_R
 const SAMSUNG_START_DIVIDEND_MAX = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_RULES.DIVIDEND_MAX);
 
 export const TILE_TO_STOCK: Record<number, StockSymbol> = {
-  4: 'HYUNDAI',
+  4: 'TESLA',
   9: 'GOLD',
-  14: 'SK_HYNIX',
+  14: 'LOCKHEED',
   18: 'SAMSUNG',
   25: 'BITCOIN',
 };
@@ -248,8 +248,8 @@ type GameState = {
   }) => void;
 };
 
-const STOCK_SYMBOLS = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'] as const satisfies readonly StockSymbol[];
-const EQUITY_SYMBOLS = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI'] as const;
+const STOCK_SYMBOLS = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'] as const satisfies readonly StockSymbol[];
+const EQUITY_SYMBOLS = ['SAMSUNG', 'TESLA', 'LOCKHEED'] as const;
 type EquitySymbol = (typeof EQUITY_SYMBOLS)[number];
 
 const clamp = (min: number, max: number, value: number) => Math.max(min, Math.min(max, value));
@@ -266,8 +266,8 @@ const getBaseLandPrices = () => {
 
 const getInitialAssetPrices = (): Record<StockSymbol, number> => ({
   SAMSUNG: STOCK_INFO.SAMSUNG.basePrice,
-  SK_HYNIX: STOCK_INFO.SK_HYNIX.basePrice,
-  HYUNDAI: STOCK_INFO.HYUNDAI.basePrice,
+  TESLA: STOCK_INFO.TESLA.basePrice,
+  LOCKHEED: STOCK_INFO.LOCKHEED.basePrice,
   BITCOIN: STOCK_INFO.BITCOIN.basePrice,
   GOLD: STOCK_INFO.GOLD.basePrice,
 });
@@ -366,7 +366,7 @@ const useGameStore = create<GameState>((set, get) => {
 
     let cash = player.cash;
     const holdings = { ...player.stockHoldings };
-    const sellOrder: StockSymbol[] = ['BITCOIN', 'GOLD', 'SAMSUNG', 'SK_HYNIX', 'HYUNDAI'];
+    const sellOrder: StockSymbol[] = ['BITCOIN', 'GOLD', 'SAMSUNG', 'TESLA', 'LOCKHEED'];
 
     for (const symbol of sellOrder) {
       if (cash >= amountNeeded) break;
@@ -556,7 +556,7 @@ const useGameStore = create<GameState>((set, get) => {
           effect: (setFn, getFn) => {
             const s = getFn();
             const next = { ...s.assetPrices };
-            (['SAMSUNG', 'SK_HYNIX', 'HYUNDAI'] as StockSymbol[]).forEach((sym) => {
+            (['SAMSUNG', 'TESLA', 'LOCKHEED'] as StockSymbol[]).forEach((sym) => {
               next[sym] = Math.round(next[sym] * 0.94);
             });
             const nextLandPrices = Object.fromEntries(
@@ -567,13 +567,13 @@ const useGameStore = create<GameState>((set, get) => {
         },
         {
           title: '반도체 사이클',
-          description: '반도체 호황! 삼성전자/하이닉스 급등, 현대차 약세.',
+          description: '반도체 호황! 삼성전자 급등, 테슬라 호조.',
           effect: (setFn, getFn) => {
             const s = getFn();
             const next = { ...s.assetPrices };
-            next.SAMSUNG = Math.round(next.SAMSUNG * 1.12);
-            next.SK_HYNIX = Math.round(next.SK_HYNIX * 1.14);
-            next.HYUNDAI = Math.round(next.HYUNDAI * 0.95);
+            next.SAMSUNG = Math.round(next.SAMSUNG * 1.14);
+            next.TESLA = Math.round(next.TESLA * 1.08);
+            next.LOCKHEED = Math.round(next.LOCKHEED * 0.97);
             const nextLandPrices = { ...s.landPrices };
             Object.entries(nextLandPrices).forEach(([id, price]) => {
               const tileId = Number(id);
@@ -584,11 +584,11 @@ const useGameStore = create<GameState>((set, get) => {
         },
         {
           title: '전기차 보조금 폐지',
-          description: '전기차 수요 둔화! 현대차 하락, 금은 안전자산으로 상승.',
+          description: '전기차 수요 둔화! 테슬라 하락, 금은 안전자산으로 상승.',
           effect: (setFn, getFn) => {
             const s = getFn();
             const next = { ...s.assetPrices };
-            next.HYUNDAI = Math.round(next.HYUNDAI * 0.88);
+            next.TESLA = Math.round(next.TESLA * 0.88);
             next.GOLD = Math.round(next.GOLD * 1.06);
             const nextLandPrices = { ...s.landPrices };
             Object.entries(nextLandPrices).forEach(([id, price]) => {
@@ -603,7 +603,7 @@ const useGameStore = create<GameState>((set, get) => {
           description: '깜짝 M&A! 랜덤 주식이 급등합니다.',
           effect: (setFn, getFn) => {
             const s = getFn();
-            const equity: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI'];
+            const equity: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED'];
             const pick = equity[Math.floor(Math.random() * equity.length)];
             const next = { ...s.assetPrices };
             next[pick] = Math.round(next[pick] * 1.18);
@@ -673,14 +673,21 @@ const useGameStore = create<GameState>((set, get) => {
       return;
     }
 
-    if (space.name === '올림픽') {
+    if (space.type === 'EXPO') {
       const dest = BOARD_DATA.find((s) => s.name === '프랑스')?.id ?? 21;
       const fee = 200000;
-      pushLog('TURN', '올림픽', `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동! 관광료 ${formatMoney(fee)}`);
+      pushLog('TURN', space.name, `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동! 관광료 ${formatMoney(fee)}`);
       set((s) => ({
         players: s.players.map((p) => (p.isBankrupt ? p : { ...p, position: dest })),
       }));
-      set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '올림픽 개최!', description: `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동합니다.` } });
+      set({
+        phase: 'MODAL',
+        activeModal: {
+          type: 'INFO',
+          title: `${space.name} 개최!`,
+          description: `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동합니다.`,
+        },
+      });
       setTimeout(() => {
         const after = get();
         after.players
@@ -697,7 +704,11 @@ const useGameStore = create<GameState>((set, get) => {
             .filter((p) => !p.isBankrupt && p.id !== land.ownerId)
             .forEach((p) => transferCash(p.id, land.ownerId, toll, '관광 통행료'));
           if (owner) {
-            pushLog('LAND', '관광 통행료', `${BOARD_DATA[dest]?.name ?? '개최국'} 소유자 ${owner.name}에게 ${formatMoney(toll)}씩 지급`);
+            pushLog(
+              'LAND',
+              '관광 통행료',
+              `${BOARD_DATA[dest]?.name ?? '개최국'} 소유자 ${owner.name}에게 ${formatMoney(toll)}씩 지급`
+            );
           }
         }
       }, 0);
@@ -790,8 +801,8 @@ const useGameStore = create<GameState>((set, get) => {
 
       const dividendRates: Record<EquitySymbol, number> = {
         SAMSUNG: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
-        SK_HYNIX: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
-        HYUNDAI: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
+        TESLA: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
+        LOCKHEED: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
       };
 
       const players = state.players.map((p) => {

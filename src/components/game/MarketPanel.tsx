@@ -3,7 +3,7 @@ import useGameStore, { STOCK_INFO, type StockSymbol } from '../../store/useGameS
 import { formatKRWKoShort } from '../../utils/formatKRW';
 import { getRegionForStockSymbol } from '../../utils/regionCues';
 
-const MAJOR_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'];
+const MAJOR_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'];
 
 const MarketPanel = () => {
   const assetPrices = useGameStore((s) => s.assetPrices);

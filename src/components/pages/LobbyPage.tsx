@@ -36,6 +36,7 @@ type OrderPickingState = {
   availableCards: number[];
   pickedCards: number[];
   myPickedCard: number | null;
+  revealedCards: Record<number, number>;
   orderResults: OrderPickResult[] | null;
 };
 
@@ -53,6 +54,7 @@ const LobbyPage = () => {
     availableCards: [],
     pickedCards: [],
     myPickedCard: null,
+    revealedCards: {},
     orderResults: null,
   });
 
@@ -112,7 +114,35 @@ const LobbyPage = () => {
       },
       lobbyUpdate: (payload: any) => {
         if (!alive) return;
-        setLobby(mapLobby(payload));
+        setLobby((prev) => {
+          const next = mapLobby(payload);
+          if (!prev) return next;
+          const prevByUserId = new Map(prev.players.map((p) => [p.userId, p]));
+          const mergedPlayers = next.players.map((p) => {
+            const previous = prevByUserId.get(p.userId);
+            return {
+              ...p,
+              character: p.character ?? previous?.character ?? null,
+              ready: previous?.ready ?? p.ready,
+            };
+          });
+          return {
+            ...next,
+            players: mergedPlayers,
+          };
+        });
+      },
+      readyUpdate: (payload: any) => {
+        if (!alive) return;
+        const userId = Number(payload?.userId);
+        const ready = Boolean(payload?.ready);
+        setLobby((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            players: prev.players.map((p) => (p.userId === userId ? { ...p, ready } : p)),
+          };
+        });
       },
       readyError: (payload: any) => {
         if (!alive) return;
@@ -142,6 +172,7 @@ const LobbyPage = () => {
           availableCards: payload.availableCards || [],
           pickedCards: [],
           myPickedCard: null,
+          revealedCards: {},
           orderResults: null,
         });
       },
@@ -149,12 +180,16 @@ const LobbyPage = () => {
         if (!alive) return;
         console.log('[Lobby] order_card_picked:', payload);
         const pickedUserId = Number(payload?.userId);
+        const cardId = Number(payload?.cardId);
         const cardNumber = Number(payload?.cardNumber);
         const currentMyUserId = myUserIdRef.current;
         setOrderPicking((prev) => ({
           ...prev,
           pickedCards: payload.pickedCards || [],
-          myPickedCard: pickedUserId === currentMyUserId ? cardNumber : prev.myPickedCard,
+          revealedCards: Number.isFinite(cardId) && Number.isFinite(cardNumber)
+            ? { ...prev.revealedCards, [cardId]: cardNumber }
+            : prev.revealedCards,
+          myPickedCard: pickedUserId === currentMyUserId ? cardId : prev.myPickedCard,
         }));
       },
       orderPickingComplete: (payload: any) => {
@@ -249,6 +284,7 @@ const LobbyPage = () => {
         socket.on('join_success', handlers.joinSuccess);
         socket.on('join_error', handlers.joinError);
         socket.on('lobby_update', handlers.lobbyUpdate);
+        socket.on('ready_update', handlers.readyUpdate);
         socket.on('ready_error', handlers.readyError);
         socket.on('start_error', handlers.startError);
         socket.on('character_update', handlers.characterUpdate);
@@ -273,6 +309,7 @@ const LobbyPage = () => {
         socketRef.current.off('join_success', handlers.joinSuccess);
         socketRef.current.off('join_error', handlers.joinError);
         socketRef.current.off('lobby_update', handlers.lobbyUpdate);
+        socketRef.current.off('ready_update', handlers.readyUpdate);
         socketRef.current.off('ready_error', handlers.readyError);
         socketRef.current.off('start_error', handlers.startError);
         socketRef.current.off('character_update', handlers.characterUpdate);
@@ -289,10 +326,10 @@ const LobbyPage = () => {
     };
   }, [setCurrentPage]);
 
-  const handlePickCard = (cardNumber: number) => {
+  const handlePickCard = (cardId: number) => {
     if (!socketRef.current || orderPicking.myPickedCard !== null) return;
-    if (orderPicking.pickedCards.includes(cardNumber)) return;
-    socketRef.current.emit('pick_order_card', cardNumber);
+    if (orderPicking.pickedCards.includes(cardId)) return;
+    socketRef.current.emit('pick_order_card', cardId);
   };
 
   // 순서 뽑기 모달
@@ -307,7 +344,7 @@ const LobbyPage = () => {
 
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center">
           <div className="ui-card-lg w-full max-w-2xl text-center">
-            <h1 className="mb-2 text-3xl font-black text-white">🎴 순서 뽑기</h1>
+            <h1 className="mb-2 text-3xl font-black text-white">순서 뽑기</h1>
             <p className="mb-8 text-white/70">
               {orderPicking.orderResults
                 ? '순서가 결정되었습니다!'
@@ -328,13 +365,13 @@ const LobbyPage = () => {
                     return (
                       <div
                         key={result.userId}
-                        className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-4"
+                        className="flex h-44 w-40 flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-center"
                       >
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20 text-xl font-black text-amber-300">
                           {result.turnOrder}
                         </div>
                         <img src={avatar} alt={result.nickname} className="h-12 w-12 rounded-full object-cover" />
-                        <div className="text-sm font-bold text-white">{result.nickname}</div>
+                        <div className="w-full truncate text-sm font-bold text-white">{result.nickname}</div>
                         <div className="text-xs text-white/60">카드: {result.cardNumber}</div>
                       </div>
                     );
@@ -345,16 +382,17 @@ const LobbyPage = () => {
             ) : (
               /* 카드 선택 UI */
               <div className="flex flex-wrap justify-center gap-4">
-                {orderPicking.availableCards.map((cardNum) => {
-                  const isPicked = orderPicking.pickedCards.includes(cardNum);
-                  const isMyPick = orderPicking.myPickedCard === cardNum;
+                {orderPicking.availableCards.map((cardId) => {
+                  const isPicked = orderPicking.pickedCards.includes(cardId);
+                  const isMyPick = orderPicking.myPickedCard === cardId;
                   const canPick = orderPicking.myPickedCard === null && !isPicked;
+                  const revealedNumber = orderPicking.revealedCards[cardId];
 
                   return (
                     <button
-                      key={cardNum}
+                      key={cardId}
                       type="button"
-                      onClick={() => handlePickCard(cardNum)}
+                      onClick={() => handlePickCard(cardId)}
                       disabled={!canPick}
                       className={`relative h-32 w-24 rounded-xl border-2 text-4xl font-black transition-all ${
                         isMyPick
@@ -366,10 +404,14 @@ const LobbyPage = () => {
                           : 'cursor-not-allowed border-white/10 bg-white/[0.02] text-white/50'
                       }`}
                     >
-                      {isPicked && !isMyPick ? (
-                        <span className="text-2xl">✓</span>
+                      {isPicked ? (
+                        Number.isFinite(revealedNumber) ? (
+                          revealedNumber
+                        ) : (
+                          ''
+                        )
                       ) : (
-                        cardNum
+                        ''
                       )}
                       {isMyPick && (
                         <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">

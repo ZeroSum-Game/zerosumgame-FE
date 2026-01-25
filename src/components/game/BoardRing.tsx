@@ -8,8 +8,8 @@ import AssetCard from './AssetCard';
 
 const STOCK_LABEL: Record<StockSymbol, string> = {
   SAMSUNG: '삼성',
-  SK_HYNIX: '하이닉스',
-  HYUNDAI: '현대차',
+  TESLA: '테슬라',
+  LOCKHEED: '록히드',
   BITCOIN: '비트코인',
   GOLD: '금',
 };
@@ -21,10 +21,10 @@ const TILE_LABEL: Partial<Record<number, string>> = {
 
 const getGridPosition = (tileId: number) => {
   // 9x9 ring
-  if (tileId <= 8) return { row: 9, col: tileId + 1 };
-  if (tileId <= 15) return { row: 8 - (tileId - 9), col: 9 };
-  if (tileId <= 24) return { row: 1, col: 9 - (tileId - 16) };
-  return { row: 2 + (tileId - 25), col: 1 };
+  if (tileId <= 7) return { row: 9, col: 9 - tileId };
+  if (tileId <= 15) return { row: 9 - (tileId - 8), col: 1 };
+  if (tileId <= 23) return { row: 1, col: 1 + (tileId - 16) };
+  return { row: 1 + (tileId - 24), col: 9 };
 };
 
 type Props = {

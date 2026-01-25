@@ -13,7 +13,7 @@ import { apiGetMap, apiGetWarRate, apiPurchaseLand, apiTradeStock, apiWarLose, a
 import { toBackendStockSymbol } from '../../utils/stockMapping';
 import { applyWarMultiplier } from '../../utils/warMultiplier';
 
-const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'];
+const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'];
 
 const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
   const mult = landType === 'LANDMARK' ? 1.8 : 1.0;
@@ -165,8 +165,8 @@ const GameOverlay = () => {
                 cash: Number(result.cash),
                 stockHoldings: {
                   SAMSUNG: result.assets.samsung,
-                  SK_HYNIX: result.assets.tesla,
-                  HYUNDAI: result.assets.lockheed,
+                  TESLA: result.assets.tesla,
+                  LOCKHEED: result.assets.lockheed,
                   GOLD: result.assets.gold,
                   BITCOIN: result.assets.bitcoin,
                 },
@@ -197,8 +197,8 @@ const GameOverlay = () => {
                 cash: Number(result.cash),
                 stockHoldings: {
                   SAMSUNG: result.assets.samsung,
-                  SK_HYNIX: result.assets.tesla,
-                  HYUNDAI: result.assets.lockheed,
+                  TESLA: result.assets.tesla,
+                  LOCKHEED: result.assets.lockheed,
                   GOLD: result.assets.gold,
                   BITCOIN: result.assets.bitcoin,
                 },

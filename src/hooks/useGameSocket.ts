@@ -21,8 +21,8 @@ type SocketLike = Awaited<ReturnType<typeof connectSocket>>;
 const mapBackendStockSymbol = (symbol: string): StockSymbol | null => {
   const mapping: Record<string, StockSymbol> = {
     SAMSUNG: 'SAMSUNG',
-    TESLA: 'SK_HYNIX',
-    LOCKHEED: 'HYUNDAI',
+    TESLA: 'TESLA',
+    LOCKHEED: 'LOCKHEED',
     GOLD: 'GOLD',
     BITCOIN: 'BITCOIN',
   };
@@ -64,6 +64,7 @@ export type OrderPickingState = {
   availableCards: number[];
   pickedCards: number[];
   myPickedCard: number | null;
+  revealedCards: Record<number, number>;
   orderResults: OrderPickResult[] | null;
 };
 
@@ -89,6 +90,7 @@ export const useGameSocket = (roomId: number = 1) => {
       availableCards: [],
       pickedCards: [],
       myPickedCard: null,
+      revealedCards: {},
       orderResults: null,
     },
   });
@@ -162,8 +164,8 @@ export const useGameSocket = (roomId: number = 1) => {
           totalAsset: r.totalAsset,
           stockHoldings: {
             SAMSUNG: r.assets.samsung,
-            SK_HYNIX: r.assets.tesla,
-            HYUNDAI: r.assets.lockheed,
+            TESLA: r.assets.tesla,
+            LOCKHEED: r.assets.lockheed,
             GOLD: r.assets.gold,
             BITCOIN: r.assets.bitcoin,
           },
@@ -323,6 +325,7 @@ export const useGameSocket = (roomId: number = 1) => {
               availableCards: data.availableCards || [],
               pickedCards: [],
               myPickedCard: null,
+              revealedCards: {},
               orderResults: null,
             },
           }));
@@ -332,6 +335,7 @@ export const useGameSocket = (roomId: number = 1) => {
         socket.on('order_card_picked', (data: any) => {
           console.log('[GameSocket] order_card_picked:', data);
           const pickedUserId = toInt(data?.userId);
+          const cardId = toInt(data?.cardId);
           const cardNumber = toInt(data?.cardNumber);
           const currentMyUserId = myUserIdRef.current;
 
@@ -340,7 +344,11 @@ export const useGameSocket = (roomId: number = 1) => {
             orderPicking: {
               ...s.orderPicking,
               pickedCards: data.pickedCards || [],
-              myPickedCard: pickedUserId === currentMyUserId ? cardNumber : s.orderPicking.myPickedCard,
+              revealedCards:
+                Number.isFinite(cardId) && Number.isFinite(cardNumber)
+                  ? { ...s.orderPicking.revealedCards, [cardId]: cardNumber }
+                  : s.orderPicking.revealedCards,
+              myPickedCard: pickedUserId === currentMyUserId ? cardId : s.orderPicking.myPickedCard,
             },
           }));
         });
@@ -374,6 +382,7 @@ export const useGameSocket = (roomId: number = 1) => {
               availableCards: [],
               pickedCards: [],
               myPickedCard: null,
+              revealedCards: {},
               orderResults: null,
             },
           }));
@@ -542,8 +551,8 @@ export const useGameSocket = (roomId: number = 1) => {
           const newPrices: Partial<Record<StockSymbol, number>> = {};
 
           if (data?.samsung != null) newPrices.SAMSUNG = toNumber(data.samsung);
-          if (data?.tesla != null) newPrices.SK_HYNIX = toNumber(data.tesla);
-          if (data?.lockheed != null) newPrices.HYUNDAI = toNumber(data.lockheed);
+          if (data?.tesla != null) newPrices.TESLA = toNumber(data.tesla);
+          if (data?.lockheed != null) newPrices.LOCKHEED = toNumber(data.lockheed);
           if (data?.gold != null) newPrices.GOLD = toNumber(data.gold);
           if (data?.bitcoin != null) newPrices.BITCOIN = toNumber(data.bitcoin);
 

@@ -21,9 +21,10 @@ const continentToRegion = (continent: Continent): Region => {
 export const getRegionForStockSymbol = (symbol: StockSymbol): Region => {
   switch (symbol) {
     case 'SAMSUNG':
-    case 'SK_HYNIX':
-    case 'HYUNDAI':
       return 'ASIA';
+    case 'TESLA':
+    case 'LOCKHEED':
+      return 'AMERICAS';
     case 'BITCOIN':
     case 'GOLD':
       return 'GLOBAL';
@@ -48,4 +49,3 @@ export const getRegionForBoardSpace = (
 
   return null;
 };
-
