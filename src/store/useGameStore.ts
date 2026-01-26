@@ -730,22 +730,26 @@ const useGameStore = create<GameState>((set, get) => {
     }
   };
 
-  const handleGoldenKey = () => {
-    const state = get();
-    const card = drawGoldenKeyCard({
-      players: state.players,
-      lands: state.lands,
-      landPrices: state.landPrices,
-      assetPrices: state.assetPrices,
-    });
+  const handleGoldenKey = async () => {
+    try {
+      const state = get();
+      const card = drawGoldenKeyCard({
+        players: state.players,
+        lands: state.lands,
+        landPrices: state.landPrices,
+        assetPrices: state.assetPrices,
+      });
 
-    applyGoldenKeyCard(card);
-    pushLog('KEY', `황금열쇠: ${card.title}`, card.message);
-    set({
-      phase: 'MODAL',
-      activeModal: { type: 'GOLDEN_KEY', title: card.title, description: card.message },
-      modalData: { goldenKey: card },
-    });
+      applyGoldenKeyCard(card);
+      pushLog('KEY', `황금열쇠: ${card.title}`, card.message);
+      set({
+        phase: 'MODAL',
+        activeModal: { type: 'GOLDEN_KEY', title: card.title, description: card.message },
+        modalData: { goldenKey: card },
+      });
+    } catch {
+      set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '황금열쇠 오류', description: '카드 정보를 불러오지 못했습니다.' } });
+    }
   };
 
   const resolveLanding = () => {
@@ -786,7 +790,7 @@ const useGameStore = create<GameState>((set, get) => {
     }
 
     if (space.type === 'KEY') {
-      handleGoldenKey();
+      void handleGoldenKey();
       return;
     }
 

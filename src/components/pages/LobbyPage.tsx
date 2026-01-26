@@ -404,9 +404,7 @@ const LobbyPage = () => {
                 </div>
                 <div className="flex flex-wrap justify-center gap-4">
                   {orderPicking.orderResults.map((result) => {
-                    const player = lobby?.players.find(
-                      (p) => p.userId === result.userId,
-                    );
+                    const player = lobby?.players.find((p) => p.userId === result.userId);
                     const character = player?.character;
                     const avatar = character
                       ? CHARACTER_INFO[character].avatar
@@ -680,4 +678,3 @@ const LobbyPage = () => {
 };
 
 export default LobbyPage;
-
