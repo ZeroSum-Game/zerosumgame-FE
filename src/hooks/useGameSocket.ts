@@ -11,13 +11,12 @@ import useGameStore, {
   type WarPayload,
 } from '../store/useGameStore';
 import { toInt, toNumber } from '../utils/parseNumber';
-import { apiGetMap, apiGetMe, apiGetPlayerAssets } from '../services/api';
+import { apiGetMap, apiGetMarket, apiGetMe, apiGetPlayerAssets } from '../services/api';
 import { BOARD_DATA } from '../utils/boardUtils';
 import { applyWarMultiplier } from '../utils/warMultiplier';
 
 type SocketLike = Awaited<ReturnType<typeof connectSocket>>;
 
-// 諛깆뿏??二쇱떇 ?щ낵???꾨줎?몄뿏???щ낵濡?蹂??
 const mapBackendStockSymbol = (symbol: string): StockSymbol | null => {
   const mapping: Record<string, StockSymbol> = {
     SAMSUNG: 'SAMSUNG',
@@ -29,7 +28,6 @@ const mapBackendStockSymbol = (symbol: string): StockSymbol | null => {
   return mapping[symbol.toUpperCase()] || null;
 };
 
-// 諛깆뿏???뚮젅?댁뼱 ?곗씠?곕? ?꾨줎?몄뿏???뺤떇?쇰줈 蹂??
 const mapBackendPlayer = (p: any, index: number): Player => {
   const character = fromBackendCharacter(p.character) as CharacterType | null;
   const avatar = character ? CHARACTER_INFO[character].avatar : '/assets/characters/default.png';
@@ -185,6 +183,20 @@ export const useGameSocket = (roomId: number = 1) => {
     });
   }, []);
 
+  const syncMarket = useCallback(async () => {
+    const market = await apiGetMarket();
+    if (!market) return;
+    useGameStore.setState({
+      assetPrices: {
+        SAMSUNG: market.samsung,
+        TESLA: market.tesla,
+        LOCKHEED: market.lockheed,
+        GOLD: market.gold,
+        BITCOIN: market.bitcoin,
+      },
+    });
+  }, []);
+
   const hydratePlayersAssets = useCallback(async (userIds: number[]) => {
     const unique = Array.from(new Set(userIds.filter((id) => Number.isInteger(id) && id > 0)));
     if (unique.length === 0) return;
@@ -240,7 +252,6 @@ export const useGameSocket = (roomId: number = 1) => {
     setState((s) => ({ ...s, currentTurnUserId: fallbackUserId }));
   }, [state.currentTurnUserId, currentPlayerIndex, playersSnapshot]);
 
-  // ?뚯폆 ?곌껐
   useEffect(() => {
     if (!isAuthenticated()) {
       store.setCurrentPage('login');
@@ -291,7 +302,6 @@ export const useGameSocket = (roomId: number = 1) => {
         };
         clearHandlers();
 
-        // ?곌껐 ?깃났
         socket.on('connect', () => {
           console.log('[GameSocket] Connected');
           setState(s => ({ ...s, connected: true, error: null }));
@@ -308,7 +318,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
         socket.on('connect_error', (err: any) => {
           console.error('[GameSocket] Connection error:', err);
-          setState(s => ({ ...s, connected: false, error: '?쒕쾭 ?곌껐 ?ㅽ뙣' }));
+          setState(s => ({ ...s, connected: false, error: '서버 연결 실패' }));
         });
 
         if (socket.connected) {
@@ -319,10 +329,9 @@ export const useGameSocket = (roomId: number = 1) => {
 
         socket.on('join_error', (payload: any) => {
           console.error('[GameSocket] join_error:', payload);
-          setState((s) => ({ ...s, error: String(payload?.message ?? '諛?李멸????ㅽ뙣?덉뼱??') }));
+          setState((s) => ({ ...s, error: String(payload?.message ?? '방 참가에 실패했어요.') }));
         });
 
-        // 諛??낆옣 ?깃났 (寃뚯엫 以??ъ젒??珥덇린 ?곹깭 ?숆린??
         socket.on('join_success', (payload: any) => {
           console.log('[GameSocket] join_success:', payload);
 
@@ -403,7 +412,6 @@ export const useGameSocket = (roomId: number = 1) => {
           void hydratePlayersAssets(nextPlayers.map((p) => p.userId));
         });
 
-        // ?쒖꽌 戮묎린 ?쒖옉
         socket.on('order_picking_start', (data: any) => {
           console.log('[GameSocket] order_picking_start:', data);
           setState((s) => ({
@@ -419,7 +427,6 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // 移대뱶 ?좏깮??
         socket.on('order_card_picked', (data: any) => {
           console.log('[GameSocket] order_card_picked:', data);
           const pickedUserId = toInt(data?.userId);
@@ -441,7 +448,6 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // ?쒖꽌 戮묎린 ?꾨즺
         socket.on('order_picking_complete', (data: any) => {
           console.log('[GameSocket] order_picking_complete:', data);
           setState((s) => ({
@@ -453,16 +459,13 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // 移대뱶 ?좏깮 ?먮윭
         socket.on('pick_error', (data: any) => {
           console.error('[GameSocket] pick_error:', data);
-          setState((s) => ({ ...s, error: data.message || '移대뱶 ?좏깮 ?ㅽ뙣' }));
+          setState((s) => ({ ...s, error: data.message || '카드 선택 실패' }));
         });
 
-        // 寃뚯엫 ?쒖옉 ?대깽??
         socket.on('game_start', (data: any) => {
           console.log('[GameSocket] game_start:', data);
-          // ?쒖꽌 戮묎린 ?곹깭 珥덇린??
           setState((s) => ({
             ...s,
             orderPicking: {
@@ -504,7 +507,6 @@ export const useGameSocket = (roomId: number = 1) => {
           void hydratePlayersAssets(players.map((p) => p.userId));
         });
 
-        // 二쇱궗??援대━湲??쒖옉 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶 - 愿?꾩옄???좊땲硫붿씠??蹂????덇쾶)
         socket.on('dice_rolling_started', (data: any) => {
           console.log('[GameSocket] dice_rolling_started:', data);
           const rollingUserId = toInt(data?.userId);
@@ -514,17 +516,15 @@ export const useGameSocket = (roomId: number = 1) => {
           useGameStore.setState({
             isRolling: true,
             rollStage: 'HOLDING',
-            rollingUserId: rollingUserId, // ?꾧? 二쇱궗?꾨? 援대━?붿? ???
+            rollingUserId: rollingUserId,
           });
         });
 
-        // 二쇱궗??援대┝ 寃곌낵 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶)
         socket.on('dice_rolled', (data: any) => {
           console.log('[GameSocket] dice_rolled:', data);
 
           clearRollTimeout();
 
-          // 癒쇱? SETTLING ?④퀎濡??꾪솚?섏뿬 寃곌낵 ?좊땲硫붿씠???쒖떆
           useGameStore.setState({
             dice: [data.dice1, data.dice2],
             isDouble: data.isDouble,
@@ -532,7 +532,6 @@ export const useGameSocket = (roomId: number = 1) => {
             pendingDice: [data.dice1, data.dice2],
           });
 
-          // ?좎떆 ??理쒖쥌 ?곹깭濡??꾪솚
           setTimeout(() => {
             useGameStore.setState((state) => ({
               hasRolledThisTurn: true,
@@ -557,7 +556,6 @@ export const useGameSocket = (roomId: number = 1) => {
             setState((s) => ({ ...s, currentTurnUserId: toInt(data.turnUserId) }));
           }
 
-          // ?먮룞 留ㅺ컖 ?대깽??泥섎━
           if (data.autoSellEvents && data.autoSellEvents.length > 0) {
             data.autoSellEvents.forEach((evt: any) => {
               console.log('[GameSocket] Auto-sell event:', evt);
@@ -565,7 +563,6 @@ export const useGameSocket = (roomId: number = 1) => {
           }
         });
 
-        // ?뚮젅?댁뼱 ?대룞 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶)
         socket.on('playerMove', (data: any) => {
           console.log('[GameSocket] playerMove:', data);
 
@@ -577,7 +574,6 @@ export const useGameSocket = (roomId: number = 1) => {
             phase: 'IDLE',
           }));
 
-          // 蹂몄씤 ?대룞???뚮쭔 ?≪뀡 紐⑤떖 ?ㅽ뵂
           const myUserId = myUserIdRef.current;
           if (!myUserId) return;
           if (toInt(data?.userId) !== myUserId) return;
@@ -649,7 +645,6 @@ export const useGameSocket = (roomId: number = 1) => {
           }
         });
 
-        // 留덉폆 ?낅뜲?댄듃
         socket.on('market_update', (data: any) => {
           console.log('[GameSocket] market_update:', data);
 
@@ -666,20 +661,18 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // 移대뱶 ?대깽??
         socket.on('drawCard', (data: any) => {
           console.log('[GameSocket] drawCard:', data);
 
           useGameStore.setState({
             activeModal: {
               type: 'GOLDEN_KEY',
-              title: data.title || '?⑷툑?댁뇿',
+              title: data.title || '이벤트',
               description: data.description || '',
             },
             phase: 'MODAL',
           });
 
-          // 移대뱶濡??명븳 ?꾧툑 蹂??泥섎━
           if (data?.playerId != null && data?.cash != null) {
             useGameStore.setState((state) => ({
               players: state.players.map((p) =>
@@ -689,7 +682,6 @@ export const useGameSocket = (roomId: number = 1) => {
           }
         });
 
-        // ?먯궛 ?낅뜲?댄듃
         socket.on('asset_update', (data: any) => {
           console.log('[GameSocket] asset_update:', data);
 
@@ -706,7 +698,6 @@ export const useGameSocket = (roomId: number = 1) => {
           void syncMap();
         });
 
-        // ???낅뜲?댄듃
         socket.on('turn_update', (data: any) => {
           console.log('[GameSocket] turn_update:', data);
 
@@ -725,7 +716,6 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
 
           useGameStore.setState((state) => {
-            // ?꾩옱 ???뚮젅?댁뼱 李얘린
             const turnPlayerId = rawTurnPlayerId;
             let currentPlayerIndex = state.players.findIndex((p) => p.id === turnPlayerId);
             if (currentPlayerIndex < 0 && resolvedTurnUserId > 0) {
@@ -748,7 +738,6 @@ export const useGameSocket = (roomId: number = 1) => {
           });
         });
 
-        // ?꾩웳 ?곹깭
         socket.on('war_state', (data: any) => {
           console.log('[GameSocket] war_state:', data);
           useGameStore.setState({ war: parseWar(data) });
@@ -760,8 +749,8 @@ export const useGameSocket = (roomId: number = 1) => {
             war: parseWar(data),
             activeModal: {
               type: 'INFO',
-              title: '?꾩웳 諛쒕컻!',
-              description: `?꾩웳???쒖옉?섏뿀?듬땲?? ${data.turnsLeft}???숈븞 ?꾩웳 吏??쓽 ??媛寃⑹씠 ?섎씫?⑸땲??`,
+              title: '전쟁 발발!',
+              description: `전쟁이 시작되었습니다. ${data.turnsLeft}턴 동안 전쟁 지역의 땅 가격이 하락합니다.`,
             },
             phase: 'MODAL',
           });
@@ -776,13 +765,13 @@ export const useGameSocket = (roomId: number = 1) => {
           console.log('[GameSocket] worldcup:', data);
           const nodeIdx = toInt(data?.nodeIdx);
           if (!Number.isInteger(nodeIdx)) return;
-                    const name = BOARD_DATA[nodeIdx]?.name ?? `${nodeIdx}번 지역`;
+          const name = BOARD_DATA[nodeIdx]?.name ?? `${nodeIdx}번 지역`;
           useGameStore.setState((s) => ({
             players: s.players.map((p) => ({ ...p, position: nodeIdx })),
             activeModal: {
               type: 'INFO',
-              title: '?붾뱶而?媛쒖턀!',
-              description: `紐⑤뱺 ?뚮젅?댁뼱媛 ${name}濡??대룞?덉뒿?덈떎.`,
+              title: '월드컵 개최!',
+              description: `모든 플레이어가 ${name}로 이동했습니다.`,
             },
             phase: 'MODAL',
           }));
@@ -794,15 +783,14 @@ export const useGameSocket = (roomId: number = 1) => {
           useGameStore.setState({
             activeModal: {
               type: 'INFO',
-              title: '?쒕뱶留덊겕 ?뚭눼',
-              description: '?꾩웳 ?⑤같濡?媛??鍮꾩떬 ?쒕뱶留덊겕媛 ?뚭눼?섏뿀?듬땲??',
+              title: '랜드마크 파괴',
+              description: '전쟁의 여파로 랜드마크가 파괴되었습니다.',
             },
             phase: 'MODAL',
           });
           void syncMap();
         });
 
-        // 寃뚯엫 醫낅즺
         socket.on('game_end', (data: any) => {
           console.log('[GameSocket] game_end:', data);
 
@@ -817,12 +805,12 @@ export const useGameSocket = (roomId: number = 1) => {
                 playerId: r.playerId,
                 netWorth: Number(r.totalAsset),
               })),
-              reason: `${data.maxTurn}??醫낅즺`,
+              reason: `${data.maxTurn}턴 종료`,
               endedAtRound: data.maxTurn,
             },
           });
 
-                    store.setCurrentPage('result');
+          store.setCurrentPage('result');
         });
 
         socket.on('dice_roll_cancelled', (data: any) => {
@@ -864,7 +852,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
       } catch (err: any) {
         console.error('[GameSocket] Failed to connect:', err);
-        setState(s => ({ ...s, error: err?.message || '?곌껐 ?ㅽ뙣' }));
+        setState(s => ({ ...s, error: err?.message || '연결 실패' }));
       }
     };
 
@@ -878,7 +866,6 @@ export const useGameSocket = (roomId: number = 1) => {
     };
   }, [roomId, clearRollTimeout, scheduleRollTimeout]);
 
-  // 二쇱궗??援대━湲?
   const rollDice = useCallback(() => {
     const socket = socketRef.current;
     if (!socket) {
@@ -907,14 +894,12 @@ export const useGameSocket = (roomId: number = 1) => {
     socket.emit('roll_dice');
   }, []);
 
-  // ??醫낅즺
   const endTurn = useCallback(() => {
     if (!socketRef.current) return;
     setState((s) => ({ ...s, error: null }));
     socketRef.current.emit('end_turn');
   }, []);
 
-  // ???댁씤吏 ?뺤씤
   const isMyTurn = useCallback(() => {
     const myUserId = toInt(state.myUserId, 0);
     const turnUserId = toInt(state.currentTurnUserId, 0);
@@ -922,7 +907,6 @@ export const useGameSocket = (roomId: number = 1) => {
     return turnUserId === myUserId;
   }, [state.currentTurnUserId, state.myUserId]);
 
-  // ?쒖꽌 移대뱶 ?좏깮
   const pickOrderCard = useCallback((cardNumber: number) => {
     if (!socketRef.current) return;
     setState((s) => ({ ...s, error: null }));
@@ -940,14 +924,3 @@ export const useGameSocket = (roomId: number = 1) => {
 };
 
 export default useGameSocket;
-
-
-
-
-
-
-
-
-
-
-
