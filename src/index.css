@@ -1,3 +1,14 @@
+/* [Initial Survival] 픽셀 폰트 import 및 유틸리티 클래스 정의 시작 */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@layer utilities {
+  .font-pixel {
+    font-family: 'Press Start 2P', system-ui, cursive;
+  }
+}
+
+/* [Initial Survival] 픽셀 폰트 설정 끝 */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -26,15 +37,15 @@
   }
 
   .ui-card {
-    @apply rounded-2xl border border-white/10 bg-white/[0.06] p-6 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.85)] backdrop-blur-xl;
+    @apply rounded-2xl border border-white/10 bg-white/[0.06] p-6 shadow-card backdrop-blur-xl;
   }
 
   .ui-card-sm {
-    @apply rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.85)] backdrop-blur-xl;
+    @apply rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-card backdrop-blur-xl;
   }
 
   .ui-card-lg {
-    @apply rounded-2xl border border-white/10 bg-white/[0.06] p-8 shadow-[0_28px_120px_-60px_rgba(0,0,0,0.9)] backdrop-blur-xl;
+    @apply rounded-2xl border border-white/10 bg-white/[0.06] p-8 shadow-card-lg backdrop-blur-xl;
   }
 
   .ui-input {
@@ -92,11 +103,11 @@
   }
 
   .ui-panel {
-    @apply pointer-events-auto w-72 rounded-2xl border border-white/[0.15] bg-black/[0.45] p-4 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl;
+    @apply pointer-events-auto w-72 rounded-2xl border border-white/[0.15] bg-black/[0.45] p-4 shadow-[0_20px_80px_-40px_rgba(0, 0, 0, 0.9)] backdrop-blur-xl;
   }
 
   .ui-panel-sm {
-    @apply pointer-events-auto w-72 rounded-2xl border border-white/[0.15] bg-black/[0.45] p-3 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl;
+    @apply pointer-events-auto w-72 rounded-2xl border border-white/[0.15] bg-black/[0.45] p-3 shadow-[0_20px_80px_-40px_rgba(0, 0, 0, 0.9)] backdrop-blur-xl;
   }
 
   .ui-modal-backdrop {
@@ -105,16 +116,17 @@
   }
 
   .ui-modal {
-    @apply pointer-events-auto fixed left-1/2 top-1/2 w-[min(92vw,28rem)] -translate-x-1/2 -translate-y-1/2;
-    @apply rounded-2xl border border-white/[0.15] bg-black/70 p-6 shadow-[0_30px_140px_-60px_rgba(0,0,0,0.95)] backdrop-blur-2xl;
+    @apply pointer-events-auto fixed left-1/2 top-1/2 w-[92vw] max-w-[28rem] -translate-x-1/2 -translate-y-1/2;
+    @apply rounded-2xl border border-white/[0.15] bg-black/70 p-6 backdrop-blur-2xl;
+    box-shadow: 0 30px 140px -60px rgba(0, 0, 0, 0.95);
     z-index: 2147483647;
   }
 
   .ui-earth-bg {
     @apply absolute inset-0;
     background-image:
-      radial-gradient(1200px 700px at 50% 30%, rgba(255,255,255,0.10), transparent 60%),
-      linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.40)),
+      radial-gradient(1200px 700px at 50% 30%, rgba(255, 255, 255, 0.10), transparent 60%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.40)),
       url('/earth-bg.svg');
     background-size: cover;
     background-position: center;
@@ -127,8 +139,8 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(800px 480px at 50% 55%, rgba(0,0,0,0.0), rgba(0,0,0,0.55)),
-      radial-gradient(1200px 700px at 50% 50%, rgba(0,0,0,0.0), rgba(0,0,0,0.75));
+      radial-gradient(800px 480px at 50% 55%, rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.55)),
+      radial-gradient(1200px 700px at 50% 50%, rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.75));
     pointer-events: none;
   }
 
@@ -139,7 +151,7 @@
     background:
       radial-gradient(1200px 800px at 40% 20%, rgba(99, 102, 241, 0.10), transparent 60%),
       radial-gradient(1000px 700px at 80% 60%, rgba(16, 185, 129, 0.08), transparent 55%),
-      linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.00)),
       #0B0F1A;
     color: rgba(241, 245, 249, 0.92);
   }
@@ -414,35 +426,54 @@
     right: 0;
     height: 3px;
     pointer-events: none;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--region-strip) 18%,
-      var(--region-strip) 82%,
-      transparent 100%
-    );
+    background: linear-gradient(90deg,
+        transparent 0%,
+        var(--region-strip) 18%,
+        var(--region-strip) 82%,
+        transparent 100%);
     opacity: 0.28;
     border-top-left-radius: inherit;
     border-top-right-radius: inherit;
   }
 
-  [data-region='ASIA'] { --region-accent-rgb: 96 132 165; --region-strip: rgb(var(--region-accent-rgb)); }
-  [data-region='EUROPE'] { --region-accent-rgb: 132 120 160; --region-strip: rgb(var(--region-accent-rgb)); }
-  [data-region='AMERICAS'] { --region-accent-rgb: 112 148 120; --region-strip: rgb(var(--region-accent-rgb)); }
-  [data-region='AFRICA'] { --region-accent-rgb: 154 126 96; --region-strip: rgb(var(--region-accent-rgb)); }
-  [data-region='MIDDLE_EAST'] { --region-accent-rgb: 158 150 106; --region-strip: rgb(var(--region-accent-rgb)); }
-  [data-region='GLOBAL'] { --region-accent-rgb: 148 163 184; --region-strip: rgb(var(--region-accent-rgb)); }
+  [data-region='ASIA'] {
+    --region-accent-rgb: 96 132 165;
+    --region-strip: rgb(var(--region-accent-rgb));
+  }
+
+  [data-region='EUROPE'] {
+    --region-accent-rgb: 132 120 160;
+    --region-strip: rgb(var(--region-accent-rgb));
+  }
+
+  [data-region='AMERICAS'] {
+    --region-accent-rgb: 112 148 120;
+    --region-strip: rgb(var(--region-accent-rgb));
+  }
+
+  [data-region='AFRICA'] {
+    --region-accent-rgb: 154 126 96;
+    --region-strip: rgb(var(--region-accent-rgb));
+  }
+
+  [data-region='MIDDLE_EAST'] {
+    --region-accent-rgb: 158 150 106;
+    --region-strip: rgb(var(--region-accent-rgb));
+  }
+
+  [data-region='GLOBAL'] {
+    --region-accent-rgb: 148 163 184;
+    --region-strip: rgb(var(--region-accent-rgb));
+  }
 
   .asset-detail-modal.region-cue::before {
     height: 8px;
     opacity: 0.55;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(var(--region-accent-rgb), 0.95) 14%,
-      rgba(var(--region-accent-rgb), 0.95) 86%,
-      transparent 100%
-    );
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(var(--region-accent-rgb), 0.95) 14%,
+        rgba(var(--region-accent-rgb), 0.95) 86%,
+        transparent 100%);
   }
 
   .asset-detail-title {
@@ -466,12 +497,10 @@
     top: 0;
     height: 1px;
     pointer-events: none;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(var(--region-accent-rgb), 0.22) 50%,
-      transparent 100%
-    );
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(var(--region-accent-rgb), 0.22) 50%,
+        transparent 100%);
     opacity: 0.9;
   }
 
@@ -787,9 +816,20 @@
   }
 
   @keyframes boardCenterPulse {
-    0% { opacity: 0.45; transform: scale(0.995); }
-    50% { opacity: 0.95; transform: scale(1.01); }
-    100% { opacity: 0.55; transform: scale(0.998); }
+    0% {
+      opacity: 0.45;
+      transform: scale(0.995);
+    }
+
+    50% {
+      opacity: 0.95;
+      transform: scale(1.01);
+    }
+
+    100% {
+      opacity: 0.55;
+      transform: scale(0.998);
+    }
   }
 
   .board-center-rolling::before {
@@ -798,11 +838,25 @@
   }
 
   @keyframes boardShakeY {
-    0% { transform: translateY(0); }
-    20% { transform: translateY(-4px); }
-    45% { transform: translateY(2px); }
-    70% { transform: translateY(-1px); }
-    100% { transform: translateY(0); }
+    0% {
+      transform: translateY(0);
+    }
+
+    20% {
+      transform: translateY(-4px);
+    }
+
+    45% {
+      transform: translateY(2px);
+    }
+
+    70% {
+      transform: translateY(-1px);
+    }
+
+    100% {
+      transform: translateY(0);
+    }
   }
 
   .board-shake-y {
@@ -998,8 +1052,15 @@
   }
 
   @keyframes spectateDiceShake {
-    0%, 100% { transform: rotate(-15deg); }
-    50% { transform: rotate(15deg); }
+
+    0%,
+    100% {
+      transform: rotate(-15deg);
+    }
+
+    50% {
+      transform: rotate(15deg);
+    }
   }
 
   .spectate-text {
@@ -1128,27 +1189,59 @@
   }
 
   @keyframes diceRollSpin {
-    0% { transform: translate(-50%, -50%) scale(1.00) rotate(0deg); }
-    50% { transform: translate(-50%, -50%) scale(1.04) rotate(180deg); }
-    100% { transform: translate(-50%, -50%) scale(1.00) rotate(360deg); }
+    0% {
+      transform: translate(-50%, -50%) scale(1.00) rotate(0deg);
+    }
+
+    50% {
+      transform: translate(-50%, -50%) scale(1.04) rotate(180deg);
+    }
+
+    100% {
+      transform: translate(-50%, -50%) scale(1.00) rotate(360deg);
+    }
   }
 
   @keyframes diceRowShake {
-    0% { transform: translate(0px, 0px) rotate(-1.2deg); }
-    25% { transform: translate(1px, -1px) rotate(1.2deg); }
-    50% { transform: translate(0px, 1px) rotate(-0.8deg); }
-    75% { transform: translate(-1px, -1px) rotate(0.8deg); }
-    100% { transform: translate(0px, 0px) rotate(-1.2deg); }
+    0% {
+      transform: translate(0px, 0px) rotate(-1.2deg);
+    }
+
+    25% {
+      transform: translate(1px, -1px) rotate(1.2deg);
+    }
+
+    50% {
+      transform: translate(0px, 1px) rotate(-0.8deg);
+    }
+
+    75% {
+      transform: translate(-1px, -1px) rotate(0.8deg);
+    }
+
+    100% {
+      transform: translate(0px, 0px) rotate(-1.2deg);
+    }
   }
 
   @keyframes diceFacePulse {
-    0% { transform: scale(1.00); }
-    100% { transform: scale(1.045); }
+    0% {
+      transform: scale(1.00);
+    }
+
+    100% {
+      transform: scale(1.045);
+    }
   }
 
   @keyframes diceSettle {
-    0% { transform: scale(1.10); }
-    100% { transform: scale(1.00); }
+    0% {
+      transform: scale(1.10);
+    }
+
+    100% {
+      transform: scale(1.00);
+    }
   }
 
   .dice-roller {
@@ -1215,7 +1308,8 @@
   }
 }
 
-html, body {
+html,
+body {
   width: 100%;
   height: 100%;
   margin: 0;

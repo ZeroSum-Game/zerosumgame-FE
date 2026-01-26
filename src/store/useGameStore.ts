@@ -135,7 +135,11 @@ export type ModalState =
   | { type: 'WAR_SELECT'; byCard: boolean }
   | { type: 'WAR_RESULT'; title: string; description: string }
   | { type: 'TAX'; due: number }
-  | { type: 'INFO'; title: string; description: string };
+  | { type: 'INFO'; title: string; description: string }
+  | { type: 'BUY_ASSET' }
+  | { type: 'WAR_CHOICE' }
+  | { type: 'WORLDCUP_HOST'; nodeIdx: number }
+  | { type: 'INITIAL_GAME' }; // [Initial Survival] 미니게임 모달 타입 추가
 
 type PageType = 'login' | 'lobby' | 'game' | 'result';
 type PhaseType = 'IDLE' | 'ROLLING' | 'MOVING' | 'MODAL' | 'GAME_OVER';
@@ -785,7 +789,8 @@ const useGameStore = create<GameState>((set, get) => {
 
     if (space.type === 'MINIGAME') {
       pushLog('MINIGAME', '미니게임', `${currentPlayer.name} 미니게임 도전!`);
-      set({ phase: 'MODAL', activeModal: { type: 'MINIGAME', salary: GAME_RULES.START_SALARY } });
+      // Use INITIAL_GAME type
+      set({ phase: 'MODAL', activeModal: { type: 'INITIAL_GAME' } });
       return;
     }
 
@@ -1118,26 +1123,26 @@ const useGameStore = create<GameState>((set, get) => {
 
     gameResult: null,
 
-	    addPlayer: (name) => {
-	      const { players, maxPlayers } = get();
-	      if (players.length >= maxPlayers) return;
-	      const id = Date.now() + Math.floor(Math.random() * 1000);
-	      const newPlayer: Player = {
-	        id,
-	        userId: id,
-	        name,
-	        avatar: '/assets/characters/default.png',
-	        character: null,
-	        position: 0,
-	        cash: GAME_RULES.START_CASH,
-	        isReady: false,
-	        isBankrupt: false,
-	        stockHoldings: {},
-	        tollRateMultiplier: 1,
-	        warWinChanceBonus: 0,
-	      };
-	      set({ players: [...players, newPlayer] });
-	    },
+    addPlayer: (name) => {
+      const { players, maxPlayers } = get();
+      if (players.length >= maxPlayers) return;
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+      const newPlayer: Player = {
+        id,
+        userId: id,
+        name,
+        avatar: '/assets/characters/default.png',
+        character: null,
+        position: 0,
+        cash: GAME_RULES.START_CASH,
+        isReady: false,
+        isBankrupt: false,
+        stockHoldings: {},
+        tollRateMultiplier: 1,
+        warWinChanceBonus: 0,
+      };
+      set({ players: [...players, newPlayer] });
+    },
 
     removePlayer: (id) => {
       const { players } = get();
@@ -1647,10 +1652,10 @@ const useGameStore = create<GameState>((set, get) => {
         players: s.players.map((p, idx) =>
           idx === s.currentPlayerIndex
             ? {
-                ...p,
-                cash: p.cash - total,
-                stockHoldings: { ...p.stockHoldings, [modal.symbol]: currentHolding + qty },
-              }
+              ...p,
+              cash: p.cash - total,
+              stockHoldings: { ...p.stockHoldings, [modal.symbol]: currentHolding + qty },
+            }
             : p
         ),
       }));
@@ -1677,10 +1682,10 @@ const useGameStore = create<GameState>((set, get) => {
         players: s.players.map((p, idx) =>
           idx === s.currentPlayerIndex
             ? {
-                ...p,
-                cash: p.cash + total,
-                stockHoldings: { ...p.stockHoldings, [modal.symbol]: holding - qty },
-              }
+              ...p,
+              cash: p.cash + total,
+              stockHoldings: { ...p.stockHoldings, [modal.symbol]: holding - qty },
+            }
             : p
         ),
       }));
@@ -1824,10 +1829,10 @@ const useGameStore = create<GameState>((set, get) => {
         players: s.players.map((p) =>
           p.id === data.playerId
             ? {
-                ...p,
-                cash: data.cash,
-                position: data.location,
-              }
+              ...p,
+              cash: data.cash,
+              position: data.location,
+            }
             : p
         ),
       }));

@@ -4,6 +4,7 @@ import { isAuthenticated } from '../services/auth';
 import { fromBackendCharacter } from '../utils/characterMapping';
 import useGameStore, {
   CHARACTER_INFO,
+  GAME_RULES,
   TILE_TO_STOCK,
   type CharacterType,
   type Player,
@@ -98,6 +99,8 @@ export const useGameSocket = (roomId: number = 1) => {
   const myUserIdRef = useRef<number | null>(null);
   const currentTurnUserIdRef = useRef<number | null>(null);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const moveRunIdRef = useRef(0);
+  const moveTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
   const playersSnapshot = useGameStore((s) => s.players);
 
@@ -129,6 +132,12 @@ export const useGameSocket = (roomId: number = 1) => {
     if (!rollTimeoutRef.current) return;
     clearTimeout(rollTimeoutRef.current);
     rollTimeoutRef.current = null;
+  }, []);
+
+  const clearMoveTimers = useCallback(() => {
+    if (moveTimersRef.current.length === 0) return;
+    moveTimersRef.current.forEach((id) => clearTimeout(id));
+    moveTimersRef.current = [];
   }, []);
 
   const scheduleRollTimeout = useCallback(() => {
@@ -498,28 +507,38 @@ export const useGameSocket = (roomId: number = 1) => {
 
           scheduleRollTimeout();
 
-          useGameStore.setState({
+          useGameStore.setState((s) => ({
             isRolling: true,
             rollStage: 'HOLDING',
-            rollingUserId: rollingUserId, // ?꾧? 二쇱궗?꾨? 援대━?붿? ???
-          });
+            rollingUserId: rollingUserId,
+            // keep DiceRoller in sync for multiplayer
+            rollTrigger: s.rollTrigger + 1,
+            rollStartedAt: Date.now(),
+          }));
         });
 
-        // 二쇱궗??援대┝ 寃곌낵 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶)
+
         socket.on('dice_rolled', (data: any) => {
           console.log('[GameSocket] dice_rolled:', data);
 
           clearRollTimeout();
 
-          // 癒쇱? SETTLING ?④퀎濡??꾪솚?섏뿬 寃곌낵 ?좊땲硫붿씠???쒖떆
-          useGameStore.setState({
+          useGameStore.setState((s) => ({
             dice: [data.dice1, data.dice2],
             isDouble: data.isDouble,
             rollStage: 'SETTLING',
             pendingDice: [data.dice1, data.dice2],
-          });
+            // trigger DiceRoller settle animation with server result
+            rollReleaseTrigger: s.rollReleaseTrigger + 1,
+          }));
+          {
+            const userId = toInt(data?.userId);
+            const name = useGameStore.getState().players.find((p) => p.userId === userId)?.name ?? '플레이어';
+            const dice1 = toInt(data?.dice1, 0);
+            const dice2 = toInt(data?.dice2, 0);
+            appendEventLog('MOVE', '주사위 결과', `${name} ${dice1} + ${dice2} = ${dice1 + dice2}`);
+          }
 
-          // ?좎떆 ??理쒖쥌 ?곹깭濡??꾪솚
           setTimeout(() => {
             useGameStore.setState((state) => ({
               hasRolledThisTurn: true,
@@ -532,7 +551,6 @@ export const useGameSocket = (roomId: number = 1) => {
                 if (p.userId !== toInt(data?.userId)) return p;
                 return {
                   ...p,
-                  position: toInt(data?.player?.location, p.position),
                   cash: toNumber(data?.player?.cash, p.cash),
                   totalAsset: data?.player?.totalAsset != null ? toNumber(data.player.totalAsset) : p.totalAsset,
                 };
@@ -559,70 +577,137 @@ export const useGameSocket = (roomId: number = 1) => {
           const playerId = toInt(data?.playerId);
           const newLocation = toInt(data?.newLocation);
 
-          useGameStore.setState((state) => ({
-            players: state.players.map((p) => (p.id === playerId ? { ...p, position: newLocation } : p)),
-            phase: 'IDLE',
-          }));
+          const openLandingModal = () => {
+            const myUserId = myUserIdRef.current;
+            if (!myUserId) return;
+            if (toInt(data?.userId) !== myUserId) return;
 
-          // 蹂몄씤 ?대룞???뚮쭔 ?≪뀡 紐⑤떖 ?ㅽ뵂
-          const myUserId = myUserIdRef.current;
-          if (!myUserId) return;
-          if (toInt(data?.userId) !== myUserId) return;
+            const snap = useGameStore.getState();
+            if (snap.activeModal) return;
 
-          const snap = useGameStore.getState();
-          if (snap.activeModal) return;
+            const me = snap.players.find((p) => p.userId === myUserId) ?? null;
+            if (!me) return;
 
-          const me = snap.players.find((p) => p.userId === myUserId) ?? null;
-          if (!me) return;
+            const space = BOARD_DATA[newLocation];
+            if (!space) return;
 
-          const space = BOARD_DATA[newLocation];
-          if (!space) return;
-
-          if (space.type === 'COUNTRY') {
-            const land = snap.lands[newLocation] ?? null;
-            if (!land) {
-              useGameStore.setState({ activeModal: { type: 'LAND_BUY', tileId: newLocation }, phase: 'MODAL' });
-              return;
-            }
-            if (land.ownerId === me.id) {
-              useGameStore.setState({ activeModal: { type: 'LAND_UPGRADE', tileId: newLocation }, phase: 'MODAL' });
+            if (space.type === 'START') {
+              useGameStore.setState({
+                activeModal: { type: 'ASSET_TRADE', allowedSymbols: ['GOLD', 'BITCOIN'], symbol: 'GOLD' },
+                phase: 'MODAL',
+              });
               return;
             }
 
-            const owner = snap.players.find((p) => p.id === land.ownerId) ?? null;
-            const baseToll = snap.landTolls[newLocation] ?? 0;
-            const trumpBonus = owner?.character === 'TRUMP' ? 1.05 : 1;
-            const toll = applyWarMultiplier(Math.round(baseToll * trumpBonus), newLocation, true, snap.war);
+            // [Initial Survival] 오락실(MINIGAME) 타일 도착 시 미니게임 트리거 시작
+            if (space.type === 'MINIGAME') {
+              useGameStore.setState({ activeModal: { type: 'INITIAL_GAME' }, phase: 'MODAL' });
+              return;
+            }
+            // [Initial Survival] 오락실(MINIGAME) 트리거 끝
 
-            const basePrice = snap.landPrices[newLocation] ?? 0;
-            const ownedPrice = applyWarMultiplier(basePrice, newLocation, true, snap.war);
-            const takeoverPrice = land.type === 'LAND' ? Math.round(ownedPrice * 1.5) : undefined;
+            if (space.type === 'COUNTRY') {
+              const land = snap.lands[newLocation] ?? null;
+              if (!land) {
+                useGameStore.setState({ activeModal: { type: 'LAND_BUY', tileId: newLocation }, phase: 'MODAL' });
+                return;
+              }
+              if (land.ownerId === me.id) {
+                useGameStore.setState({ activeModal: { type: 'LAND_UPGRADE', tileId: newLocation }, phase: 'MODAL' });
+                return;
+              }
 
-            useGameStore.setState({
-              activeModal: { type: 'LAND_VISIT', tileId: newLocation, ownerId: land.ownerId, toll, takeoverPrice },
-              phase: 'MODAL',
-            });
+              const owner = snap.players.find((p) => p.id === land.ownerId) ?? null;
+              const baseToll = snap.landTolls[newLocation] ?? 0;
+              const trumpBonus = owner?.character === 'TRUMP' ? 1.05 : 1;
+              const toll = applyWarMultiplier(Math.round(baseToll * trumpBonus), newLocation, true, snap.war);
+
+              const basePrice = snap.landPrices[newLocation] ?? 0;
+              const ownedPrice = applyWarMultiplier(basePrice, newLocation, true, snap.war);
+              const takeoverPrice = land.type === 'LAND' ? Math.round(ownedPrice * 1.5) : undefined;
+
+              useGameStore.setState({
+                activeModal: { type: 'LAND_VISIT', tileId: newLocation, ownerId: land.ownerId, toll, takeoverPrice },
+                phase: 'MODAL',
+              });
+              return;
+            }
+
+            if (space.type === 'STOCK') {
+              const symbol = TILE_TO_STOCK[newLocation];
+              if (!symbol) return;
+              const allowed =
+                symbol === 'GOLD' || symbol === 'BITCOIN' ? (['GOLD', 'BITCOIN'] as StockSymbol[]) : [symbol];
+              useGameStore.setState({
+                activeModal: { type: 'ASSET_TRADE', allowedSymbols: allowed, symbol },
+                phase: 'MODAL',
+              });
+              return;
+            }
+
+            if (newLocation === 16) {
+              useGameStore.setState({ activeModal: { type: 'WORLD_CUP' }, phase: 'MODAL' });
+              return;
+            }
+
+            if (newLocation === 8) {
+              useGameStore.setState({ activeModal: { type: 'WAR_SELECT', byCard: false }, phase: 'MODAL' });
+              return;
+            }
+          };
+
+          clearMoveTimers();
+          moveRunIdRef.current += 1;
+          const runId = moveRunIdRef.current;
+
+          const totalTiles = BOARD_DATA.length || 0;
+          const currentPos =
+            useGameStore.getState().players.find((p) => p.id === playerId)?.position ?? newLocation;
+          const explicitSteps = toInt(data?.steps, 0);
+          const diceSteps = toInt(data?.dice1, 0) + toInt(data?.dice2, 0);
+          const deltaSteps =
+            totalTiles > 0 ? (newLocation - currentPos + totalTiles) % totalTiles : Math.max(newLocation - currentPos, 0);
+          const steps = explicitSteps > 0 ? explicitSteps : diceSteps > 0 ? diceSteps : deltaSteps;
+
+          if (!totalTiles || steps <= 0) {
+            useGameStore.setState((state) => ({
+              players: state.players.map((p) => (p.id === playerId ? { ...p, position: newLocation } : p)),
+              phase: 'IDLE',
+            }));
+            const playerName = useGameStore.getState().players.find((p) => p.id === playerId)?.name ?? '플레이어';
+            const spaceName = BOARD_DATA[newLocation]?.name ?? `${newLocation}번 지역`;
+            appendEventLog('MOVE', '이동', `${playerName} ${spaceName} 도착`);
+            openLandingModal();
             return;
           }
 
-          if (space.type === 'STOCK') {
-            const symbol = TILE_TO_STOCK[newLocation];
-            if (!symbol) return;
-            useGameStore.setState({
-              activeModal: { type: 'ASSET_TRADE', allowedSymbols: [symbol], symbol },
-              phase: 'MODAL',
-            });
-            return;
-          }
+          useGameStore.setState({ phase: 'MOVING' });
 
-          if (newLocation === 16) {
-            useGameStore.setState({ activeModal: { type: 'WORLD_CUP' }, phase: 'MODAL' });
-            return;
-          }
+          // delay move start so players can read dice result
+          const startDelay = 1500;
 
-          if (newLocation === 8) {
-            useGameStore.setState({ activeModal: { type: 'WAR_SELECT', byCard: false }, phase: 'MODAL' });
-            return;
+          for (let i = 1; i <= steps; i += 1) {
+            const timeoutId = setTimeout(() => {
+              if (moveRunIdRef.current !== runId) return;
+              const nextPos = totalTiles > 0 ? (currentPos + i) % totalTiles : newLocation;
+              const isFinal = i >= steps;
+
+              useGameStore.setState((state) => ({
+                players: state.players.map((p) =>
+                  p.id === playerId ? { ...p, position: isFinal ? newLocation : nextPos } : p
+                ),
+                // 🌟 마지막 칸에 도착했을 때만 IDLE로 바꿔줘야 구매 모달이 자연스럽게 뜹니다.
+                phase: isFinal ? 'IDLE' : 'MOVING',
+              }));
+
+              if (isFinal) {
+                const playerName = useGameStore.getState().players.find((p) => p.id === playerId)?.name ?? '플레이어';
+                const spaceName = BOARD_DATA[newLocation]?.name ?? `${newLocation}번 지역`;
+                appendEventLog('MOVE', '이동', `${playerName} ${spaceName} 도착`);
+                openLandingModal(); // 여기서 구매 모달이 실행돼요!
+              }
+            }, startDelay + i * GAME_RULES.MOVE_STEP_MS);
+            moveTimersRef.current.push(timeoutId);
           }
         });
 
@@ -710,7 +795,7 @@ export const useGameSocket = (roomId: number = 1) => {
               hasRolledThisTurn: false,
               extraRolls: 0,
               phase: 'IDLE',
-                            activeModal: null,
+              activeModal: null,
               isRolling: false,
               rollStage: 'IDLE',
               rollingUserId: null,
@@ -748,7 +833,7 @@ export const useGameSocket = (roomId: number = 1) => {
           console.log('[GameSocket] worldcup:', data);
           const nodeIdx = toInt(data?.nodeIdx);
           if (!Number.isInteger(nodeIdx)) return;
-                    const name = BOARD_DATA[nodeIdx]?.name ?? `${nodeIdx}번 지역`;
+          const name = BOARD_DATA[nodeIdx]?.name ?? `${nodeIdx}번 지역`;
           useGameStore.setState((s) => ({
             players: s.players.map((p) => ({ ...p, position: nodeIdx })),
             activeModal: {
@@ -794,7 +879,7 @@ export const useGameSocket = (roomId: number = 1) => {
             },
           });
 
-                    store.setCurrentPage('result');
+          store.setCurrentPage('result');
         });
 
         socket.on('dice_roll_cancelled', (data: any) => {
@@ -845,10 +930,11 @@ export const useGameSocket = (roomId: number = 1) => {
     return () => {
       alive = false;
       clearRollTimeout();
+      clearMoveTimers();
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [roomId, clearRollTimeout, scheduleRollTimeout]);
+  }, [roomId, clearRollTimeout, clearMoveTimers, scheduleRollTimeout, appendEventLog]);
 
   // 二쇱궗??援대━湲?
   const rollDice = useCallback(() => {
@@ -890,7 +976,7 @@ export const useGameSocket = (roomId: number = 1) => {
   }, []);
 
   // ???댁씤吏 ?뺤씤
-    const isMyTurn = useCallback(() => {
+  const isMyTurn = useCallback(() => {
     const myUserId = toInt(state.myUserId, 0);
     const socketTurnUserId = toInt(state.currentTurnUserId, 0);
     const storeState = useGameStore.getState();

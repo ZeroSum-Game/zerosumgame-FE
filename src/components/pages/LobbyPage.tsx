@@ -1,10 +1,5 @@
-<<<<<<< Updated upstream
 import { useEffect, useMemo, useRef, useState } from 'react';
-import useGameStore, { CHARACTER_INFO, CharacterType, GAME_RULES } from '../../store/useGameStore';
-=======
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import useGameStore, { CHARACTER_INFO, CharacterType, GAME_RULES, SAMSUNG_START_SHARES, STOCK_INFO } from '../../store/useGameStore';
->>>>>>> Stashed changes
 import { CHARACTER_THEME } from '../../utils/characterTheme';
 import SpaceBackdrop from '../ui/SpaceBackdrop';
 import { apiGetMe, apiLogout, apiSetCharacter } from '../../services/api';
@@ -106,16 +101,20 @@ const LobbyPage = () => {
       connect: () => setConnecting(false),
       connectError: () => {
         setConnecting(false);
-        setError("서버 연결에 실패했어요! (socket)");
+        setError('서버 연결에 실패했어요! (socket)');
       },
       joinSuccess: (payload: any) => {
         if (!alive) return;
+        if (!me?.userId && payload?.player?.userId) {
+          setMe({ userId: Number(payload.player.userId), playerId: Number(payload.player.id ?? payload.player.playerId ?? 0) });
+        }
+        setConnecting(false);
         setRoomStatus(String(payload?.roomStatus ?? 'WAITING'));
         setLobby(mapLobby(payload?.lobby));
       },
       joinError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || "방 참가에 실패했어요!");
+        setError(payload?.message || '방 참가에 실패했어요!');
       },
       lobbyUpdate: (payload: any) => {
         if (!alive) return;
@@ -179,8 +178,6 @@ const LobbyPage = () => {
       gameStart: (payload: any) => {
         if (!alive) return;
         const playersPayload = Array.isArray(payload?.players) ? payload.players : [];
-<<<<<<< Updated upstream
-=======
         const lobbySnapshot = lobbyRef.current;
         const currentMyUserId = myUserIdRef.current;
         const myLobbyPlayerSnapshot =
@@ -202,7 +199,6 @@ const LobbyPage = () => {
           setRoomStatus('WAITING');
           return;
         }
->>>>>>> Stashed changes
         if (playersPayload.length > 0) {
           const players = playersPayload.map((p: any, idx: number) => {
             const character = fromBackendCharacter(p?.character);
@@ -265,23 +261,6 @@ const LobbyPage = () => {
       const fetchMe = async (attempt: number) => {
         const meRes = await apiGetMe();
         if (!alive) return;
-<<<<<<< Updated upstream
-        socketRef.current = socket;
-
-        socket.on('connect', handlers.connect);
-        socket.on('connect_error', handlers.connectError);
-        socket.on('join_success', handlers.joinSuccess);
-        socket.on('join_error', handlers.joinError);
-        socket.on('lobby_update', handlers.lobbyUpdate);
-        socket.on('ready_error', handlers.readyError);
-        socket.on('start_error', handlers.startError);
-        socket.on('character_update', handlers.characterUpdate);
-        socket.on('order_picking_start', handlers.orderPickingStart);
-        socket.on('order_card_picked', handlers.orderCardPicked);
-        socket.on('order_picking_complete', handlers.orderPickingComplete);
-        socket.on('pick_error', handlers.pickError);
-        socket.on('game_start', handlers.gameStart);
-=======
         if (!meRes) {
           if (attempt < MAX_ME_RETRIES) {
             window.setTimeout(() => {
@@ -301,7 +280,6 @@ const LobbyPage = () => {
           if (socket.connected) {
             setConnecting(false);
           }
->>>>>>> Stashed changes
 
           socket.on('connect', handlers.connect);
           socket.on('connect_error', handlers.connectError);
@@ -321,7 +299,7 @@ const LobbyPage = () => {
           socket.emit('join_room', 1);
         } catch (e: any) {
           setConnecting(false);
-          setError(e?.message || "서버 연결에 실패했어요! (socket)");
+          setError(e?.message || '서버 연결에 실패했어요! (socket)');
         }
       };
 
@@ -372,10 +350,10 @@ const LobbyPage = () => {
             <h1 className="mb-2 text-3xl font-black text-white">🎴 순서 뽑기</h1>
             <p className="mb-8 text-white/70">
               {orderPicking.orderResults
-                ? "순서가 결정되었습니다!"
+                ? '순서가 결정되었습니다!'
                 : orderPicking.myPickedCard
-                  ? "당신이 선택한 카드입니다."
-                  : "카드를 선택하여 순서를 정해주세요."}
+                  ? '당신이 선택한 카드입니다.'
+                  : '카드를 선택하여 순서를 정해주세요.'}
             </p>
 
             {/* ?쒖꽌 寃곌낵 ?쒖떆 */}
@@ -392,7 +370,7 @@ const LobbyPage = () => {
                     const character = player?.character;
                     const avatar = character
                       ? CHARACTER_INFO[character].avatar
-                      : "/assets/characters/default.png";
+                      : '/assets/characters/default.png';
                     return (
                       <div
                         key={result.userId}
@@ -401,11 +379,6 @@ const LobbyPage = () => {
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20 text-xl font-black text-amber-300">
                           {result.turnOrder}
                         </div>
-<<<<<<< Updated upstream
-                        <img src={avatar} alt={result.nickname} className="h-12 w-12 rounded-full object-cover" />
-                        <div className="text-sm font-bold text-white">{result.nickname}</div>
-                        <div className="text-xs text-white/60">카드: {result.cardNumber}</div>
-=======
                         <img
                           src={avatar}
                           alt={result.nickname}
@@ -417,30 +390,22 @@ const LobbyPage = () => {
                         <div className="text-xs text-white/60">
                           카드 번호: {result.cardNumber}
                         </div>
->>>>>>> Stashed changes
-                      </div>
+                      </div >
                     );
                   })}
-                </div>
+                </div >
                 <div className="mt-6 text-white/60">
                   게임을 시작합니다...
                 </div>
-              </div>
+              </div >
             ) : (
               <div className="flex flex-wrap justify-center gap-4">
-<<<<<<< Updated upstream
-                {orderPicking.availableCards.map((cardNum) => {
-                  const isPicked = orderPicking.pickedCards.includes(cardNum);
-                  const isMyPick = orderPicking.myPickedCard === cardNum;
-                  const canPick = orderPicking.myPickedCard === null && !isPicked;
-=======
                 {orderPicking.availableCards.map((cardId) => {
                   const isPicked = orderPicking.pickedCards.includes(cardId);
                   const isMyPick = orderPicking.myPickedCard === cardId;
                   const canPick =
                     orderPicking.myPickedCard === null && !isPicked;
                   const revealedNumber = orderPicking.revealedCards[cardId];
->>>>>>> Stashed changes
 
                   return (
                     <button
@@ -448,50 +413,45 @@ const LobbyPage = () => {
                       type="button"
                       onClick={() => handlePickCard(cardNum)}
                       disabled={!canPick}
-                      className={`relative h-32 w-24 rounded-xl border-2 text-4xl font-black transition-all ${
-                        isMyPick
-                          ? "border-emerald-400 bg-emerald-500/20 text-emerald-300 ring-4 ring-emerald-400/30"
-                          : isPicked
-                            ? "cursor-not-allowed border-white/20 bg-white/[0.02] text-white/30"
-                            : canPick
-                              ? "border-white/30 bg-white/[0.06] text-white hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-300"
-                              : "cursor-not-allowed border-white/10 bg-white/[0.02] text-white/50"
-                      }`}
+                      className={`relative h-32 w-24 rounded-xl border-2 text-4xl font-black transition-all ${isMyPick
+                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 ring-4 ring-emerald-400/30'
+                        : isPicked
+                          ? 'cursor-not-allowed border-white/20 bg-white/[0.02] text-white/30'
+                          : canPick
+                            ? 'border-white/30 bg-white/[0.06] text-white hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-300'
+                            : 'cursor-not-allowed border-white/10 bg-white/[0.02] text-white/50'
+                        }`}
                     >
-<<<<<<< Updated upstream
-                      {isPicked && !isMyPick ? (
-                        <span className="text-2xl">✓</span>
-                      ) : (
-                        cardNum
-                      )}
-=======
                       {isPicked
                         ? Number.isFinite(revealedNumber)
                           ? revealedNumber
                           : ""
                         : ""}
->>>>>>> Stashed changes
-                      {isMyPick && (
-                        <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">
-                          Picked!
-                        </div>
-                      )}
-                    </button>
+                      {
+                        isMyPick && (
+                          <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">
+                            Picked!
+                          </div>
+                        )
+                      }
+                    </button >
                   );
                 })}
-              </div>
+              </div >
             )}
 
             {/* Pick progress */}
-            {!orderPicking.orderResults && (
-              <div className="mt-8 text-sm text-white/60">
-                Picked: {orderPicking.pickedCards.length} /{" "}
-                {orderPicking.availableCards.length}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+            {
+              !orderPicking.orderResults && (
+                <div className="mt-8 text-sm text-white/60">
+                  선택 완료: {orderPicking.pickedCards.length} /{' '}
+                  {orderPicking.availableCards.length}
+                </div>
+              )
+            }
+          </div >
+        </div >
+      </div >
     );
   }
 
@@ -531,7 +491,8 @@ const LobbyPage = () => {
                 const taken = isCharacterTaken(char);
                 const isMyCharacter = myLobbyPlayer?.character === char;
                 const amIReady = myLobbyPlayer?.ready ?? false;
-                const canPick = !connecting && !!myUserId && !taken && roomStatus === 'WAITING' && !amIReady;
+                // allow character selection immediately (no socket wait)
+                const canPick = !taken && roomStatus === 'WAITING' && !amIReady;
 
                 return (
                   <button
@@ -542,20 +503,39 @@ const LobbyPage = () => {
                       setError(null);
                       void (async () => {
                         try {
-                          await apiSetCharacter(toBackendCharacter(char));
+                          const result = await apiSetCharacter(toBackendCharacter(char));
+                          setLobby((prev) => {
+                            if (!prev || !myUserId) return prev;
+                            return {
+                              ...prev,
+                              players: prev.players.map((p) =>
+                                p.userId === myUserId
+                                  ? {
+                                    ...p,
+                                    character: fromBackendCharacter(result.character),
+                                    ready: isHost ? true : false,
+                                  }
+                                  : p
+                              ),
+                            };
+                          });
+                          const socket = socketRef.current;
+                          if (socket) {
+                            const nextReady = isHost ? true : (myLobbyPlayer?.ready ?? false);
+                            socket.emit('set_ready', { ready: nextReady });
+                          }
                         } catch (e: any) {
                           setError(e?.message || '캐릭터 선택에 실패했습니다.');
                         }
                       })();
                     }}
                     disabled={!canPick}
-                    className={`relative overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-60 ${
-                      isMyCharacter
-                        ? 'border-sky-400/40 bg-sky-500/[0.15] ring-2 ring-sky-400/30'
-                        : taken
+                    className={`relative overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-60 ${isMyCharacter
+                      ? 'border-sky-400/40 bg-sky-500/[0.15] ring-2 ring-sky-400/30'
+                      : taken
                         ? 'border-white/15 bg-white/[0.03]'
                         : 'border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]'
-                    }`}
+                      }`}
                   >
                     {/* Character emoji */}
                     <div
@@ -606,7 +586,7 @@ const LobbyPage = () => {
                     {connecting ? 'Connecting to server...' : 'Players in the room'}
                   </p>
                 </div>
-                {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && (
+                {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && !isHost && (
                   <button
                     type="button"
                     className={`ui-btn ${myLobbyPlayer.ready ? 'ui-btn-secondary' : 'ui-btn-success'}`}
@@ -634,9 +614,8 @@ const LobbyPage = () => {
                   return (
                     <div
                       key={p.userId}
-                      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${
-                        isMe ? 'border-sky-400/30 bg-sky-500/[0.08]' : 'border-white/10 bg-white/[0.04]'
-                      }`}
+                      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${isMe ? 'border-sky-400/30 bg-sky-500/[0.08]' : 'border-white/10 bg-white/[0.04]'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`h-10 w-10 rounded-full border border-white/10 p-[2px] ${bg}`}>
@@ -650,7 +629,7 @@ const LobbyPage = () => {
                           <div className="flex items-center gap-2">
                             <div className="truncate text-sm font-black text-white">{p.nickname}</div>
                             {isMe && <span className="ui-badge border-sky-400/20 bg-sky-500/[0.10] text-sky-100">나</span>}
-                            {isHostUser && <span className="ui-badge ui-badge-warn">호스트</span>}
+                            {isHostUser && <span className="ui-badge ui-badge-warn">방장</span>}
                             {!isHostUser && p.ready && <span className="ui-badge ui-badge-success">준비</span>}
                           </div>
                           <div className="text-xs text-white/60">{charName}</div>
@@ -670,17 +649,16 @@ const LobbyPage = () => {
               type="button"
               onClick={() => socketRef.current?.emit('start_game')}
               disabled={!canStartGame}
-              className={`ui-btn w-full rounded-2xl py-4 text-xl font-black transition ${
-                canStartGame ? 'ui-btn-cta' : 'cursor-not-allowed border border-white/10 bg-white/[0.06] text-white/40'
-              }`}
+              className={`ui-btn w-full rounded-2xl py-4 text-xl font-black transition ${canStartGame ? 'ui-btn-cta' : 'cursor-not-allowed border border-white/10 bg-white/[0.06] text-white/40'
+                }`}
             >
               {!lobby || lobby.players.length < 2
                 ? 'At least 2 players required'
                 : !isHost
-                ? 'Only the host can start'
-                : !lobby.allReady
-                ? 'All players must be ready'
-                : 'Start Game'}
+                  ? 'Only the host can start'
+                  : !lobby.allReady
+                    ? 'All players must be ready'
+                    : 'Start Game'}
             </button>
           </div>
         </div>

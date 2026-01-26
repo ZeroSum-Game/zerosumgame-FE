@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useGameStore from '../../store/useGameStore';
+import './DiceRoller.css';
 
 const randDie = () => Math.floor(Math.random() * 6) + 1;
 
 const DiceFace = ({ value }: { value: number | null }) => {
-  return <div className="dice-face">{value ?? '—'}</div>;
+  return <div className="dice-face">{value ?? '?'}</div>;
 };
 
 const DiceRoller = () => {
@@ -16,6 +17,7 @@ const DiceRoller = () => {
   const rollStartedAt = useGameStore((s) => s.rollStartedAt);
   const dice = useGameStore((s) => s.dice);
   const setDiceValues = useGameStore((s) => s.setDiceValues);
+  const rollingUserId = useGameStore((s) => s.rollingUserId);
 
   const [ghost, setGhost] = useState<[number, number] | null>(null);
   const [settleAnimKey, setSettleAnimKey] = useState(0);
@@ -90,14 +92,17 @@ const DiceRoller = () => {
         if (activeRollIdRef.current !== rollId) return;
         setLockedPreview(false);
         setGhost(null);
-        setDiceValues(final);
+        // avoid overwriting server dice in multiplayer
+        if (!rollingUserId) {
+          setDiceValues(final);
+        }
       }, 220);
       settleTimeoutsRef.current.push(lockT);
     }, acc + 20);
     settleTimeoutsRef.current.push(finalT);
 
     return () => clearTimers();
-  }, [rollReleaseTrigger, rollStage, rollStartedAt, setDiceValues]);
+  }, [rollReleaseTrigger, rollStage, rollStartedAt, setDiceValues, rollingUserId]);
 
   const shown = useMemo<[number, number]>(() => {
     if (ghost) return ghost;
@@ -106,11 +111,11 @@ const DiceRoller = () => {
 
   const meta =
     rollStage === 'HOLDING'
-      ? '굴리는 중… (놓으면 멈춰요)'
+      ? '??? ??? ?...'
       : rollStage === 'SETTLING'
-      ? '멈추는 중…'
+      ? '?? ?? ?...'
       : isRolling
-      ? '굴리는 중…'
+      ? '??? ??? ?...'
       : ' ';
 
   return (
@@ -120,7 +125,7 @@ const DiceRoller = () => {
         rollStage === 'HOLDING' ? 'dice-roller-holding' : '',
         rollStage === 'SETTLING' ? 'dice-roller-settling' : '',
       ].join(' ')}
-      aria-label="주사위"
+      aria-label="???"
     >
       <div
         className={[
