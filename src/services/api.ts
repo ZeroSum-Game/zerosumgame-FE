@@ -1,5 +1,6 @@
 import { getToken, removeToken } from './auth';
 import { toInt, toNumber } from '../utils/parseNumber';
+import { drawGoldenKeyCard, type GoldenKeyCardPayload, type GoldenKeyContext } from '../utils/goldenKey';
 
 // 인증 헤더 생성
 const getAuthHeaders = (): HeadersInit => {

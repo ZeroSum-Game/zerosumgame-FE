@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { BOARD_DATA, TILE_COUNT, type Continent } from '../utils/boardUtils';
 import { formatKRWKo } from '../utils/formatKRW';
+import { apiDrawGoldenKey } from '../services/api';
+import type { GoldenKeyCardPayload } from '../utils/goldenKey';
 
 export const GAME_RULES = {
   START_CASH: 3000000,
@@ -160,12 +162,6 @@ export type WarPayload = {
   adjacentLines: number[];
 };
 
-type GoldenKeyDef = {
-  title: string;
-  description: string;
-  effect: (set: (fn: (state: GameState) => Partial<GameState> | GameState) => void, get: () => GameState) => void;
-};
-
 type GameState = {
   currentPage: PageType;
   setCurrentPage: (page: PageType) => void;
@@ -189,6 +185,9 @@ type GameState = {
   landPrices: Record<number, number>;
   landTolls: Record<number, number>;
   assetPrices: Record<StockSymbol, number>;
+  takeoverMultipliers: Record<number, number>;
+  dividendOverrides: Partial<Record<StockSymbol, number>>;
+  extraTurnTokens: Record<number, number>;
   war: WarPayload | null;
 
   activeModal: ModalState | null;
@@ -512,6 +511,248 @@ const useGameStore = create<GameState>((set, get) => {
     }
   };
 
+  const applyGoldenKeyCard = (card: GoldenKeyCardPayload) => {
+    const state = get();
+    const currentPlayer = state.players[state.currentPlayerIndex];
+    if (!currentPlayer) return;
+
+    const alive = state.players.filter((p) => !p.isBankrupt);
+    const getNetWorth = (p: Player) => computeNetWorth(p, state.assetPrices, state.landPrices, state.lands);
+    const sortedByWorth = alive.slice().sort((a, b) => getNetWorth(b) - getNetWorth(a));
+    const richest = sortedByWorth[0] ?? null;
+    const poorest = sortedByWorth[sortedByWorth.length - 1] ?? null;
+
+    switch (card.id) {
+      case 1: {
+        if (!card.symbol) return;
+        const pct = card.effectValue ?? 0.2;
+        set((s) => ({
+          assetPrices: {
+            ...s.assetPrices,
+            [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
+          },
+        }));
+        return;
+      }
+      case 2: {
+        if (!card.continent) return;
+        const ids = getContinentCountryIds(card.continent);
+        const boost = card.effectValue ?? 0.15;
+        set((s) => {
+          const next = { ...s.landTolls };
+          ids.forEach((id) => {
+            if (next[id] == null) return;
+            next[id] = Math.max(1, Math.round(next[id] * (1 + boost)));
+          });
+          return { landTolls: next };
+        });
+        return;
+      }
+      case 3: {
+        if (!card.symbol) return;
+        const pct = card.effectValue ?? 0.15;
+        set((s) => ({
+          assetPrices: {
+            ...s.assetPrices,
+            [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
+          },
+        }));
+        return;
+      }
+      case 4: {
+        if (!card.symbol) return;
+        const pct = card.effectValue ?? 0.25;
+        set((s) => ({
+          assetPrices: {
+            ...s.assetPrices,
+            [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
+          },
+        }));
+        return;
+      }
+      case 5: {
+        if (!card.playerId || card.amount == null) return;
+        transferCash(card.playerId, null, card.amount, card.title);
+        return;
+      }
+      case 6: {
+        if (card.amount == null || !poorest) return;
+        set((s) => ({
+          players: s.players.map((p) => (p.id === poorest.id ? { ...p, cash: p.cash + card.amount! } : p)),
+        }));
+        return;
+      }
+      case 7: {
+        const pct = card.effectValue ?? 0.1;
+        set((s) => {
+          const next = { ...s.landPrices };
+          Object.keys(next).forEach((key) => {
+            const id = Number(key);
+            if (!Number.isFinite(id)) return;
+            next[id] = Math.max(1, Math.round(next[id] * (1 + pct)));
+          });
+          return { landPrices: next };
+        });
+        return;
+      }
+      case 8: {
+        const rate = card.effectValue ?? 0.2;
+        set((s) => ({ dividendOverrides: { ...s.dividendOverrides, SAMSUNG: rate } }));
+        return;
+      }
+      case 9: {
+        if (!card.symbol) return;
+        const pct = card.effectValue ?? 0.2;
+        set((s) => ({
+          assetPrices: {
+            ...s.assetPrices,
+            [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
+          },
+        }));
+        return;
+      }
+      case 10: {
+        if (!card.symbol) return;
+        const pct = card.effectValue ?? 0.25;
+        set((s) => ({
+          assetPrices: {
+            ...s.assetPrices,
+            [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
+          },
+        }));
+        return;
+      }
+      case 11: {
+        if (!card.continent) return;
+        const ids = getContinentCountryIds(card.continent);
+        const extraIds = Array.isArray(card.extra?.countryIds) ? (card.extra?.countryIds as number[]) : [];
+        const targets = Array.from(new Set(ids.concat(extraIds)));
+        const drop = card.effectValue ?? 0.15;
+        set((s) => {
+          const next = { ...s.landTolls };
+          targets.forEach((id) => {
+            if (next[id] == null) return;
+            next[id] = Math.max(1, Math.round(next[id] * (1 - drop)));
+          });
+          return { landTolls: next };
+        });
+        return;
+      }
+      case 12: {
+        if (!card.symbol) return;
+        const drop = Math.abs(card.effectValue ?? -0.1);
+        set((s) => ({
+          assetPrices: {
+            ...s.assetPrices,
+            [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 - drop))),
+          },
+        }));
+        return;
+      }
+      case 13: {
+        if (card.amount == null) return;
+        state.players.forEach((p) => {
+          const count = getOwnedCountryTileIdsByPlayer(state.lands, p.id).length;
+          if (count <= 0) return;
+          transferCash(p.id, null, count * card.amount!, card.title);
+        });
+        return;
+      }
+      case 14: {
+        if (card.amount == null) return;
+        set((s) => ({
+          players: s.players.map((p) => (p.id === currentPlayer.id ? { ...p, cash: p.cash + card.amount! } : p)),
+        }));
+        return;
+      }
+      case 15: {
+        const pct = card.effectValue ?? 0.1;
+        set((s) => {
+          const next = { ...s.landTolls };
+          Object.keys(next).forEach((key) => {
+            const id = Number(key);
+            if (!Number.isFinite(id)) return;
+            next[id] = Math.max(1, Math.round(next[id] * (1 - pct)));
+          });
+          return { landTolls: next };
+        });
+        return;
+      }
+      case 16: {
+        if (!card.amount) return;
+        set((s) => ({
+          players: s.players.map((p) => (p.id === currentPlayer.id ? { ...p, cash: p.cash + card.amount! } : p)),
+        }));
+        return;
+      }
+      case 17: {
+        if (!card.symbol) return;
+        const pct = card.effectValue ?? 0.2;
+        set((s) => ({
+          assetPrices: {
+            ...s.assetPrices,
+            [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
+          },
+        }));
+        return;
+      }
+      case 18: {
+        const bonus = card.effectValue ?? 0.05;
+        set((s) => ({
+          players: s.players.map((p) =>
+            p.id === currentPlayer.id ? { ...p, warWinChanceBonus: p.warWinChanceBonus + bonus } : p
+          ),
+        }));
+        return;
+      }
+      case 19: {
+        if (!card.countryId) return;
+        const boost = card.effectValue ?? 0.3;
+        set((s) => {
+          const next = { ...s.landTolls };
+          if (next[card.countryId!] != null) {
+            next[card.countryId!] = Math.max(1, Math.round(next[card.countryId!] * (1 + boost)));
+          }
+          return { landTolls: next };
+        });
+        return;
+      }
+      case 20: {
+        const pct = card.effectValue ?? 0.05;
+        const gain = Math.max(0, Math.round(getNetWorth(currentPlayer) * pct));
+        if (gain <= 0) return;
+        set((s) => ({
+          players: s.players.map((p) => (p.id === currentPlayer.id ? { ...p, cash: p.cash + gain } : p)),
+        }));
+        return;
+      }
+      default:
+        return;
+    }
+  };
+
+  const handleGoldenKey = async () => {
+    try {
+      const state = get();
+      const card = await apiDrawGoldenKey({
+        players: state.players,
+        lands: state.lands,
+        landPrices: state.landPrices,
+        assetPrices: state.assetPrices,
+      });
+
+      applyGoldenKeyCard(card);
+      pushLog('KEY', `황금열쇠: ${card.title}`, card.message);
+      set({
+        phase: 'MODAL',
+        activeModal: { type: 'GOLDEN_KEY', title: card.title, description: card.message },
+        modalData: { goldenKey: card },
+      });
+    } catch {
+      set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '황금열쇠 오류', description: '카드 정보를 불러오지 못했습니다.' } });
+    }
+  };
+
   const resolveLanding = () => {
     const state = get();
     const currentPlayer = state.players[state.currentPlayerIndex];
@@ -550,6 +791,7 @@ const useGameStore = create<GameState>((set, get) => {
     }
 
     if (space.type === 'KEY') {
+<<<<<<< Updated upstream
       const defs: GoldenKeyDef[] = [
         {
           title: '관세 부과',
@@ -656,6 +898,9 @@ const useGameStore = create<GameState>((set, get) => {
       picked.effect(set, get);
       pushLog('KEY', `황금열쇠: ${picked.title}`, picked.description);
       set({ phase: 'MODAL', activeModal: { type: 'GOLDEN_KEY', title: picked.title, description: picked.description } });
+=======
+      void handleGoldenKey();
+>>>>>>> Stashed changes
       return;
     }
 
@@ -766,10 +1011,11 @@ const useGameStore = create<GameState>((set, get) => {
 
       const owner = state.players.find((p) => p.id === land.ownerId);
       const toll = computeToll(tileId, land, state.landPrices, state.lands, owner?.tollRateMultiplier ?? 1);
+      const takeoverMultiplier = state.takeoverMultipliers[tileId] ?? GAME_RULES.TAKEOVER_MULTIPLIER;
       const takeoverPrice =
         land.type === 'LANDMARK'
           ? undefined
-          : Math.round((state.landPrices[tileId] ?? space.price ?? 0) * GAME_RULES.TAKEOVER_MULTIPLIER);
+          : Math.round((state.landPrices[tileId] ?? space.price ?? 0) * takeoverMultiplier);
 
       set({
         phase: 'MODAL',
@@ -805,6 +1051,9 @@ const useGameStore = create<GameState>((set, get) => {
         TESLA: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
         LOCKHEED: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
       };
+      if (state.dividendOverrides.SAMSUNG != null) dividendRates.SAMSUNG = state.dividendOverrides.SAMSUNG;
+      if (state.dividendOverrides.TESLA != null) dividendRates.TESLA = state.dividendOverrides.TESLA;
+      if (state.dividendOverrides.LOCKHEED != null) dividendRates.LOCKHEED = state.dividendOverrides.LOCKHEED;
 
       const players = state.players.map((p) => {
         if (p.isBankrupt) return p;
@@ -816,7 +1065,11 @@ const useGameStore = create<GameState>((set, get) => {
         return { ...p, cash: p.cash + Math.round(dividend) };
       });
 
-      return { assetPrices: nextPrices, players };
+      const nextOverrides = { ...state.dividendOverrides };
+      EQUITY_SYMBOLS.forEach((symbol) => {
+        if (nextOverrides[symbol] != null) delete nextOverrides[symbol];
+      });
+      return { assetPrices: nextPrices, players, dividendOverrides: nextOverrides };
     });
 
     const state = get();
@@ -857,6 +1110,9 @@ const useGameStore = create<GameState>((set, get) => {
     landPrices: getBaseLandPrices(),
     landTolls: {},
     assetPrices: getInitialAssetPrices(),
+    takeoverMultipliers: {},
+    dividendOverrides: {},
+    extraTurnTokens: {},
     war: null,
 
     activeModal: null,
@@ -943,6 +1199,9 @@ const useGameStore = create<GameState>((set, get) => {
         landPrices: getBaseLandPrices(),
         landTolls: {},
         assetPrices: getInitialAssetPrices(),
+        takeoverMultipliers: {},
+        dividendOverrides: {},
+        extraTurnTokens: {},
         war: null,
         activeModal: null,
         queuedModal: null,
@@ -1002,6 +1261,9 @@ const useGameStore = create<GameState>((set, get) => {
         landPrices: getBaseLandPrices(),
         landTolls: {},
         assetPrices: getInitialAssetPrices(),
+        takeoverMultipliers: {},
+        dividendOverrides: {},
+        extraTurnTokens: {},
         war: null,
         activeModal: null,
         queuedModal: null,
@@ -1046,6 +1308,9 @@ const useGameStore = create<GameState>((set, get) => {
         landPrices: getBaseLandPrices(),
         landTolls: {},
         assetPrices: getInitialAssetPrices(),
+        takeoverMultipliers: {},
+        dividendOverrides: {},
+        extraTurnTokens: {},
         war: null,
         activeModal: null,
         queuedModal: null,
@@ -1068,7 +1333,7 @@ const useGameStore = create<GameState>((set, get) => {
         set({ activeModal: queued, queuedModal: null, phase: 'MODAL' });
         return;
       }
-      set({ activeModal: null, phase: 'IDLE' });
+      set({ activeModal: null, phase: 'IDLE', modalData: null });
       checkGameEnd();
     },
 
@@ -1204,6 +1469,10 @@ const useGameStore = create<GameState>((set, get) => {
 
       const nextIdx = getNextAlivePlayerIndex(state.currentPlayerIndex);
       const wrapped = nextIdx <= state.currentPlayerIndex;
+      const nextPlayer = state.players[nextIdx];
+      const token = nextPlayer ? (state.extraTurnTokens[nextPlayer.id] ?? 0) : 0;
+      const nextTokens = { ...state.extraTurnTokens };
+      if (nextPlayer && token > 0) delete nextTokens[nextPlayer.id];
 
       if (wrapped) {
         const nextRound = state.round + 1;
@@ -1211,10 +1480,11 @@ const useGameStore = create<GameState>((set, get) => {
           round: nextRound,
           currentPlayerIndex: nextIdx,
           hasRolledThisTurn: false,
-          extraRolls: 0,
+          extraRolls: token,
           consecutiveDoubles: 0,
           isDouble: false,
           dice: [1, 1],
+          extraTurnTokens: nextTokens,
         });
         pushLog('TURN', '턴 종료', `${state.round}턴 종료`);
         if (nextRound <= state.maxRounds) applyRoundEconomy();
@@ -1225,10 +1495,11 @@ const useGameStore = create<GameState>((set, get) => {
       set({
         currentPlayerIndex: nextIdx,
         hasRolledThisTurn: false,
-        extraRolls: 0,
+        extraRolls: token,
         consecutiveDoubles: 0,
         isDouble: false,
         dice: [1, 1],
+        extraTurnTokens: nextTokens,
       });
       pushLog('TURN', '턴 변경', `${state.players[nextIdx]?.name ?? '플레이어'} 차례`);
       checkGameEnd();
