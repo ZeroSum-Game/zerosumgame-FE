@@ -1,5 +1,6 @@
 import { getToken, removeToken } from './auth';
 import { toInt, toNumber } from '../utils/parseNumber';
+import { drawGoldenKeyCard, type GoldenKeyCardPayload, type GoldenKeyContext } from '../utils/goldenKey';
 
 // 인증 헤더 생성
 const getAuthHeaders = (): HeadersInit => {
@@ -147,7 +148,65 @@ export const apiGetMarket = async (): Promise<ApiMarket | null> => {
   }
 };
 
+<<<<<<< Updated upstream
 // 주식 거래
+=======
+export const apiDrawGoldenKey = async (context: GoldenKeyContext): Promise<GoldenKeyCardPayload> => {
+  return drawGoldenKeyCard(context);
+};
+
+export const apiRollDice = async () => {
+  const res = await fetch('/api/test/roll', {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error('주사위 굴리기 실패');
+  }
+  return res.json();
+};
+
+// [신규] 시작점 자산 매수
+export const apiBuyAsset = async (type: string, quantity: number) => {
+  const res = await fetch('/api/game/buy-asset', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ type, quantity }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '매수 실패');
+  }
+  return res.json();
+};
+
+export const apiStartWar = async () => {
+  const res = await fetch('/api/game/war/start', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '전쟁 선포 실패');
+  }
+  return res.json();
+};
+
+// [신규] 우주여행 이동
+export const apiSpaceMove = async (nodeIdx: number) => {
+  const res = await fetch('/api/game/space-move', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ nodeIdx }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '이동 실패');
+  }
+  return res.json();
+};
+
+// 주식 거래 (일반 거래소용)
+>>>>>>> Stashed changes
 export type ApiStockTradeResult = {
   playerId: number;
   roomId: number;

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import useGameStore, { CHARACTER_INFO, type CharacterType } from '../../store/useGameStore';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
 import SpaceBackdrop from '../ui/SpaceBackdrop';
@@ -12,21 +12,31 @@ const LoginPage = () => {
 
   useEffect(() => {
     let alive = true;
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY_MS = 500;
 
-    // OAuth 콜백에서 토큰 추출
+    // OAuth 肄쒕갚?먯꽌 ?좏겙 異붿텧
     const urlToken = extractTokenFromUrl();
     if (urlToken) {
       setToken(urlToken);
     }
 
-    void (async () => {
-      // 이미 인증된 상태인지 확인
+    const fetchMe = async (attempt: number) => {
       if (!isAuthenticated()) return;
-
       const me = await apiGetMe();
       if (!alive) return;
-      if (me) setCurrentPage('lobby');
-    })();
+      if (me) {
+        setCurrentPage('lobby');
+        return;
+      }
+      if (attempt < MAX_RETRIES) {
+        window.setTimeout(() => {
+          void fetchMe(attempt + 1);
+        }, RETRY_DELAY_MS);
+      }
+    };
+
+    void fetchMe(0);
 
     return () => {
       alive = false;
@@ -58,7 +68,7 @@ const LoginPage = () => {
                   >
                     <img
                       src={src}
-                      alt="캐릭터"
+                      alt="Character"
                       className={`h-full w-full rounded-full object-cover ring-2 ${c.ringClass}`}
                     />
                   </div>
@@ -76,12 +86,12 @@ const LoginPage = () => {
                   ZERO SUM
                 </span>
               </h1>
-              <p className="text-lg text-white/70">부자가 되는 보드게임</p>
+              <p className="text-lg text-white/70">Economic board game</p>
             </div>
 
             {/* Login Card */}
             <div className="ui-card-lg">
-              <h2 className="mb-6 text-center text-2xl font-bold text-white">게임 입장</h2>
+              <h2 className="mb-6 text-center text-2xl font-bold text-white">Enter Game</h2>
 
               <div className="space-y-6">
                 <button
@@ -109,14 +119,12 @@ const LoginPage = () => {
                       d="M43.611 20.083H42V20H24v8h11.303c-.792 2.243-2.231 4.149-4.175 5.424l.003-.002 6.126 5.182C36.823 39.83 44 35 44 24c0-1.341-.138-2.65-.389-3.917z"
                     />
                   </svg>
-                  Google로 계속하기
+                  Continue with Google
                 </button>
-                <div className="text-center text-sm text-white/60">
-                  로그인 후 게임에 참가할 수 있어요.
-                </div>
+                <div className="text-center text-sm text-white/60">Log in to join the game.</div>
               </div>
 
-              <div className="mt-6 text-center text-sm text-gray-400">최대 4명까지 참가 가능합니다</div>
+              <div className="mt-6 text-center text-sm text-gray-400">Up to 4 players can join.</div>
             </div>
 
             {/* Characters preview (mobile) */}
@@ -131,7 +139,7 @@ const LoginPage = () => {
                   >
                     <img
                       src={src}
-                      alt="캐릭터"
+                      alt="Character"
                       className={`h-14 w-14 rounded-full object-cover ring-2 ${c.ringClass}`}
                     />
                   </div>
@@ -153,7 +161,7 @@ const LoginPage = () => {
                   >
                     <img
                       src={src}
-                      alt="캐릭터"
+                      alt="Character"
                       className={`h-full w-full rounded-full object-cover ring-2 ${c.ringClass}`}
                     />
                   </div>
@@ -168,3 +176,4 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+
