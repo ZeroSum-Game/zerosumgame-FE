@@ -6,6 +6,7 @@ import useGameStore, {
   CHARACTER_INFO,
   TILE_TO_STOCK,
   type CharacterType,
+  type EventLogType,
   type Player,
   type StockSymbol,
   type WarPayload,
@@ -100,6 +101,19 @@ export const useGameSocket = (roomId: number = 1) => {
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
   const playersSnapshot = useGameStore((s) => s.players);
+
+  const appendEventLog = useCallback((type: EventLogType, title: string, message: string, roundOverride?: number) => {
+    const round = roundOverride ?? useGameStore.getState().round;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      round,
+      type,
+      title,
+      message,
+      createdAt: Date.now(),
+    };
+    useGameStore.setState((s) => ({ eventLog: [entry, ...s.eventLog].slice(0, 80) }));
+  }, []);
 
   useEffect(() => {
     storeRef.current = useGameStore.getState();
@@ -496,6 +510,7 @@ export const useGameSocket = (roomId: number = 1) => {
             dice: [1, 1],
             activeModal: null,
           });
+          appendEventLog('SYSTEM', '게임 시작', '1턴이 시작되었습니다.', 1);
 
           setState((s) => ({
             ...s,
@@ -531,6 +546,13 @@ export const useGameSocket = (roomId: number = 1) => {
             rollStage: 'SETTLING',
             pendingDice: [data.dice1, data.dice2],
           });
+          {
+            const userId = toInt(data?.userId);
+            const name = useGameStore.getState().players.find((p) => p.userId === userId)?.name ?? '플레이어';
+            const dice1 = toInt(data?.dice1, 0);
+            const dice2 = toInt(data?.dice2, 0);
+            appendEventLog('MOVE', '주사위 결과', `${name} ${dice1} + ${dice2} = ${dice1 + dice2}`);
+          }
 
           setTimeout(() => {
             useGameStore.setState((state) => ({
@@ -573,6 +595,11 @@ export const useGameSocket = (roomId: number = 1) => {
             players: state.players.map((p) => (p.id === playerId ? { ...p, position: newLocation } : p)),
             phase: 'IDLE',
           }));
+          {
+            const playerName = useGameStore.getState().players.find((p) => p.id === playerId)?.name ?? '플레이어';
+            const spaceName = BOARD_DATA[newLocation]?.name ?? `${newLocation}번 지역`;
+            appendEventLog('MOVE', '이동', `${playerName} ${spaceName} 도착`);
+          }
 
           const myUserId = myUserIdRef.current;
           if (!myUserId) return;
@@ -659,6 +686,7 @@ export const useGameSocket = (roomId: number = 1) => {
           useGameStore.setState((state) => ({
             assetPrices: { ...state.assetPrices, ...newPrices },
           }));
+          appendEventLog('MARKET', '시장 변동', '주요 자산 가격이 업데이트되었습니다.');
         });
 
         socket.on('drawCard', (data: any) => {
@@ -680,6 +708,7 @@ export const useGameSocket = (roomId: number = 1) => {
               ),
             }));
           }
+          appendEventLog('KEY', data?.title || '황금열쇠', data?.description || '');
         });
 
         socket.on('asset_update', (data: any) => {
@@ -714,6 +743,14 @@ export const useGameSocket = (roomId: number = 1) => {
             ...s,
             currentTurnUserId: resolvedTurnUserId > 0 ? resolvedTurnUserId : s.currentTurnUserId,
           }));
+
+          const nextRound = useGameStore.getState().round + 1;
+          const currentPlayers = useGameStore.getState().players;
+          const turnPlayer =
+            currentPlayers.find((p) => p.id === rawTurnPlayerId) ??
+            currentPlayers.find((p) => p.userId === resolvedTurnUserId) ??
+            null;
+          appendEventLog('TURN', '턴 변경', `${turnPlayer?.name ?? '플레이어'} 차례`, nextRound);
 
           useGameStore.setState((state) => {
             const turnPlayerId = rawTurnPlayerId;
@@ -754,11 +791,13 @@ export const useGameSocket = (roomId: number = 1) => {
             },
             phase: 'MODAL',
           });
+          appendEventLog('WAR', '전쟁 발발', '전쟁이 시작되었습니다.');
         });
 
         socket.on('war_end', (data: any) => {
           console.log('[GameSocket] war_end:', data);
           useGameStore.setState({ war: parseWar(data) });
+          appendEventLog('WAR', '전쟁 종료', '전쟁이 종료되었습니다.');
         });
 
         socket.on('worldcup', (data: any) => {
@@ -775,6 +814,7 @@ export const useGameSocket = (roomId: number = 1) => {
             },
             phase: 'MODAL',
           }));
+          appendEventLog('TURN', '월드컵 개최', `모든 플레이어가 ${name}로 이동했습니다.`);
           void syncMap();
         });
 
@@ -788,6 +828,7 @@ export const useGameSocket = (roomId: number = 1) => {
             },
             phase: 'MODAL',
           });
+          appendEventLog('LAND', '랜드마크 파괴', '전쟁의 여파로 랜드마크가 파괴되었습니다.');
           void syncMap();
         });
 
@@ -809,6 +850,7 @@ export const useGameSocket = (roomId: number = 1) => {
               endedAtRound: data.maxTurn,
             },
           });
+          appendEventLog('SYSTEM', '게임 종료', `${data.maxTurn ?? ''}턴이 종료되었습니다.`);
 
           store.setCurrentPage('result');
         });
@@ -864,7 +906,7 @@ export const useGameSocket = (roomId: number = 1) => {
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [roomId, clearRollTimeout, scheduleRollTimeout]);
+  }, [roomId, clearRollTimeout, scheduleRollTimeout, appendEventLog]);
 
   const rollDice = useCallback(() => {
     const socket = socketRef.current;

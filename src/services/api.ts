@@ -68,6 +68,23 @@ export type ApiUserProfile = {
   winRate: number;
 };
 
+export type ApiNewsEvent = {
+  type: string;
+  title: string;
+  message: string;
+};
+
+export type ApiNewsRequest = {
+  round: number;
+  events: ApiNewsEvent[];
+  locale?: string;
+};
+
+export type ApiNewsResponse = {
+  headline: string;
+  summary: string;
+};
+
 export const apiGetUserProfile = async (): Promise<ApiUserProfile | null> => {
   try {
     const res = await fetch('/api/users/profile', {
@@ -75,6 +92,24 @@ export const apiGetUserProfile = async (): Promise<ApiUserProfile | null> => {
     });
     if (!res.ok) return null;
     return (await res.json()) as ApiUserProfile;
+  } catch {
+    return null;
+  }
+};
+
+export const apiGenerateNews = async (payload: ApiNewsRequest): Promise<ApiNewsResponse | null> => {
+  try {
+    const res = await fetch('/api/news', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as any;
+    return {
+      headline: String(body?.headline ?? ''),
+      summary: String(body?.summary ?? ''),
+    };
   } catch {
     return null;
   }

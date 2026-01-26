@@ -566,6 +566,73 @@
     line-height: 1.35;
   }
 
+  .dash-news {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dash-news-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(135deg, rgba(148, 163, 184, 0.08), rgba(15, 23, 42, 0.55));
+    padding: 12px 14px 14px;
+  }
+
+  .dash-news-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.35;
+    background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.14), transparent 50%),
+      radial-gradient(circle at 80% 0%, rgba(14, 116, 144, 0.2), transparent 45%);
+    pointer-events: none;
+  }
+
+  .dash-news-topline {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(148, 163, 184, 0.85);
+  }
+
+  .dash-news-round {
+    font-weight: 700;
+  }
+
+  .dash-news-tag {
+    border-radius: 999px;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(15, 23, 42, 0.4);
+    font-weight: 700;
+  }
+
+  .dash-news-headline {
+    position: relative;
+    z-index: 1;
+    margin-top: 8px;
+    font-size: 15px;
+    font-weight: 900;
+    color: rgba(241, 245, 249, 0.95);
+  }
+
+  .dash-news-body {
+    position: relative;
+    z-index: 1;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(203, 213, 225, 0.9);
+  }
+
   .dash-up {
     color: #22c55e;
   }
