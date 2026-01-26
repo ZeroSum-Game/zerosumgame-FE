@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { BOARD_DATA, TILE_COUNT, type Continent } from '../utils/boardUtils';
 import { formatKRWKo } from '../utils/formatKRW';
-import { apiDrawGoldenKey } from '../services/api';
 import type { GoldenKeyCardPayload } from '../utils/goldenKey';
 
 export const GAME_RULES = {
@@ -791,116 +790,7 @@ const useGameStore = create<GameState>((set, get) => {
     }
 
     if (space.type === 'KEY') {
-<<<<<<< Updated upstream
-      const defs: GoldenKeyDef[] = [
-        {
-          title: '관세 부과',
-          description: '글로벌 관세 이슈! 주식이 일제히 하락합니다.',
-          effect: (setFn, getFn) => {
-            const s = getFn();
-            const next = { ...s.assetPrices };
-            (['SAMSUNG', 'TESLA', 'LOCKHEED'] as StockSymbol[]).forEach((sym) => {
-              next[sym] = Math.round(next[sym] * 0.94);
-            });
-            const nextLandPrices = Object.fromEntries(
-              Object.entries(s.landPrices).map(([id, price]) => [id, Math.max(1, Math.round(price * 0.97))])
-            ) as Record<number, number>;
-            setFn(() => ({ assetPrices: next, landPrices: nextLandPrices }));
-          },
-        },
-        {
-          title: '반도체 사이클',
-          description: '반도체 호황! 삼성전자 급등, 테슬라 호조.',
-          effect: (setFn, getFn) => {
-            const s = getFn();
-            const next = { ...s.assetPrices };
-            next.SAMSUNG = Math.round(next.SAMSUNG * 1.14);
-            next.TESLA = Math.round(next.TESLA * 1.08);
-            next.LOCKHEED = Math.round(next.LOCKHEED * 0.97);
-            const nextLandPrices = { ...s.landPrices };
-            Object.entries(nextLandPrices).forEach(([id, price]) => {
-              const tileId = Number(id);
-              if (BOARD_DATA[tileId]?.continent === 'ASIA') nextLandPrices[tileId] = Math.max(1, Math.round(price * 1.05));
-            });
-            setFn(() => ({ assetPrices: next, landPrices: nextLandPrices }));
-          },
-        },
-        {
-          title: '전기차 보조금 폐지',
-          description: '전기차 수요 둔화! 테슬라 하락, 금은 안전자산으로 상승.',
-          effect: (setFn, getFn) => {
-            const s = getFn();
-            const next = { ...s.assetPrices };
-            next.TESLA = Math.round(next.TESLA * 0.88);
-            next.GOLD = Math.round(next.GOLD * 1.06);
-            const nextLandPrices = { ...s.landPrices };
-            Object.entries(nextLandPrices).forEach(([id, price]) => {
-              const tileId = Number(id);
-              if (BOARD_DATA[tileId]?.continent === 'EUROPE') nextLandPrices[tileId] = Math.max(1, Math.round(price * 0.96));
-            });
-            setFn(() => ({ assetPrices: next, landPrices: nextLandPrices }));
-          },
-        },
-        {
-          title: '인수합병',
-          description: '깜짝 M&A! 랜덤 주식이 급등합니다.',
-          effect: (setFn, getFn) => {
-            const s = getFn();
-            const equity: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED'];
-            const pick = equity[Math.floor(Math.random() * equity.length)];
-            const next = { ...s.assetPrices };
-            next[pick] = Math.round(next[pick] * 1.18);
-            const continents: Continent[] = ['ASIA', 'AFRICA', 'EUROPE', 'AMERICA'];
-            const continent = continents[Math.floor(Math.random() * continents.length)];
-            const nextLandPrices = { ...s.landPrices };
-            Object.entries(nextLandPrices).forEach(([id, price]) => {
-              const tileId = Number(id);
-              if (BOARD_DATA[tileId]?.continent === continent) nextLandPrices[tileId] = Math.max(1, Math.round(price * 1.06));
-            });
-            setFn(() => ({ assetPrices: next, landPrices: nextLandPrices }));
-          },
-        },
-        {
-          title: '강탈',
-          description: '부유한 플레이어의 현금을 일부 빼앗습니다.',
-          effect: (_, getFn) => {
-            const s = getFn();
-            const alive = s.players.filter((p) => !p.isBankrupt);
-            if (alive.length < 2) return;
-            const richest = [...alive].sort(
-              (a, b) => computeNetWorth(b, s.assetPrices, s.landPrices, s.lands) - computeNetWorth(a, s.assetPrices, s.landPrices, s.lands)
-            )[0];
-            const current = s.players[s.currentPlayerIndex];
-            if (!current || !richest || richest.id === current.id) return;
-            const steal = Math.min(300000, richest.cash);
-            transferCash(richest.id, current.id, steal, '강탈');
-          },
-        },
-        {
-          title: '러-우 전쟁',
-          description: '전쟁 발발! 금/비트코인 상승. 전쟁을 즉시 선포할 수 있습니다. (승률 +5%)',
-          effect: (setFn, getFn) => {
-            const s = getFn();
-            const next = { ...s.assetPrices };
-            next.GOLD = Math.round(next.GOLD * 1.12);
-            next.BITCOIN = Math.round(next.BITCOIN * 1.08);
-            const nextLandPrices = { ...s.landPrices };
-            Object.entries(nextLandPrices).forEach(([id, price]) => {
-              const tileId = Number(id);
-              if (BOARD_DATA[tileId]?.continent === 'EUROPE') nextLandPrices[tileId] = Math.max(1, Math.round(price * 0.93));
-            });
-            setFn(() => ({ assetPrices: next, landPrices: nextLandPrices, queuedModal: { type: 'WAR_SELECT', byCard: true } }));
-          },
-        },
-      ];
-
-      const picked = defs[Math.floor(Math.random() * defs.length)];
-      picked.effect(set, get);
-      pushLog('KEY', `황금열쇠: ${picked.title}`, picked.description);
-      set({ phase: 'MODAL', activeModal: { type: 'GOLDEN_KEY', title: picked.title, description: picked.description } });
-=======
       void handleGoldenKey();
->>>>>>> Stashed changes
       return;
     }
 
