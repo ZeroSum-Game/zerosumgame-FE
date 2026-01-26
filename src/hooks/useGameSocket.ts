@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+﻿import { useEffect, useRef, useCallback, useState } from 'react';
 import { connectSocket } from '../services/socketio';
 import { isAuthenticated } from '../services/auth';
 import { fromBackendCharacter } from '../utils/characterMapping';
@@ -11,13 +11,13 @@ import useGameStore, {
   type WarPayload,
 } from '../store/useGameStore';
 import { toInt, toNumber } from '../utils/parseNumber';
-import { apiGetMap, apiGetPlayerAssets } from '../services/api';
+import { apiGetMap, apiGetMe, apiGetPlayerAssets } from '../services/api';
 import { BOARD_DATA } from '../utils/boardUtils';
 import { applyWarMultiplier } from '../utils/warMultiplier';
 
 type SocketLike = Awaited<ReturnType<typeof connectSocket>>;
 
-// 백엔드 주식 심볼을 프론트엔드 심볼로 변환
+// 諛깆뿏??二쇱떇 ?щ낵???꾨줎?몄뿏???щ낵濡?蹂??
 const mapBackendStockSymbol = (symbol: string): StockSymbol | null => {
   const mapping: Record<string, StockSymbol> = {
     SAMSUNG: 'SAMSUNG',
@@ -29,7 +29,7 @@ const mapBackendStockSymbol = (symbol: string): StockSymbol | null => {
   return mapping[symbol.toUpperCase()] || null;
 };
 
-// 백엔드 플레이어 데이터를 프론트엔드 형식으로 변환
+// 諛깆뿏???뚮젅?댁뼱 ?곗씠?곕? ?꾨줎?몄뿏???뺤떇?쇰줈 蹂??
 const mapBackendPlayer = (p: any, index: number): Player => {
   const character = fromBackendCharacter(p.character) as CharacterType | null;
   const avatar = character ? CHARACTER_INFO[character].avatar : '/assets/characters/default.png';
@@ -99,6 +99,9 @@ export const useGameSocket = (roomId: number = 1) => {
   const storeRef = useRef(store);
   const myUserIdRef = useRef<number | null>(null);
   const currentTurnUserIdRef = useRef<number | null>(null);
+  const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
+  const playersSnapshot = useGameStore((s) => s.players);
 
   useEffect(() => {
     storeRef.current = useGameStore.getState();
@@ -108,6 +111,40 @@ export const useGameSocket = (roomId: number = 1) => {
     myUserIdRef.current = state.myUserId;
     currentTurnUserIdRef.current = state.currentTurnUserId;
   }, [state.currentTurnUserId, state.myUserId]);
+
+  const resolveTurnUserId = useCallback(
+    (turnUserIdValue: unknown, turnPlayerIdValue: unknown, playersList: any[] | null | undefined) => {
+      const direct = toInt(turnUserIdValue, 0);
+      if (direct > 0) return direct;
+      const playerId = toInt(turnPlayerIdValue, 0);
+      if (playerId <= 0 || !Array.isArray(playersList)) return null;
+      const found = playersList.find(
+        (p: any) => toInt(p?.playerId ?? p?.id, 0) === playerId
+      );
+      const fallbackUserId = toInt(found?.userId, 0);
+      return fallbackUserId > 0 ? fallbackUserId : null;
+    },
+    []
+  );
+
+  const clearRollTimeout = useCallback(() => {
+    if (!rollTimeoutRef.current) return;
+    clearTimeout(rollTimeoutRef.current);
+    rollTimeoutRef.current = null;
+  }, []);
+
+  const scheduleRollTimeout = useCallback(() => {
+    clearRollTimeout();
+    rollTimeoutRef.current = setTimeout(() => {
+      useGameStore.setState({
+        isRolling: false,
+        rollStage: 'IDLE',
+        rollingUserId: null,
+        pendingDice: null,
+      });
+      setState((s) => ({ ...s, error: '주사위 결과를 받지 못했습니다. 다시 시도해 주세요.' }));
+    }, 6000);
+  }, [clearRollTimeout]);
 
   const parseWar = useCallback((war: any): WarPayload | null => {
     if (!war) return null;
@@ -174,7 +211,36 @@ export const useGameSocket = (roomId: number = 1) => {
     }));
   }, []);
 
-  // 소켓 연결
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    if (state.myUserId && state.myUserId > 0) return;
+    let alive = true;
+
+    const fetchMe = async () => {
+      const me = await apiGetMe();
+      if (!alive || !me?.userId) return;
+      myUserIdRef.current = me.userId;
+      setState((s) => ({ ...s, myUserId: me.userId }));
+    };
+
+    void fetchMe();
+    const retryId = window.setInterval(fetchMe, 3000);
+
+    return () => {
+      alive = false;
+      window.clearInterval(retryId);
+    };
+  }, [state.myUserId]);
+
+  useEffect(() => {
+    const existingTurnUserId = toInt(state.currentTurnUserId, 0);
+    if (existingTurnUserId > 0) return;
+    const fallbackUserId = toInt(playersSnapshot[currentPlayerIndex]?.userId, 0);
+    if (fallbackUserId <= 0) return;
+    setState((s) => ({ ...s, currentTurnUserId: fallbackUserId }));
+  }, [state.currentTurnUserId, currentPlayerIndex, playersSnapshot]);
+
+  // ?뚯폆 ?곌껐
   useEffect(() => {
     if (!isAuthenticated()) {
       store.setCurrentPage('login');
@@ -196,6 +262,7 @@ export const useGameSocket = (roomId: number = 1) => {
           const events = [
             'connect',
             'connect_error',
+            'disconnect',
             'join_error',
             'join_success',
             'game_start',
@@ -214,6 +281,7 @@ export const useGameSocket = (roomId: number = 1) => {
             'game_end',
             'roll_error',
             'turn_error',
+            'dice_roll_cancelled',
             'order_picking_start',
             'order_card_picked',
             'order_picking_complete',
@@ -223,23 +291,38 @@ export const useGameSocket = (roomId: number = 1) => {
         };
         clearHandlers();
 
-        // 연결 성공
+        // ?곌껐 ?깃났
         socket.on('connect', () => {
           console.log('[GameSocket] Connected');
           setState(s => ({ ...s, connected: true, error: null }));
         });
 
+        socket.on('disconnect', (reason: any) => {
+          console.warn('[GameSocket] Disconnected:', reason);
+          setState((s) => ({
+            ...s,
+            connected: false,
+            error: s.error ?? '서버와의 연결이 끊어졌습니다. 다시 연결 중입니다.',
+          }));
+        });
+
         socket.on('connect_error', (err: any) => {
           console.error('[GameSocket] Connection error:', err);
-          setState(s => ({ ...s, connected: false, error: '서버 연결 실패' }));
+          setState(s => ({ ...s, connected: false, error: '?쒕쾭 ?곌껐 ?ㅽ뙣' }));
         });
+
+        if (socket.connected) {
+          setState((s) => ({ ...s, connected: true, error: null }));
+        } else if (typeof socket.connect === 'function') {
+          socket.connect();
+        }
 
         socket.on('join_error', (payload: any) => {
           console.error('[GameSocket] join_error:', payload);
-          setState((s) => ({ ...s, error: String(payload?.message ?? '방 참가에 실패했어요.') }));
+          setState((s) => ({ ...s, error: String(payload?.message ?? '諛?李멸????ㅽ뙣?덉뼱??') }));
         });
 
-        // 방 입장 성공 (게임 중 재접속/초기 상태 동기화)
+        // 諛??낆옣 ?깃났 (寃뚯엫 以??ъ젒??珥덇린 ?곹깭 ?숆린??
         socket.on('join_success', (payload: any) => {
           console.log('[GameSocket] join_success:', payload);
 
@@ -247,7 +330,11 @@ export const useGameSocket = (roomId: number = 1) => {
           const lobbyPlayers = Array.isArray(payload?.lobby?.players) ? payload.lobby.players : [];
 
           const myUserId = toInt(payload?.player?.userId);
-          const currentTurnUserId = payload?.currentTurn != null ? toInt(payload.currentTurn) : null;
+          const currentTurnUserId = resolveTurnUserId(
+            payload?.currentTurn,
+            payload?.turnPlayerId,
+            payload?.lobby?.players
+          );
           const war = parseWar(payload?.war);
 
           if (myUserId) myUserIdRef.current = myUserId;
@@ -257,7 +344,7 @@ export const useGameSocket = (roomId: number = 1) => {
             ...s,
             error: null,
             myUserId: myUserId || s.myUserId,
-            currentTurnUserId,
+            currentTurnUserId: currentTurnUserId ?? s.currentTurnUserId,
             roomId: toInt(payload?.roomId ?? roomId),
           }));
 
@@ -315,7 +402,7 @@ export const useGameSocket = (roomId: number = 1) => {
           void hydratePlayersAssets(nextPlayers.map((p) => p.userId));
         });
 
-        // 순서 뽑기 시작
+        // ?쒖꽌 戮묎린 ?쒖옉
         socket.on('order_picking_start', (data: any) => {
           console.log('[GameSocket] order_picking_start:', data);
           setState((s) => ({
@@ -331,7 +418,7 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // 카드 선택됨
+        // 移대뱶 ?좏깮??
         socket.on('order_card_picked', (data: any) => {
           console.log('[GameSocket] order_card_picked:', data);
           const pickedUserId = toInt(data?.userId);
@@ -353,7 +440,7 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // 순서 뽑기 완료
+        // ?쒖꽌 戮묎린 ?꾨즺
         socket.on('order_picking_complete', (data: any) => {
           console.log('[GameSocket] order_picking_complete:', data);
           setState((s) => ({
@@ -365,16 +452,16 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // 카드 선택 에러
+        // 移대뱶 ?좏깮 ?먮윭
         socket.on('pick_error', (data: any) => {
           console.error('[GameSocket] pick_error:', data);
-          setState((s) => ({ ...s, error: data.message || '카드 선택 실패' }));
+          setState((s) => ({ ...s, error: data.message || '移대뱶 ?좏깮 ?ㅽ뙣' }));
         });
 
-        // 게임 시작 이벤트
+        // 寃뚯엫 ?쒖옉 ?대깽??
         socket.on('game_start', (data: any) => {
           console.log('[GameSocket] game_start:', data);
-          // 순서 뽑기 상태 초기화
+          // ?쒖꽌 戮묎린 ?곹깭 珥덇린??
           setState((s) => ({
             ...s,
             orderPicking: {
@@ -388,14 +475,10 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
 
           const players: Player[] = (data.players || []).map((p: any, idx: number) => mapBackendPlayer(p, idx));
-
-          // 턴 순서에 따라 currentPlayerIndex 설정
-          const turnOrder = data.turnOrder || [];
-          const currentTurnUserId = data.currentTurn;
-          const currentPlayerIndex = players.findIndex(p => {
-            const playerData = data.players?.find((pd: any) => pd.playerId === p.id);
-            return playerData?.userId === currentTurnUserId;
-          });
+          const currentTurnUserId = resolveTurnUserId(data?.currentTurn, data?.turnPlayerId, data?.players);
+          const currentPlayerIndex = currentTurnUserId
+            ? players.findIndex((p) => p.userId === currentTurnUserId)
+            : -1;
 
           useGameStore.setState({
             players,
@@ -408,28 +491,36 @@ export const useGameSocket = (roomId: number = 1) => {
             activeModal: null,
           });
 
-          setState(s => ({ ...s, currentTurnUserId, roomId }));
+          setState((s) => ({
+            ...s,
+            currentTurnUserId: currentTurnUserId ?? s.currentTurnUserId,
+            roomId,
+          }));
           void syncMap();
           void hydratePlayersAssets(players.map((p) => p.userId));
         });
 
-        // 주사위 굴리기 시작 (모든 플레이어에게 - 관전자도 애니메이션 볼 수 있게)
+        // 二쇱궗??援대━湲??쒖옉 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶 - 愿?꾩옄???좊땲硫붿씠??蹂????덇쾶)
         socket.on('dice_rolling_started', (data: any) => {
           console.log('[GameSocket] dice_rolling_started:', data);
           const rollingUserId = toInt(data?.userId);
 
+          scheduleRollTimeout();
+
           useGameStore.setState({
             isRolling: true,
             rollStage: 'HOLDING',
-            rollingUserId: rollingUserId, // 누가 주사위를 굴리는지 저장
+            rollingUserId: rollingUserId, // ?꾧? 二쇱궗?꾨? 援대━?붿? ???
           });
         });
 
-        // 주사위 굴림 결과 (모든 플레이어에게)
+        // 二쇱궗??援대┝ 寃곌낵 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶)
         socket.on('dice_rolled', (data: any) => {
           console.log('[GameSocket] dice_rolled:', data);
 
-          // 먼저 SETTLING 단계로 전환하여 결과 애니메이션 표시
+          clearRollTimeout();
+
+          // 癒쇱? SETTLING ?④퀎濡??꾪솚?섏뿬 寃곌낵 ?좊땲硫붿씠???쒖떆
           useGameStore.setState({
             dice: [data.dice1, data.dice2],
             isDouble: data.isDouble,
@@ -437,7 +528,7 @@ export const useGameSocket = (roomId: number = 1) => {
             pendingDice: [data.dice1, data.dice2],
           });
 
-          // 잠시 후 최종 상태로 전환
+          // ?좎떆 ??理쒖쥌 ?곹깭濡??꾪솚
           setTimeout(() => {
             useGameStore.setState((state) => ({
               hasRolledThisTurn: true,
@@ -462,7 +553,7 @@ export const useGameSocket = (roomId: number = 1) => {
             setState((s) => ({ ...s, currentTurnUserId: toInt(data.turnUserId) }));
           }
 
-          // 자동 매각 이벤트 처리
+          // ?먮룞 留ㅺ컖 ?대깽??泥섎━
           if (data.autoSellEvents && data.autoSellEvents.length > 0) {
             data.autoSellEvents.forEach((evt: any) => {
               console.log('[GameSocket] Auto-sell event:', evt);
@@ -470,7 +561,7 @@ export const useGameSocket = (roomId: number = 1) => {
           }
         });
 
-        // 플레이어 이동 (모든 플레이어에게)
+        // ?뚮젅?댁뼱 ?대룞 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶)
         socket.on('playerMove', (data: any) => {
           console.log('[GameSocket] playerMove:', data);
 
@@ -482,7 +573,7 @@ export const useGameSocket = (roomId: number = 1) => {
             phase: 'IDLE',
           }));
 
-          // 본인 이동일 때만 액션 모달 오픈
+          // 蹂몄씤 ?대룞???뚮쭔 ?≪뀡 紐⑤떖 ?ㅽ뵂
           const myUserId = myUserIdRef.current;
           if (!myUserId) return;
           if (toInt(data?.userId) !== myUserId) return;
@@ -544,7 +635,7 @@ export const useGameSocket = (roomId: number = 1) => {
           }
         });
 
-        // 마켓 업데이트
+        // 留덉폆 ?낅뜲?댄듃
         socket.on('market_update', (data: any) => {
           console.log('[GameSocket] market_update:', data);
 
@@ -561,20 +652,20 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
-        // 카드 이벤트
+        // 移대뱶 ?대깽??
         socket.on('drawCard', (data: any) => {
           console.log('[GameSocket] drawCard:', data);
 
           useGameStore.setState({
             activeModal: {
               type: 'GOLDEN_KEY',
-              title: data.title || '황금열쇠',
+              title: data.title || '?⑷툑?댁뇿',
               description: data.description || '',
             },
             phase: 'MODAL',
           });
 
-          // 카드로 인한 현금 변동 처리
+          // 移대뱶濡??명븳 ?꾧툑 蹂??泥섎━
           if (data?.playerId != null && data?.cash != null) {
             useGameStore.setState((state) => ({
               players: state.players.map((p) =>
@@ -584,7 +675,7 @@ export const useGameSocket = (roomId: number = 1) => {
           }
         });
 
-        // 자산 업데이트
+        // ?먯궛 ?낅뜲?댄듃
         socket.on('asset_update', (data: any) => {
           console.log('[GameSocket] asset_update:', data);
 
@@ -601,16 +692,26 @@ export const useGameSocket = (roomId: number = 1) => {
           void syncMap();
         });
 
-        // 턴 업데이트
+        // ???낅뜲?댄듃
         socket.on('turn_update', (data: any) => {
           console.log('[GameSocket] turn_update:', data);
 
-          const currentTurnUserId = data.currentTurn;
-          setState(s => ({ ...s, currentTurnUserId }));
+          clearRollTimeout();
+
+          const currentTurnUserId = resolveTurnUserId(
+            data?.currentTurn,
+            data?.turnPlayerId,
+            useGameStore.getState().players
+          );
+          setState((s) => ({
+            ...s,
+            currentTurnUserId: currentTurnUserId ?? s.currentTurnUserId,
+          }));
 
           useGameStore.setState((state) => {
-            // 현재 턴 플레이어 찾기
-            const currentPlayerIndex = state.players.findIndex(p => p.id === data.turnPlayerId);
+            // ?꾩옱 ???뚮젅?댁뼱 李얘린
+            const turnPlayerId = toInt(data?.turnPlayerId, 0);
+            const currentPlayerIndex = state.players.findIndex((p) => p.id === turnPlayerId);
 
             return {
               currentPlayerIndex: currentPlayerIndex >= 0 ? currentPlayerIndex : state.currentPlayerIndex,
@@ -618,13 +719,17 @@ export const useGameSocket = (roomId: number = 1) => {
               hasRolledThisTurn: false,
               extraRolls: 0,
               phase: 'IDLE',
-              activeModal: null,
+                            activeModal: null,
+              isRolling: false,
+              rollStage: 'IDLE',
+              rollingUserId: null,
+              pendingDice: null,
               war: parseWar(data?.war),
             };
           });
         });
 
-        // 전쟁 상태
+        // ?꾩웳 ?곹깭
         socket.on('war_state', (data: any) => {
           console.log('[GameSocket] war_state:', data);
           useGameStore.setState({ war: parseWar(data) });
@@ -636,8 +741,8 @@ export const useGameSocket = (roomId: number = 1) => {
             war: parseWar(data),
             activeModal: {
               type: 'INFO',
-              title: '전쟁 발발!',
-              description: `전쟁이 시작되었습니다. ${data.turnsLeft}턴 동안 전쟁 지역의 땅 가격이 하락합니다.`,
+              title: '?꾩웳 諛쒕컻!',
+              description: `?꾩웳???쒖옉?섏뿀?듬땲?? ${data.turnsLeft}???숈븞 ?꾩웳 吏??쓽 ??媛寃⑹씠 ?섎씫?⑸땲??`,
             },
             phase: 'MODAL',
           });
@@ -652,13 +757,13 @@ export const useGameSocket = (roomId: number = 1) => {
           console.log('[GameSocket] worldcup:', data);
           const nodeIdx = toInt(data?.nodeIdx);
           if (!Number.isInteger(nodeIdx)) return;
-          const name = BOARD_DATA[nodeIdx]?.name ?? `${nodeIdx}번 지역`;
+                    const name = BOARD_DATA[nodeIdx]?.name ?? `${nodeIdx}번 지역`;
           useGameStore.setState((s) => ({
             players: s.players.map((p) => ({ ...p, position: nodeIdx })),
             activeModal: {
               type: 'INFO',
-              title: '월드컵 개최!',
-              description: `모든 플레이어가 ${name}로 이동했습니다.`,
+              title: '?붾뱶而?媛쒖턀!',
+              description: `紐⑤뱺 ?뚮젅?댁뼱媛 ${name}濡??대룞?덉뒿?덈떎.`,
             },
             phase: 'MODAL',
           }));
@@ -670,15 +775,15 @@ export const useGameSocket = (roomId: number = 1) => {
           useGameStore.setState({
             activeModal: {
               type: 'INFO',
-              title: '랜드마크 파괴',
-              description: '전쟁 패배로 가장 비싼 랜드마크가 파괴되었습니다.',
+              title: '?쒕뱶留덊겕 ?뚭눼',
+              description: '?꾩웳 ?⑤같濡?媛??鍮꾩떬 ?쒕뱶留덊겕媛 ?뚭눼?섏뿀?듬땲??',
             },
             phase: 'MODAL',
           });
           void syncMap();
         });
 
-        // 게임 종료
+        // 寃뚯엫 醫낅즺
         socket.on('game_end', (data: any) => {
           console.log('[GameSocket] game_end:', data);
 
@@ -693,20 +798,38 @@ export const useGameSocket = (roomId: number = 1) => {
                 playerId: r.playerId,
                 netWorth: Number(r.totalAsset),
               })),
-              reason: `${data.maxTurn}턴 종료`,
+              reason: `${data.maxTurn}??醫낅즺`,
               endedAtRound: data.maxTurn,
             },
           });
 
-          store.setCurrentPage('result');
+                    store.setCurrentPage('result');
+        });
+
+        socket.on('dice_roll_cancelled', (data: any) => {
+          console.warn('[GameSocket] dice_roll_cancelled:', data);
+          clearRollTimeout();
+          useGameStore.setState({
+            isRolling: false,
+            rollStage: 'IDLE',
+            rollingUserId: null,
+            pendingDice: null,
+          });
+          const cancelledUserId = toInt(data?.userId, 0);
+          if (cancelledUserId > 0 && cancelledUserId === myUserIdRef.current) {
+            setState((s) => ({ ...s, error: '주사위 결과 전송에 실패했습니다. 다시 시도해 주세요.' }));
+          }
         });
 
         // 롤 에러
         socket.on('roll_error', (data: any) => {
           console.error('[GameSocket] roll_error:', data);
+          clearRollTimeout();
           useGameStore.setState({
             isRolling: false,
             rollStage: 'IDLE',
+            rollingUserId: null,
+            pendingDice: null,
           });
           setState(s => ({ ...s, error: data.message || '주사위 굴리기 실패' }));
         });
@@ -717,12 +840,12 @@ export const useGameSocket = (roomId: number = 1) => {
           setState(s => ({ ...s, error: data.message || '턴 종료 실패' }));
         });
 
-        // 방 입장 (이미 로비에서 처리됨, 게임 중 재연결용)
+        // 방 입장 (이미 로비에서 처리됨. 게임 중 재연결용)
         socket.emit('join_room', roomId);
 
       } catch (err: any) {
         console.error('[GameSocket] Failed to connect:', err);
-        setState(s => ({ ...s, error: err?.message || '연결 실패' }));
+        setState(s => ({ ...s, error: err?.message || '?곌껐 ?ㅽ뙣' }));
       }
     };
 
@@ -730,37 +853,63 @@ export const useGameSocket = (roomId: number = 1) => {
 
     return () => {
       alive = false;
+      clearRollTimeout();
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [roomId]);
+  }, [roomId, clearRollTimeout, scheduleRollTimeout]);
 
-  // 주사위 굴리기
+  // 二쇱궗??援대━湲?
   const rollDice = useCallback(() => {
-    if (!socketRef.current) return;
+    const socket = socketRef.current;
+    if (!socket) {
+      setState((s) => ({ ...s, error: '소켓이 연결되지 않았습니다. 잠시 후 다시 시도해 주세요.' }));
+      return;
+    }
+    if (!socket.connected) {
+      if (typeof socket.connect === 'function') socket.connect();
+      setState((s) => ({ ...s, error: '소켓 연결 중입니다. 잠시 후 다시 시도해 주세요.' }));
+      return;
+    }
+
+    const myUserId = toInt(myUserIdRef.current, 0);
+    const socketTurnUserId = toInt(currentTurnUserIdRef.current, 0);
+    const storeState = useGameStore.getState();
+    const fallbackTurnUserId = toInt(storeState.players[storeState.currentPlayerIndex]?.userId, 0);
+    const currentTurnUserId = socketTurnUserId > 0 ? socketTurnUserId : fallbackTurnUserId;
+
+    if (myUserId <= 0 || currentTurnUserId <= 0 || myUserId !== currentTurnUserId) {
+      setState((s) => ({ ...s, error: '지금은 당신의 턴이 아닙니다.' }));
+      return;
+    }
+
+    if (useGameStore.getState().isRolling) {
+      return;
+    }
 
     setState((s) => ({ ...s, error: null }));
-    useGameStore.setState({
-      isRolling: true,
-      rollStage: 'HOLDING',
-    });
-
-    socketRef.current.emit('roll_dice');
+    socket.emit('roll_dice');
   }, []);
 
-  // 턴 종료
+  // ??醫낅즺
   const endTurn = useCallback(() => {
     if (!socketRef.current) return;
     setState((s) => ({ ...s, error: null }));
     socketRef.current.emit('end_turn');
   }, []);
 
-  // 내 턴인지 확인
-  const isMyTurn = useCallback(() => {
-    return state.currentTurnUserId === state.myUserId;
+  // ???댁씤吏 ?뺤씤
+    const isMyTurn = useCallback(() => {
+    const myUserId = toInt(state.myUserId, 0);
+    const socketTurnUserId = toInt(state.currentTurnUserId, 0);
+    const storeState = useGameStore.getState();
+    const fallbackTurnUserId = toInt(storeState.players[storeState.currentPlayerIndex]?.userId, 0);
+    const turnUserId = socketTurnUserId > 0 ? socketTurnUserId : fallbackTurnUserId;
+    if (myUserId <= 0 || turnUserId <= 0) return false;
+    return turnUserId === myUserId;
   }, [state.currentTurnUserId, state.myUserId]);
 
-  // 순서 카드 선택
+  // ?쒖꽌 移대뱶 ?좏깮
   const pickOrderCard = useCallback((cardNumber: number) => {
     if (!socketRef.current) return;
     setState((s) => ({ ...s, error: null }));
@@ -778,3 +927,15 @@ export const useGameSocket = (roomId: number = 1) => {
 };
 
 export default useGameSocket;
+
+
+
+
+
+
+
+
+
+
+
+

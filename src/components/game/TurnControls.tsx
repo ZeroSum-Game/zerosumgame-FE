@@ -105,16 +105,20 @@ const TurnControls = () => {
   const rollingUserId = useGameStore((s) => s.rollingUserId);
   const players = useGameStore((s) => s.players);
 
-  // 백엔드 연동: useGameSocketContext 사용
-  const { rollDice, endTurn, error, isMyTurn, myUserId } = useGameSocketContext();
+  const { rollDice, endTurn, error, isMyTurn, myUserId, connected } = useGameSocketContext();
   const myTurn = isMyTurn();
 
-  // 현재 주사위를 굴리는 플레이어 이름 찾기
-  const rollingPlayer = rollingUserId ? players.find(p => p.userId === rollingUserId) : null;
-  const rollingPlayerName = rollingPlayer?.name || '플레이어';
+  const rollingPlayer = rollingUserId ? players.find((p) => p.userId === rollingUserId) : null;
+  const rollingPlayerName = rollingPlayer?.name ?? 'PLAYER';
 
-  const canRoll = myTurn && phase === 'IDLE' && !activeModal && (!hasRolledThisTurn || extraRolls > 0) && !isRolling;
-  const canEndTurn = myTurn && phase === 'IDLE' && !activeModal && hasRolledThisTurn && !isRolling;
+  const canRoll =
+    connected &&
+    myTurn &&
+    phase === 'IDLE' &&
+    !activeModal &&
+    (!hasRolledThisTurn || extraRolls > 0) &&
+    !isRolling;
+  const canEndTurn = connected && myTurn && phase === 'IDLE' && !activeModal && hasRolledThisTurn && !isRolling;
 
   const isHoldRolling = rollStage === 'HOLDING';
   const isSettling = rollStage === 'SETTLING';
@@ -124,88 +128,93 @@ const TurnControls = () => {
   const soundFnRef = useRef({ startRolling, stopRollingWithClick });
   soundFnRef.current = { startRolling, stopRollingWithClick };
 
-  // 다른 플레이어가 주사위 굴릴 때 사운드 재생
   useEffect(() => {
     if (isRolling && rollingUserId && rollingUserId !== myUserId) {
-      soundFnRef.current.startRolling();
+      void soundFnRef.current.startRolling().catch(() => undefined);
     }
   }, [isRolling, rollingUserId, myUserId]);
 
-  // 주사위 결과가 나왔을 때 사운드 정지
   useEffect(() => {
     if (!isRolling && rollStage === 'IDLE') {
-      soundFnRef.current.stopRollingWithClick();
+      void soundFnRef.current.stopRollingWithClick().catch(() => undefined);
     }
   }, [isRolling, rollStage]);
 
-  const handleRoll = async () => {
+  const handleRoll = () => {
     if (!canRoll) return;
     setPressing(true);
-    await startRolling();
-    rollDice(); // 백엔드로 주사위 굴리기 요청
-    setTimeout(async () => {
+    rollDice();
+    void startRolling().catch(() => undefined);
+    window.setTimeout(() => {
       setPressing(false);
     }, 500);
   };
 
   const handleEndTurn = () => {
     if (!canEndTurn) return;
-    endTurn(); // 백엔드로 턴 종료 요청
+    endTurn();
   };
 
-  // 다른 플레이어의 턴일 때 관전 모드
   if (!myTurn) {
     return (
       <div className="turn-controls">
-        {isRolling && rollingUserId ? (
+        {isRolling ? (
           <div className="turn-controls-spectate">
             <div className="spectate-dice-animation">
-              <span className="spectate-dice">🎲</span>
-              <span className="spectate-dice delay">🎲</span>
+              <span className="spectate-dice">[]</span>
+              <span className="spectate-dice delay">[]</span>
             </div>
             <div className="spectate-text">
               {isSettling ? (
-                <span className="dice-result">🎯 {dice[0]} + {dice[1]} = {dice[0] + dice[1]}</span>
+                <span className="dice-result">
+                  DICE {dice[0]} + {dice[1]} = {dice[0] + dice[1]}
+                </span>
               ) : (
-                <span>{rollingPlayerName}이(가) 주사위를 굴리는 중...</span>
+                <span>{rollingPlayerName} is rolling...</span>
               )}
             </div>
           </div>
         ) : (
           <div className="turn-controls-waiting">
-            <span>다른 플레이어의 턴입니다</span>
+            <span>Waiting for other player</span>
           </div>
         )}
       </div>
     );
   }
 
-  // 본인 턴
   const rollButtonActive = canRoll || isHoldRolling || isSettling;
-  const action = rollButtonActive ? 'ROLL' : canEndTurn ? 'END TURN' : null;
-  const disabled = !action || (action === 'ROLL' ? !rollButtonActive : action === 'END TURN' ? !canEndTurn : true);
+  const action = rollButtonActive ? 'ROLL' : canEndTurn ? 'END_TURN' : 'WAIT';
+  const disabled =
+    action === 'WAIT' || (action === 'ROLL' ? !canRoll : action === 'END_TURN' ? !canEndTurn : true);
 
-  let label = action === 'ROLL' ? '주사위 굴리기' : action === 'END TURN' ? '턴 종료' : '대기';
-  if (phase === 'MOVING') label = '이동 중…';
-  if (isHoldRolling) label = '굴리는 중…';
-  if (isSettling) label = `🎯 ${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
-  if (activeModal) label = '처리 필요';
+  let label = connected ? 'WAIT' : 'CONNECTING';
+  if (action === 'ROLL') label = 'ROLL DICE';
+  if (action === 'END_TURN') label = 'END TURN';
+  if (phase === 'MOVING') label = 'MOVING';
+  if (isHoldRolling) label = 'ROLLING';
+  if (isSettling) label = `DICE ${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
+  if (activeModal) label = 'ACTION REQUIRED';
 
   const hint =
-    error ? error :
-    canRoll && extraRolls > 0
-      ? `추가 굴리기: ${extraRolls}`
+    error ??
+    (!connected
+      ? 'Connecting to server. Please wait.'
+      : canRoll && extraRolls > 0
+      ? `EXTRA ROLL ${extraRolls}`
       : canRoll
-      ? '버튼을 클릭하여 주사위를 굴려요.'
+      ? 'Click to roll the dice.'
       : canEndTurn
-      ? '확인 후 턴을 종료하세요.'
+      ? 'End your turn to pass to the next player.'
       : activeModal
-      ? '모달을 처리해야 계속할 수 있어요.'
+      ? 'Resolve the modal to continue.'
       : phase === 'MOVING'
-      ? '이동 중…'
+      ? 'Moving...'
       : isSettling
-      ? (dice[0] === dice[1] ? '더블! 한 번 더 굴릴 수 있어요!' : '')
-      : ' ';
+      ? dice[0] === dice[1]
+        ? 'Double! You can roll once more.'
+        : ''
+      : ' ');
 
   return (
     <div className="turn-controls">
@@ -220,8 +229,8 @@ const TurnControls = () => {
         disabled={disabled}
         onClick={() => {
           if (action === 'ROLL' && canRoll) {
-            void handleRoll();
-          } else if (action === 'END TURN' && canEndTurn) {
+            handleRoll();
+          } else if (action === 'END_TURN' && canEndTurn) {
             handleEndTurn();
           }
         }}

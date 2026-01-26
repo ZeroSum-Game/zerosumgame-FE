@@ -1,4 +1,4 @@
-import { getToken } from './auth';
+﻿import { getToken } from './auth';
 
 type SocketLike = {
   on: (event: string, cb: (...args: any[]) => void) => void;
@@ -6,6 +6,7 @@ type SocketLike = {
   emit: (event: string, ...args: any[]) => void;
   disconnect: () => void;
   connected: boolean;
+  connect?: () => void;
   id?: string;
 };
 
@@ -43,35 +44,40 @@ export const ensureSocketIoClient = async () => {
   if (window.io) return;
   if (loadPromise) return loadPromise;
 
-  loadPromise = new Promise<void>((resolve, reject) => {
+  const loadScript = (src: string) =>
+    new Promise<void>((resolve, reject) => {
+      const existing = document.querySelectorAll<HTMLScriptElement>('script[data-sio="1"]');
+      existing.forEach((el) => el.remove());
+
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.dataset.sio = '1';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('socket.io ?ㅽ겕由쏀듃 濡쒕뱶 ?ㅽ뙣'));
+      document.head.appendChild(script);
+    });
+
+  loadPromise = (async () => {
     const desiredSrc = getSocketScriptSrc();
-    const existing = document.querySelector<HTMLScriptElement>('script[data-sio="1"]');
-    if (existing) {
-      // HMR can keep the old script tag around; ensure it's pointing to the desired origin.
-      if (existing.src && desiredSrc && existing.src !== desiredSrc) {
-        existing.remove();
-      } else {
-        existing.addEventListener('load', () => resolve(), { once: true });
-        existing.addEventListener('error', () => reject(new Error('socket.io 스크립트 로드 실패')), { once: true });
+    const fallbackSrc = '/socket.io/socket.io.js';
+    try {
+      await loadScript(desiredSrc);
+    } catch (err) {
+      if (desiredSrc !== fallbackSrc) {
+        await loadScript(fallbackSrc);
         return;
       }
+      throw err;
     }
-
-    const script = document.createElement('script');
-    script.src = desiredSrc;
-    script.async = true;
-    script.dataset.sio = '1';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('socket.io 스크립트 로드 실패'));
-    document.head.appendChild(script);
-  });
+  })();
 
   return loadPromise;
 };
 
 export const connectSocket = async (): Promise<SocketLike> => {
   await ensureSocketIoClient();
-  if (!window.io) throw new Error('socket.io 클라이언트를 불러올 수 없어요.');
+  if (!window.io) throw new Error('socket.io ?대씪?댁뼵?몃? 遺덈윭?????놁뼱??');
 
   if (sharedSocket && sharedSocket.connected) {
     return sharedSocket;
@@ -79,12 +85,12 @@ export const connectSocket = async (): Promise<SocketLike> => {
 
   const token = getToken();
   if (!token) {
-    throw new Error('인증 토큰이 없어요. 다시 로그인해주세요.');
+    throw new Error('?몄쬆 ?좏겙???놁뼱?? ?ㅼ떆 濡쒓렇?명빐二쇱꽭??');
   }
 
   const backend = getBackendOrigin() ?? undefined;
 
-  // JWT 토큰을 auth 옵션으로 전달
+  // JWT ?좏겙??auth ?듭뀡?쇰줈 ?꾨떖
   sharedSocket = window.io(backend, {
     transports: ['websocket'],
     auth: {
