@@ -399,6 +399,7 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
 
           void syncMap();
+          void syncMarket();
           void hydratePlayersAssets(nextPlayers.map((p) => p.userId));
         });
 
@@ -499,6 +500,7 @@ export const useGameSocket = (roomId: number = 1) => {
             roomId,
           }));
           void syncMap();
+          void syncMarket();
           void hydratePlayersAssets(players.map((p) => p.userId));
         });
 
@@ -938,7 +940,6 @@ export const useGameSocket = (roomId: number = 1) => {
 };
 
 export default useGameSocket;
-
 
 
 
