@@ -1,9 +1,6 @@
 import { createContext, useContext } from 'react';
 import GameOverlay from '../ui/GameOverlay';
 import { useGameSocket, type GameSocketState } from '../../hooks/useGameSocket';
-import useGameStore from '../../store/useGameStore';
-import { apiRollDice } from '../../services/api';
-import BuyAssetModal from '../../components/game/BuyAssetModal';
 
 type GameSocketContextType = GameSocketState & {
   rollDice: () => void;
