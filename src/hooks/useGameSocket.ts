@@ -746,6 +746,11 @@ export const useGameSocket = (roomId: number = 1) => {
             return;
           }
 
+          if (space.name === '우주여행') {
+            useGameStore.setState({ activeModal: { type: 'SPACE_TRAVEL' }, phase: 'MODAL' });
+            return;
+          }
+
           if (newLocation === 8) {
             useGameStore.setState({ activeModal: { type: 'WAR_SELECT', byCard: false }, phase: 'MODAL' });
             return;

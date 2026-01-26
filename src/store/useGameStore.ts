@@ -78,6 +78,13 @@ export const CHARACTER_INFO: Record<
   },
 };
 
+export const CHARACTER_BATTLE_AVATAR: Record<CharacterType, string> = {
+  ELON: '/assets/characters/musk_battle.png',
+  SAMSUNG: '/assets/characters/lee_battle.png',
+  TRUMP: '/assets/characters/trump_battle.png',
+  PUTIN: '/assets/characters/putin_battle.png',
+};
+
 export type LandType = 'LAND' | 'LANDMARK';
 
 export type LandState = {
@@ -129,9 +136,11 @@ export type ModalState =
   | { type: 'LAND_TAKEOVER_RESPONSE'; tileId: number; buyerId: number; ownerId: number; price: number; toll: number }
   | { type: 'ASSET_TRADE'; allowedSymbols: StockSymbol[]; symbol: StockSymbol }
   | { type: 'WORLD_CUP' }
+  | { type: 'SPACE_TRAVEL' }
   | { type: 'MINIGAME'; salary: number }
   | { type: 'GOLDEN_KEY'; title: string; description: string }
   | { type: 'WAR_SELECT'; byCard: boolean }
+  | { type: 'WAR_FIGHT'; attackerName: string; attackerAvatar: string; defenderName: string; defenderAvatar: string; durationMs?: number }
   | { type: 'WAR_RESULT'; title: string; description: string }
   | { type: 'TAX'; due: number }
   | { type: 'INFO'; title: string; description: string }
@@ -851,7 +860,16 @@ const useGameStore = create<GameState>((set, get) => {
       return;
     }
 
-    if (space.name === '월드컵' || space.name === '우주여행') {
+    if (space.name === '우주여행') {
+      pushLog('TURN', '우주여행', `${currentPlayer.name} 우주여행 도착! 다음 턴에 이동할 수 있어요.`);
+      set({
+        phase: 'MODAL',
+        activeModal: { type: 'SPACE_TRAVEL' },
+      });
+      return;
+    }
+
+    if (space.name === '월드컵') {
       const dest = BOARD_DATA.find((s) => s.name === '미국')?.id ?? 31;
       const fee = 200000;
       pushLog('TURN', '월드컵', `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동! 관광료 ${formatMoney(fee)}`);
@@ -1636,6 +1654,21 @@ const useGameStore = create<GameState>((set, get) => {
       if (!attacker || !defender || attacker.id === defender.id) return;
       if (attacker.isBankrupt || defender.isBankrupt) return;
 
+      const attackerBattleAvatar = attacker.character
+        ? CHARACTER_BATTLE_AVATAR[attacker.character]
+        : attacker.avatar || '/assets/characters/default.png';
+      const defenderBattleAvatar = defender.character
+        ? CHARACTER_BATTLE_AVATAR[defender.character]
+        : defender.avatar || '/assets/characters/default.png';
+
+      const fightModal = {
+        type: 'WAR_FIGHT' as const,
+        attackerName: attacker.name,
+        attackerAvatar: attackerBattleAvatar,
+        defenderName: defender.name,
+        defenderAvatar: defenderBattleAvatar,
+      };
+
       const attackerWar = computeWarAssets(attacker, state.assetPrices);
       const defenderWar = computeWarAssets(defender, state.assetPrices);
       const ratio = attackerWar + defenderWar <= 0 ? 0.5 : attackerWar / (attackerWar + defenderWar);
@@ -1684,7 +1717,8 @@ const useGameStore = create<GameState>((set, get) => {
 
         pushLog('WAR', '승리', `${attacker.name} 승리! 승률 ${winChance.toFixed(0)}% / 전리품 ${formatMoney(loot)}`);
         set({
-          activeModal: {
+          activeModal: fightModal,
+          queuedModal: {
             type: 'WAR_RESULT',
             title: '전쟁 승리!',
             description: `${attacker.name} 승리 (승률 ${winChance.toFixed(0)}%). 전리품 ${formatMoney(loot)} 획득!`,
@@ -1699,7 +1733,8 @@ const useGameStore = create<GameState>((set, get) => {
       transferCash(attacker.id, defender.id, penalty, '전쟁 패배');
       pushLog('WAR', '패배', `${attacker.name} 패배… (승률 ${winChance.toFixed(0)}%) 손실 ${formatMoney(penalty)}`);
       set({
-        activeModal: {
+        activeModal: fightModal,
+        queuedModal: {
           type: 'WAR_RESULT',
           title: '전쟁 패배',
           description: `${attacker.name} 패배 (승률 ${winChance.toFixed(0)}%). 손실 ${formatMoney(penalty)}.`,

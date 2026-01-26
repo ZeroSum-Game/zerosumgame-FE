@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import useGameStore, { CHARACTER_INFO, STOCK_INFO, type StockSymbol } from '../../store/useGameStore';
+import useGameStore, { CHARACTER_BATTLE_AVATAR, CHARACTER_INFO, STOCK_INFO, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import AssetDetailModal from '../game/AssetDetailModal';
 import BoardRing from '../game/BoardRing';
@@ -9,11 +9,18 @@ import MarketPanel from '../game/MarketPanel';
 import PlayerPanel from '../game/PlayerPanel';
 import TurnControls from '../game/TurnControls';
 import { formatKRWKo } from '../../utils/formatKRW';
-import { apiGetMap, apiGetWarRate, apiPurchaseLand, apiTradeStock, apiWarLose, apiWorldCup } from '../../services/api';
+import { apiGetMap, apiGetWarRate, apiPurchaseLand, apiSpaceMove, apiTradeStock, apiWarLose, apiWorldCup } from '../../services/api';
 import { toBackendStockSymbol } from '../../utils/stockMapping';
 import { applyWarMultiplier } from '../../utils/warMultiplier';
 
 const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'];
+const WAR_FIGHT_DURATION_MS = 2600;
+const getBattleAvatar = (character: string | null | undefined, fallback: string) => {
+  if (character && character in CHARACTER_BATTLE_AVATAR) {
+    return CHARACTER_BATTLE_AVATAR[character as keyof typeof CHARACTER_BATTLE_AVATAR];
+  }
+  return fallback || '/assets/characters/default.png';
+};
 
 const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
   const mult = landType === 'LANDMARK' ? 1.8 : 1.0;
@@ -42,6 +49,7 @@ const GameOverlay = () => {
 
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const fightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshMap = async () => {
     const map = await apiGetMap();
@@ -151,6 +159,20 @@ const GameOverlay = () => {
     }
   };
 
+  const spaceMove = async (nodeIdx: number) => {
+    if (!activeModal || activeModal.type !== 'SPACE_TRAVEL') return;
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      await apiSpaceMove(nodeIdx);
+      closeModal();
+    } catch (e: any) {
+      setApiError(e.message || '이동 실패');
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
   const buyAsset = async (quantity: number) => {
     if (!activeModal || activeModal.type !== 'ASSET_TRADE') return;
     setApiLoading(true);
@@ -238,8 +260,20 @@ const GameOverlay = () => {
         await refreshMap();
       }
 
+      const opponent = players.find((p) => p.userId === opponentUserId) ?? null;
+      const attackerAvatar = getBattleAvatar(currentPlayer.character, currentPlayer.avatar);
+      const defenderAvatar = getBattleAvatar(opponent?.character ?? null, opponent?.avatar || '/assets/characters/default.png');
+
       useGameStore.setState({
         activeModal: {
+          type: 'WAR_FIGHT',
+          attackerName: currentPlayer.name,
+          attackerAvatar,
+          defenderName: opponentName,
+          defenderAvatar,
+          durationMs: WAR_FIGHT_DURATION_MS,
+        },
+        queuedModal: {
           type: 'WAR_RESULT',
           title: iWin ? '승리!' : '패배...',
           description: `${currentPlayer.name} vs ${opponentName} · 승률 ${rate.winRate.toFixed(1)}%`,
@@ -313,6 +347,23 @@ const GameOverlay = () => {
       setMinigameGuess(null);
     }
   }, [activeModal]);
+
+  useEffect(() => {
+    if (!activeModal || activeModal.type !== 'WAR_FIGHT') return;
+    if (fightTimeoutRef.current) {
+      clearTimeout(fightTimeoutRef.current);
+    }
+    const delay = activeModal.durationMs ?? WAR_FIGHT_DURATION_MS;
+    fightTimeoutRef.current = setTimeout(() => {
+      closeModal();
+    }, delay);
+    return () => {
+      if (fightTimeoutRef.current) {
+        clearTimeout(fightTimeoutRef.current);
+        fightTimeoutRef.current = null;
+      }
+    };
+  }, [activeModal, closeModal]);
 
   const canDismiss = useMemo(() => {
     if (!activeModal) return false;
@@ -546,6 +597,53 @@ const GameOverlay = () => {
                       닫기
                     </button>
                   </div>
+                </>
+              );
+            })()}
+
+            {/* SPACE TRAVEL */}
+            {activeModal.type === 'SPACE_TRAVEL' && (() => {
+              const destinations = BOARD_DATA.filter((space) => space.name !== '우주여행');
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src="/assets/characters/dogecoin.png"
+                        alt="도지코인"
+                        className="h-12 w-12 rounded-full object-cover ring-2 ring-amber-300/40"
+                      />
+                      <div>
+                        <h2 className="text-xl font-black text-white">🚀 우주여행</h2>
+                        <p className="mt-1 text-sm text-white/70">다음 턴에 이동할 위치를 선택하세요.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/70">
+                    선택한 위치로 다음 턴 시작 시 이동합니다.
+                  </div>
+
+                  <div className="mt-4 max-h-56 space-y-2 overflow-auto">
+                    {destinations.map((space) => (
+                      <button
+                        key={space.id}
+                        type="button"
+                        disabled={apiLoading}
+                        onClick={() => void spaceMove(space.id)}
+                        className="dash-action dash-action-secondary w-full justify-between px-4 py-3 text-left font-black disabled:opacity-50"
+                      >
+                        <span className="truncate">{space.name}</span>
+                        <span className="text-xs text-white/60">{space.type}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {apiError && (
+                    <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
+                      {apiError}
+                    </div>
+                  )}
                 </>
               );
             })()}
@@ -899,6 +997,49 @@ const GameOverlay = () => {
                   <button onClick={closeModal} className="dash-action dash-action-primary flex-1">
                     확인
                   </button>
+                </div>
+              </>
+            )}
+
+            {/* WAR FIGHT */}
+            {activeModal.type === 'WAR_FIGHT' && (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">⚔️ 전쟁 진행 중...</h2>
+                    <p className="mt-1 text-sm text-white/70">잠시만 기다려 주세요.</p>
+                  </div>
+                </div>
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 flex-1 flex-col items-center gap-3 text-center">
+                      <div className="war-fight-avatar war-fight-left">
+                        <img
+                          src={activeModal.attackerAvatar}
+                          alt={activeModal.attackerName}
+                          className="h-20 w-20 rounded-full object-cover"
+                        />
+                      </div>
+                      <div className="w-full truncate text-sm font-bold text-white">
+                        {activeModal.attackerName}
+                      </div>
+                    </div>
+                    <div className="war-fight-vs">
+                      <span className="text-lg font-black text-amber-200">VS</span>
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col items-center gap-3 text-center">
+                      <div className="war-fight-avatar war-fight-right">
+                        <img
+                          src={activeModal.defenderAvatar}
+                          alt={activeModal.defenderName}
+                          className="h-20 w-20 rounded-full object-cover"
+                        />
+                      </div>
+                      <div className="w-full truncate text-sm font-bold text-white">
+                        {activeModal.defenderName}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
