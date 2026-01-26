@@ -45,7 +45,7 @@ const mapBackendPlayer = (p: any, index: number): Player => {
     isReady: true,
     isBankrupt: Boolean(p?.isBankrupt),
     stockHoldings: {},
-    tollRateMultiplier: character === 'TRUMP' ? 1.05 : 1.0,
+    tollRateMultiplier: character === 'TRUMP' ? 1.10 : 1.0,
     warWinChanceBonus: character === 'PUTIN' ? 0.1 : 0,
   };
 };
@@ -425,7 +425,7 @@ export const useGameSocket = (roomId: number = 1) => {
               isReady: true,
               isBankrupt: Boolean(prev?.isBankrupt),
               stockHoldings: prev?.stockHoldings ?? {},
-              tollRateMultiplier: character === 'TRUMP' ? 1.05 : 1.0,
+              tollRateMultiplier: character === 'TRUMP' ? 1.10 : 1.0,
               warWinChanceBonus: character === 'PUTIN' ? 0.1 : 0,
             };
           });
@@ -584,11 +584,19 @@ export const useGameSocket = (roomId: number = 1) => {
             appendEventLog('MOVE', '주사위 결과', `${name} ${dice1} + ${dice2} = ${dice1 + dice2}`);
           }
 
-          // 통행료 지불 로그
+          // 통행료 지불 로그 (기존 잔액 → 통행료 → 지불 후 잔액)
           if (data.tollPaid) {
             const payerName = useGameStore.getState().players.find((p) => p.userId === toInt(data?.userId))?.name ?? '플레이어';
             const ownerName = useGameStore.getState().players.find((p) => p.id === toInt(data.tollPaid.ownerId))?.name ?? '소유자';
-            appendEventLog('LAND', '통행료 지불', `${payerName} → ${ownerName}: ${toNumber(data.tollPaid.amount).toLocaleString()}원`);
+            const tollAmount = toNumber(data.tollPaid.amount);
+            const afterCash = toNumber(data?.player?.cash, 0);
+            const beforeCash = afterCash + tollAmount;
+            appendEventLog(
+              'LAND',
+              '통행료 지불',
+              `${payerName} → ${ownerName}\n` +
+              `잔액: ${beforeCash.toLocaleString()}원 → 통행료: ${tollAmount.toLocaleString()}원 → 잔액: ${afterCash.toLocaleString()}원`
+            );
           }
 
           setTimeout(() => {
@@ -690,7 +698,7 @@ export const useGameSocket = (roomId: number = 1) => {
             const toll = tollPaid ? toNumber(tollPaid.amount, 0) : (() => {
               const owner = snap.players.find((p) => p.id === land.ownerId) ?? null;
               const baseToll = snap.landTolls[newLocation] ?? 0;
-              const trumpBonus = owner?.character === 'TRUMP' ? 1.05 : 1;
+              const trumpBonus = owner?.character === 'TRUMP' ? 1.10 : 1;
               return applyWarMultiplier(Math.round(baseToll * trumpBonus), newLocation, true, snap.war);
             })();
 
@@ -698,6 +706,10 @@ export const useGameSocket = (roomId: number = 1) => {
             const basePrice = snap.landPrices[newLocation] ?? 0;
             const ownedPrice = applyWarMultiplier(basePrice, newLocation, true, snap.war);
             const takeoverPrice = !isLandmark ? Math.round(ownedPrice * 1.5) : undefined;
+
+            // 지불 전후 잔액 계산
+            const currentCash = me.cash;
+            const beforeCash = tollPaid ? currentCash + toNumber(tollPaid.amount, 0) : currentCash;
 
             useGameStore.setState({
               activeModal: {
@@ -708,7 +720,11 @@ export const useGameSocket = (roomId: number = 1) => {
                 takeoverPrice,
               },
               phase: 'MODAL',
-              modalData: { tollAlreadyPaid: !!tollPaid },
+              modalData: {
+                tollAlreadyPaid: !!tollPaid,
+                beforeCash,
+                afterCash: currentCash,
+              },
             });
             return;
           }

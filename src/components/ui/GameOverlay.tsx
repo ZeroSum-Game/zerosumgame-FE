@@ -557,6 +557,8 @@ const GameOverlay = () => {
               const owner = players.find((p) => p.id === activeModal.ownerId) ?? null;
               const takeoverPrice = activeModal.takeoverPrice;
               const tollAlreadyPaid = modalData?.tollAlreadyPaid === true;
+              const beforeCash = modalData?.beforeCash as number | undefined;
+              const afterCash = modalData?.afterCash as number | undefined;
               return (
                 <>
                   <div className="flex items-start justify-between gap-3">
@@ -583,6 +585,26 @@ const GameOverlay = () => {
                         <p className="mt-1 text-xs text-emerald-300">✓ 자동으로 지불되었습니다</p>
                       )}
                     </div>
+
+                    {/* 잔액 변동 내역 */}
+                    {tollAlreadyPaid && beforeCash != null && afterCash != null && (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                        <p className="text-sm text-white/60">잔액 변동</p>
+                        <div className="mt-2 flex items-center gap-2 text-sm">
+                          <span className="text-white/70">지불 전:</span>
+                          <span className="font-bold text-white">{formatKRWKo(beforeCash)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-sm">
+                          <span className="text-white/70">통행료:</span>
+                          <span className="font-bold text-red-400">-{formatKRWKo(activeModal.toll)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-sm border-t border-white/10 pt-2">
+                          <span className="text-white/70">지불 후:</span>
+                          <span className="font-bold text-emerald-300">{formatKRWKo(afterCash)}</span>
+                        </div>
+                      </div>
+                    )}
+
                     {takeoverPrice && (
                       <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4">
                         <p className="text-sm text-white/60">인수 비용 (150%)</p>

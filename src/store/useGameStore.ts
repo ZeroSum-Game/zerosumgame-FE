@@ -66,8 +66,8 @@ export const CHARACTER_INFO: Record<
     name: '트럼프',
     color: '#ef4444',
     avatar: '/assets/characters/trump.png',
-    abilityShort: '내 땅 통행료 +5%',
-    abilityDetail: '본인이 소유한 지역의 통행료에 +5%를 추가로 부과합니다.',
+    abilityShort: '내 땅 통행료 +10%',
+    abilityDetail: '본인이 소유한 지역의 통행료에 +10%를 추가로 부과합니다.',
   },
   PUTIN: {
     name: '푸틴',
@@ -1120,7 +1120,7 @@ const useGameStore = create<GameState>((set, get) => {
             case 'SAMSUNG':
               return { ...base, stockHoldings: { ...base.stockHoldings, SAMSUNG: SAMSUNG_START_SHARES } };
             case 'TRUMP':
-              return { ...base, tollRateMultiplier: 1.05 };
+              return { ...base, tollRateMultiplier: 1.10 };
             case 'PUTIN':
               return { ...base, warWinChanceBonus: 0.1 };
             default:
