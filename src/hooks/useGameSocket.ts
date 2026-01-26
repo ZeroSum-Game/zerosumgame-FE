@@ -475,7 +475,9 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
 
           const players: Player[] = (data.players || []).map((p: any, idx: number) => mapBackendPlayer(p, idx));
-          const currentTurnUserId = resolveTurnUserId(data?.currentTurn, data?.turnPlayerId, data?.players);
+          const fallbackTurnUserId = players.length > 0 ? players[0].userId : null;
+          const currentTurnUserId =
+            resolveTurnUserId(data?.currentTurn, data?.turnPlayerId, data?.players) ?? fallbackTurnUserId;
           const currentPlayerIndex = currentTurnUserId
             ? players.findIndex((p) => p.userId === currentTurnUserId)
             : -1;
@@ -587,6 +589,14 @@ export const useGameSocket = (roomId: number = 1) => {
           const space = BOARD_DATA[newLocation];
           if (!space) return;
 
+          if (space.type === 'START') {
+            useGameStore.setState({
+              activeModal: { type: 'ASSET_TRADE', allowedSymbols: ['GOLD', 'BITCOIN'], symbol: 'GOLD' },
+              phase: 'MODAL',
+            });
+            return;
+          }
+
           if (space.type === 'COUNTRY') {
             const land = snap.lands[newLocation] ?? null;
             if (!land) {
@@ -617,8 +627,10 @@ export const useGameSocket = (roomId: number = 1) => {
           if (space.type === 'STOCK') {
             const symbol = TILE_TO_STOCK[newLocation];
             if (!symbol) return;
+            const allowed =
+              symbol === 'GOLD' || symbol === 'BITCOIN' ? (['GOLD', 'BITCOIN'] as StockSymbol[]) : [symbol];
             useGameStore.setState({
-              activeModal: { type: 'ASSET_TRADE', allowedSymbols: [symbol], symbol },
+              activeModal: { type: 'ASSET_TRADE', allowedSymbols: allowed, symbol },
               phase: 'MODAL',
             });
             return;
@@ -698,20 +710,25 @@ export const useGameSocket = (roomId: number = 1) => {
 
           clearRollTimeout();
 
-          const currentTurnUserId = resolveTurnUserId(
-            data?.currentTurn,
-            data?.turnPlayerId,
-            useGameStore.getState().players
-          );
+          const rawTurnUserId = toInt(data?.currentTurn, 0);
+          const rawTurnPlayerId = toInt(data?.turnPlayerId, 0);
+          let resolvedTurnUserId = rawTurnUserId;
+          if (resolvedTurnUserId <= 0 && rawTurnPlayerId > 0) {
+            const byPlayer = useGameStore.getState().players.find((p) => p.id === rawTurnPlayerId);
+            resolvedTurnUserId = byPlayer?.userId ?? 0;
+          }
           setState((s) => ({
             ...s,
-            currentTurnUserId: currentTurnUserId ?? s.currentTurnUserId,
+            currentTurnUserId: resolvedTurnUserId > 0 ? resolvedTurnUserId : s.currentTurnUserId,
           }));
 
           useGameStore.setState((state) => {
             // ?꾩옱 ???뚮젅?댁뼱 李얘린
-            const turnPlayerId = toInt(data?.turnPlayerId, 0);
-            const currentPlayerIndex = state.players.findIndex((p) => p.id === turnPlayerId);
+            const turnPlayerId = rawTurnPlayerId;
+            let currentPlayerIndex = state.players.findIndex((p) => p.id === turnPlayerId);
+            if (currentPlayerIndex < 0 && resolvedTurnUserId > 0) {
+              currentPlayerIndex = state.players.findIndex((p) => p.userId === resolvedTurnUserId);
+            }
 
             return {
               currentPlayerIndex: currentPlayerIndex >= 0 ? currentPlayerIndex : state.currentPlayerIndex,
@@ -719,7 +736,7 @@ export const useGameSocket = (roomId: number = 1) => {
               hasRolledThisTurn: false,
               extraRolls: 0,
               phase: 'IDLE',
-                            activeModal: null,
+              activeModal: null,
               isRolling: false,
               rollStage: 'IDLE',
               rollingUserId: null,
@@ -873,10 +890,7 @@ export const useGameSocket = (roomId: number = 1) => {
     }
 
     const myUserId = toInt(myUserIdRef.current, 0);
-    const socketTurnUserId = toInt(currentTurnUserIdRef.current, 0);
-    const storeState = useGameStore.getState();
-    const fallbackTurnUserId = toInt(storeState.players[storeState.currentPlayerIndex]?.userId, 0);
-    const currentTurnUserId = socketTurnUserId > 0 ? socketTurnUserId : fallbackTurnUserId;
+    const currentTurnUserId = toInt(currentTurnUserIdRef.current, 0);
 
     if (myUserId <= 0 || currentTurnUserId <= 0 || myUserId !== currentTurnUserId) {
       setState((s) => ({ ...s, error: '지금은 당신의 턴이 아닙니다.' }));
@@ -899,12 +913,9 @@ export const useGameSocket = (roomId: number = 1) => {
   }, []);
 
   // ???댁씤吏 ?뺤씤
-    const isMyTurn = useCallback(() => {
+  const isMyTurn = useCallback(() => {
     const myUserId = toInt(state.myUserId, 0);
-    const socketTurnUserId = toInt(state.currentTurnUserId, 0);
-    const storeState = useGameStore.getState();
-    const fallbackTurnUserId = toInt(storeState.players[storeState.currentPlayerIndex]?.userId, 0);
-    const turnUserId = socketTurnUserId > 0 ? socketTurnUserId : fallbackTurnUserId;
+    const turnUserId = toInt(state.currentTurnUserId, 0);
     if (myUserId <= 0 || turnUserId <= 0) return false;
     return turnUserId === myUserId;
   }, [state.currentTurnUserId, state.myUserId]);
