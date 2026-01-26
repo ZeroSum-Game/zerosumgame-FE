@@ -3,12 +3,12 @@ import { BOARD_DATA, TILE_COUNT, type Continent } from '../utils/boardUtils';
 import { formatKRWKo } from '../utils/formatKRW';
 
 export const GAME_RULES = {
-  START_CASH: 2000000,
-  START_SALARY: 500000,
+  START_CASH: 3000000,
+  START_SALARY: 200000,
   MAX_ROUNDS: 10,
-  TAX_RATE: 0.15,
+  TAX_RATE: 0.1,
   TAKEOVER_MULTIPLIER: 1.5,
-  LANDMARK_COST_MULTIPLIER: 1.0,
+  LANDMARK_COST_MULTIPLIER: 0.4,
   STOCK_PRICE_CHANGE_MIN: -0.1,
   STOCK_PRICE_CHANGE_MAX: 0.15,
   CRYPTO_PRICE_CHANGE_MIN: -0.12,
@@ -30,7 +30,7 @@ export const STOCK_INFO: Record<StockSymbol, { name: string; nameKr: string; bas
   GOLD: { name: 'GOLD', nameKr: '금', basePrice: 285000 },
 };
 
-const SAMSUNG_START_SHARES = 10;
+export const SAMSUNG_START_SHARES = 10;
 const SAMSUNG_START_STOCK_VALUE = SAMSUNG_START_SHARES * STOCK_INFO.SAMSUNG.basePrice;
 const SAMSUNG_START_DIVIDEND_MIN = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_RULES.DIVIDEND_MIN);
 const SAMSUNG_START_DIVIDEND_MAX = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_RULES.DIVIDEND_MAX);
@@ -389,7 +389,7 @@ const useGameStore = create<GameState>((set, get) => {
         .map(([tileId, land]) => ({
           tileId: Number(tileId),
           land,
-          saleValue: Math.round(computeLandValue(Number(tileId), land, state.landPrices) * 0.8),
+          saleValue: Math.round(computeLandValue(Number(tileId), land, state.landPrices) * 0.7),
         }))
         .sort((a, b) => b.saleValue - a.saleValue);
 

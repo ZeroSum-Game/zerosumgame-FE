@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import useGameStore, { CHARACTER_INFO, CharacterType, GAME_RULES } from '../../store/useGameStore';
+import useGameStore, { CHARACTER_INFO, CharacterType, GAME_RULES, SAMSUNG_START_SHARES, STOCK_INFO } from '../../store/useGameStore';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
 import SpaceBackdrop from '../ui/SpaceBackdrop';
 import { apiGetMe, apiLogout, apiSetCharacter } from '../../services/api';
@@ -123,7 +123,7 @@ const LobbyPage = () => {
             return {
               ...p,
               character: p.character ?? previous?.character ?? null,
-              ready: previous?.ready ?? p.ready,
+              ready: p.ready,
             };
           });
           return {
@@ -138,9 +138,12 @@ const LobbyPage = () => {
         const ready = Boolean(payload?.ready);
         setLobby((prev) => {
           if (!prev) return prev;
+          const players = prev.players.map((p) => (p.userId === userId ? { ...p, ready } : p));
+          const allReady = players.length >= 2 && players.every((p) => p.ready);
           return {
             ...prev,
-            players: prev.players.map((p) => (p.userId === userId ? { ...p, ready } : p)),
+            players,
+            allReady,
           };
         });
       },
@@ -213,7 +216,9 @@ const LobbyPage = () => {
             const baseCash = GAME_RULES.START_CASH;
             const bonusCash = character === 'ELON' ? 1000000 : 0;
             const cash = baseCash + bonusCash;
-            const holdings = character === 'SAMSUNG' ? { SAMSUNG: 10 } : {};
+            const holdings = character === 'SAMSUNG' ? { SAMSUNG: SAMSUNG_START_SHARES } : {};
+            const holdingsValue = (holdings.SAMSUNG ?? 0) * STOCK_INFO.SAMSUNG.basePrice;
+            const totalAsset = cash + holdingsValue;
             return {
               id: Number(p?.playerId ?? p?.id ?? idx + 1),
               userId: Number(p?.userId ?? 0),
@@ -222,7 +227,7 @@ const LobbyPage = () => {
               character,
               position: typeof p?.location === 'number' ? p.location : 0,
               cash,
-              totalAsset: cash,
+              totalAsset,
               isReady: true,
               isBankrupt: false,
               stockHoldings: holdings,

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import useGameStore, { CHARACTER_INFO, STOCK_INFO, TILE_TO_STOCK, type StockSymbol } from '../../store/useGameStore';
+import { CHARACTER_THEME } from '../../utils/characterTheme';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
 import { getRegionForBoardSpace } from '../../utils/regionCues';
@@ -55,12 +56,13 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
   }, [players]);
 
   const occupantAvatarsByTile = useMemo(() => {
-    const map = new Map<number, { id: number; name: string; src: string }[]>();
+    const map = new Map<number, { id: number; name: string; src: string; ringClass: string }[]>();
     players.forEach((p) => {
       if (p.isBankrupt) return;
       const src = p.character ? CHARACTER_INFO[p.character].avatar : (p.avatar || '/assets/characters/default.png');
+      const ringClass = p.character ? CHARACTER_THEME[p.character].ringClass : 'ring-white/25';
       const arr = map.get(p.position) ?? [];
-      arr.push({ id: p.id, name: p.name, src });
+      arr.push({ id: p.id, name: p.name, src, ringClass });
       map.set(p.position, arr);
     });
     return map;
@@ -123,7 +125,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
                         key={o.id}
                         src={o.src}
                         alt={o.name}
-                        className="board-piece-img"
+                        className={`board-piece-img ring-2 ${o.ringClass}`}
                         draggable={false}
                       />
                     ))}
