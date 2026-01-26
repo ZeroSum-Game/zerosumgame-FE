@@ -300,24 +300,6 @@ const LobbyPage = () => {
       const fetchMe = async (attempt: number) => {
         const meRes = await apiGetMe();
         if (!alive) return;
-        socketRef.current = socket;
-        if (socket.connected) {
-          setConnecting(false);
-        }
-
-        socket.on('connect', handlers.connect);
-        socket.on('connect_error', handlers.connectError);
-        socket.on('join_success', handlers.joinSuccess);
-        socket.on('join_error', handlers.joinError);
-        socket.on('lobby_update', handlers.lobbyUpdate);
-        socket.on('ready_error', handlers.readyError);
-        socket.on('start_error', handlers.startError);
-        socket.on('character_update', handlers.characterUpdate);
-        socket.on('order_picking_start', handlers.orderPickingStart);
-        socket.on('order_card_picked', handlers.orderCardPicked);
-        socket.on('order_picking_complete', handlers.orderPickingComplete);
-        socket.on('pick_error', handlers.pickError);
-        socket.on('game_start', handlers.gameStart);
         if (!meRes) {
           if (attempt < MAX_ME_RETRIES) {
             window.setTimeout(() => {
@@ -414,11 +396,11 @@ const LobbyPage = () => {
                   : "카드를 선택하여 순서를 정해주세요."}
             </p>
 
-            {/* ?쒖꽌 寃곌낵 ?쒖떆 */}
+            {/* 순서 결과 표시 */}
             {orderPicking.orderResults ? (
               <div className="space-y-4">
                 <div className="text-lg font-bold text-amber-300">
-                  ?룇 寃뚯엫 ?쒖꽌
+                  게임 순서
                 </div>
                 <div className="flex flex-wrap justify-center gap-4">
                   {orderPicking.orderResults.map((result) => {
@@ -440,17 +422,6 @@ const LobbyPage = () => {
                         <img src={avatar} alt={result.nickname} className="h-12 w-12 rounded-full object-cover" />
                         <div className="w-full truncate text-sm font-bold text-white">{result.nickname}</div>
                         <div className="text-xs text-white/60">카드: {result.cardNumber}</div>
-                        <img
-                          src={avatar}
-                          alt={result.nickname}
-                          className="h-12 w-12 rounded-full object-cover"
-                        />
-                        <div className="w-full truncate text-sm font-bold text-white">
-                          {result.nickname}
-                        </div>
-                        <div className="text-xs text-white/60">
-                          카드 번호: {result.cardNumber}
-                        </div>
                       </div>
                     );
                   })}
@@ -461,15 +432,10 @@ const LobbyPage = () => {
               </div>
             ) : (
               <div className="flex flex-wrap justify-center gap-4">
-                {orderPicking.availableCards.map((cardNum) => {
-                  const isPicked = orderPicking.pickedCards.includes(cardNum);
-                  const isMyPick = orderPicking.myPickedCard === cardNum;
-                  const canPick = orderPicking.myPickedCard === null && !isPicked;
                 {orderPicking.availableCards.map((cardId) => {
                   const isPicked = orderPicking.pickedCards.includes(cardId);
                   const isMyPick = orderPicking.myPickedCard === cardId;
-                  const canPick =
-                    orderPicking.myPickedCard === null && !isPicked;
+                  const canPick = orderPicking.myPickedCard === null && !isPicked;
                   const revealedNumber = orderPicking.revealedCards[cardId];
 
                   return (
@@ -490,14 +456,11 @@ const LobbyPage = () => {
                     >
                       {isPicked && !isMyPick ? (
                         <span className="text-2xl">✓</span>
+                      ) : isPicked && Number.isFinite(revealedNumber) ? (
+                        revealedNumber
                       ) : (
-                        cardNum
+                        cardId
                       )}
-                      {isPicked
-                        ? Number.isFinite(revealedNumber)
-                          ? revealedNumber
-                          : ""
-                        : ""}
                       {isMyPick && (
                         <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">
                           Picked!
