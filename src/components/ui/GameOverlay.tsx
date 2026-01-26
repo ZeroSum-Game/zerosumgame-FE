@@ -96,7 +96,8 @@ const GameOverlay = () => {
     setApiLoading(true);
     setApiError(null);
     try {
-      const result = await apiPurchaseLand('LANDMARK', activeModal.tileId);
+      const tileId = currentPlayer?.position ?? activeModal.tileId;
+      const result = await apiPurchaseLand('LANDMARK', tileId);
       useGameStore.setState((state) => ({
         players: state.players.map((p) => (p.id === result.playerId ? { ...p, cash: Number(result.cash) } : p)),
       }));
@@ -114,7 +115,8 @@ const GameOverlay = () => {
     setApiLoading(true);
     setApiError(null);
     try {
-      const result = await apiPurchaseLand('SELL', activeModal.tileId);
+      const tileId = currentPlayer?.position ?? activeModal.tileId;
+      const result = await apiPurchaseLand('SELL', tileId);
       useGameStore.setState((state) => ({
         players: state.players.map((p) => (p.id === result.playerId ? { ...p, cash: Number(result.cash) } : p)),
       }));
