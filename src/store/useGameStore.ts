@@ -49,28 +49,28 @@ export const CHARACTER_INFO: Record<
 > = {
   ELON: {
     name: '일론 머스크',
-    color: '#3b82f6', // 파
+    color: '#3b82f6',
     avatar: '/assets/characters/musk.png',
-    abilityShort: '시작 자금 +₩1,000,000',
+    abilityShort: '시작 자금 +1,000,000',
     abilityDetail: '다른 플레이어보다 1,000,000원 더 많은 상태로 시작합니다.',
   },
   SAMSUNG: {
     name: '이재용',
-    color: '#f59e0b', // 노
+    color: '#f59e0b',
     avatar: '/assets/characters/lee.png',
     abilityShort: `삼성전자 주식 ${SAMSUNG_START_SHARES}주`,
     abilityDetail: `게임 시작 시 삼성전자 주식 ${SAMSUNG_START_SHARES}주를 보유한 상태로 시작합니다.`,
   },
   TRUMP: {
     name: '트럼프',
-    color: '#ef4444', // 빨
+    color: '#ef4444',
     avatar: '/assets/characters/trump.png',
     abilityShort: '내 땅 통행료 +5%',
     abilityDetail: '본인이 소유한 지역의 통행료에 +5%를 추가로 부과합니다.',
   },
   PUTIN: {
     name: '푸틴',
-    color: '#22c55e', // 초
+    color: '#22c55e',
     avatar: '/assets/characters/putin.png',
     abilityShort: '전쟁 승리확률 +10%',
     abilityDetail: '전쟁 이벤트 진행 시 승리 확률이 10% 증가합니다.',
@@ -97,7 +97,7 @@ export type Player = {
   isBankrupt: boolean;
   stockHoldings: Partial<Record<StockSymbol, number>>;
   tollRateMultiplier: number;
-  warWinChanceBonus: number; // 0.1 = +10%
+  warWinChanceBonus: number;
 };
 
 export type EventLogType =
@@ -133,7 +133,10 @@ export type ModalState =
   | { type: 'WAR_SELECT'; byCard: boolean }
   | { type: 'WAR_RESULT'; title: string; description: string }
   | { type: 'TAX'; due: number }
-  | { type: 'INFO'; title: string; description: string };
+  | { type: 'INFO'; title: string; description: string }
+  | { type: 'BUY_ASSET' }
+  | { type: 'WAR_CHOICE' }
+  | { type: 'WORLDCUP_HOST'; nodeIdx: number };
 
 type PageType = 'login' | 'lobby' | 'game' | 'result';
 type PhaseType = 'IDLE' | 'ROLLING' | 'MOVING' | 'MODAL' | 'GAME_OVER';
@@ -190,6 +193,7 @@ type GameState = {
 
   activeModal: ModalState | null;
   queuedModal: ModalState | null;
+  modalData: any;
 
   eventLog: EventLogEntry[];
 
@@ -199,7 +203,7 @@ type GameState = {
   rollStage: RollStage;
   pendingDice: [number, number] | null;
   rollStartedAt: number | null;
-  rollingUserId: number | null; // 현재 주사위를 굴리는 유저 ID (관전 기능용)
+  rollingUserId: number | null;
 
   gameResult: GameResult | null;
 
@@ -220,25 +224,22 @@ type GameState = {
   setDiceValues: (rolls: [number, number]) => void;
   endTurn: () => void;
 
-  // Land actions
   buyLand: () => void;
   buildLandmark: () => void;
   payTollOrPropose: (action: 'PAY' | 'PROPOSE') => void;
   respondTakeover: (accept: boolean) => void;
 
-  // Trading
   setTradeSymbol: (symbol: StockSymbol) => void;
   buyAsset: (quantity: number) => void;
   sellAsset: (quantity: number) => void;
 
-  // Modal helpers
   completeMinigame: (success: boolean) => void;
   confirmTax: () => void;
   chooseWarTarget: (defenderId: number) => void;
 
-  // Backend sync helpers
   setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
   showModal: (modal: ModalState) => void;
+  setActiveModal: (type: ModalState['type'], data?: any) => void;
   syncPlayerFromBackend: (data: {
     playerId: number;
     cash: number;
@@ -860,6 +861,7 @@ const useGameStore = create<GameState>((set, get) => {
 
     activeModal: null,
     queuedModal: null,
+    modalData: null,
 
     eventLog: [],
 
@@ -873,26 +875,26 @@ const useGameStore = create<GameState>((set, get) => {
 
     gameResult: null,
 
-	    addPlayer: (name) => {
-	      const { players, maxPlayers } = get();
-	      if (players.length >= maxPlayers) return;
-	      const id = Date.now() + Math.floor(Math.random() * 1000);
-	      const newPlayer: Player = {
-	        id,
-	        userId: id,
-	        name,
-	        avatar: '/assets/characters/default.png',
-	        character: null,
-	        position: 0,
-	        cash: GAME_RULES.START_CASH,
-	        isReady: false,
-	        isBankrupt: false,
-	        stockHoldings: {},
-	        tollRateMultiplier: 1,
-	        warWinChanceBonus: 0,
-	      };
-	      set({ players: [...players, newPlayer] });
-	    },
+    addPlayer: (name) => {
+      const { players, maxPlayers } = get();
+      if (players.length >= maxPlayers) return;
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+      const newPlayer: Player = {
+        id,
+        userId: id,
+        name,
+        avatar: '/assets/characters/default.png',
+        character: null,
+        position: 0,
+        cash: GAME_RULES.START_CASH,
+        isReady: false,
+        isBankrupt: false,
+        stockHoldings: {},
+        tollRateMultiplier: 1,
+        warWinChanceBonus: 0,
+      };
+      set({ players: [...players, newPlayer] });
+    },
 
     removePlayer: (id) => {
       const { players } = get();
@@ -1115,7 +1117,6 @@ const useGameStore = create<GameState>((set, get) => {
       const isDouble = d1 === d2;
       const newConsecutiveDoubles = isDouble ? state.consecutiveDoubles + 1 : 0;
 
-      // Check for triple doubles - go to war tile (id: 8)
       const WAR_TILE_ID = 8;
       if (newConsecutiveDoubles >= 3) {
         const currentPlayer = state.players[state.currentPlayerIndex];
@@ -1136,7 +1137,6 @@ const useGameStore = create<GameState>((set, get) => {
           ),
         }));
 
-        // Resolve landing at war tile after a short delay
         setTimeout(() => {
           resolveLanding();
         }, 300);
@@ -1548,7 +1548,6 @@ const useGameStore = create<GameState>((set, get) => {
       checkGameEnd();
     },
 
-    // Backend sync helpers
     setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => {
       set((s) => ({
         assetPrices: { ...s.assetPrices, ...prices },
@@ -1557,6 +1556,23 @@ const useGameStore = create<GameState>((set, get) => {
 
     showModal: (modal: ModalState) => {
       set({ activeModal: modal, phase: 'MODAL' });
+    },
+
+    setActiveModal: (type, data = null) => {
+      let modal: ModalState | null = null;
+      if (type === 'BUY_ASSET') {
+        modal = { type: 'BUY_ASSET' };
+      } else if (type === 'WAR_CHOICE') {
+        modal = { type: 'WAR_CHOICE' };
+      } else if (type === 'WORLDCUP_HOST') {
+        modal = { type: 'WORLDCUP_HOST', nodeIdx: data?.nodeIdx ?? 0 };
+      } else {
+        modal = { type, ...data };
+      }
+
+      if (modal) {
+        set({ activeModal: modal, modalData: data, phase: 'MODAL' });
+      }
     },
 
     syncPlayerFromBackend: (data) => {

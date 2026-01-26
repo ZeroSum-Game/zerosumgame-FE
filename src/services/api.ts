@@ -147,7 +147,57 @@ export const apiGetMarket = async (): Promise<ApiMarket | null> => {
   }
 };
 
-// 주식 거래
+export const apiRollDice = async () => {
+  const res = await fetch('/api/test/roll', {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error('주사위 굴리기 실패');
+  }
+  return res.json();
+};
+
+// [신규] 시작점 자산 매수
+export const apiBuyAsset = async (type: string, quantity: number) => {
+  const res = await fetch('/api/game/buy-asset', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ type, quantity }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '매수 실패');
+  }
+  return res.json();
+};
+
+export const apiStartWar = async () => {
+  const res = await fetch('/api/game/war/start', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '전쟁 선포 실패');
+  }
+  return res.json();
+};
+
+// [신규] 우주여행 이동
+export const apiSpaceMove = async (nodeIdx: number) => {
+  const res = await fetch('/api/game/space-move', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ nodeIdx }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '이동 실패');
+  }
+  return res.json();
+};
+
+// 주식 거래 (일반 거래소용)
 export type ApiStockTradeResult = {
   playerId: number;
   roomId: number;
@@ -318,6 +368,9 @@ export const apiWorldCup = async (nodeIdx: number) => {
   const body = (await res.json()) as any;
   return { roomId: toInt(body?.roomId), hostId: toInt(body?.hostId), nodeIdx: toInt(body?.nodeIdx) };
 };
+
+// alias for consistency
+export const apiHostWorldCup = apiWorldCup;
 
 export const apiWarLose = async (loserUserId: number) => {
   const res = await fetch('/api/game/war/lose', {
