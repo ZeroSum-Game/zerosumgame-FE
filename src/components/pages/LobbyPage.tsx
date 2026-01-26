@@ -461,7 +461,7 @@ const LobbyPage = () => {
                       )}
                       {isMyPick && (
                         <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">
-                          Picked!
+                          선택!
                         </div>
                       )}
                     </button>
@@ -473,7 +473,7 @@ const LobbyPage = () => {
             {/* Pick progress */}
             {!orderPicking.orderResults && (
               <div className="mt-8 text-sm text-white/60">
-                Picked: {orderPicking.pickedCards.length} /{" "}
+                선택 완료: {orderPicking.pickedCards.length} /{" "}
                 {orderPicking.availableCards.length}
               </div>
             )}
@@ -498,7 +498,7 @@ const LobbyPage = () => {
         <div className="mb-8 text-center">
           <h1 className="mb-2 text-4xl font-black text-white">캐릭터 선택</h1>
           <p className="text-white/70">
-            Players: {lobby?.players.length ?? 0} / {maxPlayers} · {roomStatus}
+            플레이어: {lobby?.players.length ?? 0} / {maxPlayers} · {roomStatus}
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <button type="button" className="ui-btn ui-btn-secondary" onClick={() => void apiLogout()}>
@@ -567,11 +567,11 @@ const LobbyPage = () => {
                       </div>
                     ) : taken ? (
                       <div className="ui-badge mt-2 w-full justify-center border-white/10 bg-black/20 text-white/70">
-                        Taken
+                        선택됨
                       </div>
                     ) : amIReady ? (
                       <div className="ui-badge mt-2 w-full justify-center border-white/10 bg-black/20 text-white/50">
-                        준비 - locked
+                        준비 후 변경 불가
                       </div>
                     ) : (
                       <div className="ui-badge mt-2 w-full justify-center border-sky-400/20 bg-sky-500/[0.12] text-sky-100">
@@ -589,9 +589,9 @@ const LobbyPage = () => {
             <div className="ui-card">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-white">Players</h2>
+                  <h2 className="text-xl font-bold text-white">플레이어</h2>
                   <p className="mt-1 text-sm text-white/60">
-                    {connecting ? 'Connecting to server...' : 'Players in the room'}
+                    {connecting ? '서버 연결 중...' : '방에 접속한 유저가 보여요.'}
                   </p>
                 </div>
                 {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && (
@@ -604,7 +604,7 @@ const LobbyPage = () => {
                       socket.emit('set_ready', { ready: !myLobbyPlayer.ready });
                     }}
                   >
-                    {myLobbyPlayer.ready ? 'Cancel ready' : 'Ready'}
+                    {myLobbyPlayer.ready ? '준비 취소' : '준비 완료'}
                   </button>
                 )}
               </div>
@@ -615,7 +615,7 @@ const LobbyPage = () => {
                 {(lobby?.players ?? []).map((p) => {
                   const isMe = p.userId === myUserId;
                   const isHostUser = p.userId === lobby?.hostUserId;
-                  const charName = p.character ? CHARACTER_INFO[p.character].name : 'No character';
+                  const charName = p.character ? CHARACTER_INFO[p.character].name : '캐릭터 미선택';
                   const avatar = p.character ? CHARACTER_INFO[p.character].avatar : '/assets/characters/default.png';
                   const ring = p.character ? CHARACTER_THEME[p.character].ringClass : 'ring-white/20';
                   const bg = p.character ? CHARACTER_THEME[p.character].bgClass : 'bg-white/[0.06]';
@@ -649,7 +649,7 @@ const LobbyPage = () => {
                 })}
 
                 {(!lobby || lobby.players.length === 0) && (
-                  <div className="text-sm text-white/60">Loading players...</div>
+                  <div className="text-sm text-white/60">플레이어 정보를 불러오는 중...</div>
                 )}
               </div>
             </div>
@@ -663,12 +663,12 @@ const LobbyPage = () => {
               }`}
             >
               {!lobby || lobby.players.length < 2
-                ? 'At least 2 players required'
+                ? '최소 2명 필요'
                 : !isHost
-                ? 'Only the host can start'
+                ? '방장만 시작할 수 있어요'
                 : !lobby.allReady
-                ? 'All players must be ready'
-                : 'Start Game'}
+                ? '모든 플레이어 준비 필요'
+                : '게임 시작'}
             </button>
           </div>
         </div>

@@ -31,7 +31,7 @@ const ResultPage = () => {
 
       <div className="relative z-10 w-full max-w-3xl">
         <div className="ui-card-lg">
-          <p className="text-[10px] uppercase tracking-[0.35em] text-white/60">GAME OVER</p>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-white/60">게임 종료</p>
           <h1 className="mt-2 text-4xl font-black text-white">결과</h1>
           <p className="mt-2 text-sm text-white/70">
             {gameResult?.reason ?? '게임 종료'} · {gameResult?.endedAtRound ?? 0}턴

@@ -109,7 +109,7 @@ const TurnControls = () => {
   const myTurn = isMyTurn();
 
   const rollingPlayer = rollingUserId ? players.find((p) => p.userId === rollingUserId) : null;
-  const rollingPlayerName = rollingPlayer?.name ?? 'PLAYER';
+  const rollingPlayerName = rollingPlayer?.name ?? '플레이어';
 
   const canRoll =
     connected &&
@@ -167,16 +167,16 @@ const TurnControls = () => {
             <div className="spectate-text">
               {isSettling ? (
                 <span className="dice-result">
-                  DICE {dice[0]} + {dice[1]} = {dice[0] + dice[1]}
+                  주사위 {dice[0]} + {dice[1]} = {dice[0] + dice[1]}
                 </span>
               ) : (
-                <span>{rollingPlayerName} is rolling...</span>
+                <span>{rollingPlayerName} 주사위 굴리는 중...</span>
               )}
             </div>
           </div>
         ) : (
           <div className="turn-controls-waiting">
-            <span>Waiting for other player</span>
+            <span>상대 플레이어 대기 중</span>
           </div>
         )}
       </div>
@@ -188,31 +188,31 @@ const TurnControls = () => {
   const disabled =
     action === 'WAIT' || (action === 'ROLL' ? !canRoll : action === 'END_TURN' ? !canEndTurn : true);
 
-  let label = connected ? 'WAIT' : 'CONNECTING';
-  if (action === 'ROLL') label = 'ROLL DICE';
-  if (action === 'END_TURN') label = 'END TURN';
-  if (phase === 'MOVING') label = 'MOVING';
-  if (isHoldRolling) label = 'ROLLING';
-  if (isSettling) label = `DICE ${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
-  if (activeModal) label = 'ACTION REQUIRED';
+  let label = connected ? '대기' : '연결 중';
+  if (action === 'ROLL') label = '주사위 굴리기';
+  if (action === 'END_TURN') label = '턴 종료';
+  if (phase === 'MOVING') label = '이동 중';
+  if (isHoldRolling) label = '굴리는 중';
+  if (isSettling) label = `주사위 ${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
+  if (activeModal) label = '행동 필요';
 
   const hint =
     error ??
     (!connected
-      ? 'Connecting to server. Please wait.'
+      ? '서버 연결 중입니다. 잠시만 기다려 주세요.'
       : canRoll && extraRolls > 0
-      ? `EXTRA ROLL ${extraRolls}`
+      ? `추가 굴림 ${extraRolls}`
       : canRoll
-      ? 'Click to roll the dice.'
+      ? '클릭해서 주사위를 굴리세요.'
       : canEndTurn
-      ? 'End your turn to pass to the next player.'
+      ? '턴 종료로 다음 플레이어에게 넘기세요.'
       : activeModal
-      ? 'Resolve the modal to continue.'
+      ? '모달을 처리해야 계속할 수 있어요.'
       : phase === 'MOVING'
-      ? 'Moving...'
+      ? '이동 중...'
       : isSettling
       ? dice[0] === dice[1]
-        ? 'Double! You can roll once more.'
+        ? '더블! 한 번 더 굴릴 수 있어요.'
         : ''
       : ' ');
 
