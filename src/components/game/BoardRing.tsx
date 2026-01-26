@@ -8,8 +8,8 @@ import AssetCard from './AssetCard';
 
 const STOCK_LABEL: Record<StockSymbol, string> = {
   SAMSUNG: '삼성',
-  SK_HYNIX: '하이닉스',
-  HYUNDAI: '현대차',
+  LOCKHEED: '록히드',
+  TESLA: '테슬라',
   BITCOIN: '비트코인',
   GOLD: '금',
 };
@@ -35,10 +35,15 @@ type Props = {
   landChange: Record<number, { pct: number }>;
 };
 
+
+
+import CharacterPiece from './CharacterPiece';
+
 const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landChange }: Props) => {
   const assetPrices = useGameStore((s) => s.assetPrices);
   const landPrices = useGameStore((s) => s.landPrices);
   const players = useGameStore((s) => s.players);
+  const lands = useGameStore((s) => s.lands);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
 
   const currentPlayer = players[currentPlayerIndex] ?? null;
@@ -54,20 +59,41 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
     return map;
   }, [players]);
 
-  const occupantAvatarsByTile = useMemo(() => {
-    const map = new Map<number, { id: number; name: string; src: string }[]>();
-    players.forEach((p) => {
-      if (p.isBankrupt) return;
-      const src = p.character ? CHARACTER_INFO[p.character].avatar : (p.avatar || '/assets/characters/default.png');
-      const arr = map.get(p.position) ?? [];
-      arr.push({ id: p.id, name: p.name, src });
-      map.set(p.position, arr);
-    });
-    return map;
-  }, [players]);
-
   return (
-    <div className="board-ring">
+    <div className="board-ring relative">
+      {/* [Merge Note] 2026-01-27: Added Overlay Layer for independent character movement */}
+      {/* Overlay Layer for Characters */}
+      <div className="board-ring-overlay">
+        {players.map((p, index) => {
+          if (p.isBankrupt) return null;
+          const { row, col } = getGridPosition(p.position);
+
+          const playersOnThisTile = players.filter(pl => pl.position === p.position && !pl.isBankrupt);
+          const indexOnTile = playersOnThisTile.findIndex(pl => pl.id === p.id);
+          const offset = indexOnTile * 5;
+
+          return (
+            <div
+              key={p.id}
+              className="character-token-wrapper"
+              style={{
+                gridRow: row,
+                gridColumn: col,
+                transform: `translate(${offset}px, ${offset}px)`,
+                zIndex: 20 + indexOnTile
+              }}
+            >
+              <CharacterPiece
+                name={p.name}
+                avatar={p.character ? CHARACTER_INFO[p.character].avatar : (p.avatar || '/assets/characters/default.png')}
+                color={getPlayerSlotColor(index)}
+                isMe={false}
+              />
+            </div>
+          );
+        })}
+      </div>
+
       <div className="board-ring-grid">
         {BOARD_DATA.map((space) => {
           const { row, col } = getGridPosition(space.id);
@@ -76,22 +102,39 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
           const isSelected = selectedAssetId === space.id;
           const symbol = space.type === 'STOCK' ? TILE_TO_STOCK[space.id] : undefined;
           const occupantColors = occupantColorsByTile.get(space.id) ?? [];
-          const occupantAvatars = occupantAvatarsByTile.get(space.id) ?? [];
           const region = getRegionForBoardSpace(space, { stockSymbol: symbol });
+
+          // [Merge Note] 2026-01-27: Added logic to determine land owner color
+          const land = lands[space.id];
+          let ownerColor: string | undefined;
+          if (land?.ownerId) {
+            const ownerIndex = players.findIndex(p => p.id === land.ownerId);
+            if (ownerIndex >= 0) ownerColor = getPlayerSlotColor(ownerIndex);
+          }
+
+          let specialType: string | undefined = undefined;
+          if (space.type !== 'COUNTRY') {
+            specialType = space.type;
+            if (space.type === 'ISLAND') {
+              if (space.name === '전쟁') specialType = 'WAR';
+              else if (space.name === '올림픽') specialType = 'OLYMPICS'; // Or just generic ISLAND/EVENT
+              else if (space.name === '월드컵') specialType = 'WORLDCUP';
+            }
+          }
 
           const price =
             space.type === 'COUNTRY'
               ? (landPrices[space.id] ?? space.price ?? null)
               : symbol
-              ? assetPrices[symbol]
-              : null;
+                ? assetPrices[symbol]
+                : null;
 
           const changePct =
             space.type === 'COUNTRY'
               ? landChange[space.id]?.pct ?? 0
               : symbol
-              ? assetChange[symbol]?.pct ?? 0
-              : null;
+                ? assetChange[symbol]?.pct ?? 0
+                : null;
 
           return (
             <div
@@ -114,21 +157,9 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
                   region={region}
                   showPrice={false}
                   onClick={() => onSelectAsset(space.id)}
+                  ownerColor={ownerColor}
+                  specialType={specialType}
                 />
-
-                {occupantAvatars.length > 0 && (
-                  <div className="board-piece-stack" aria-hidden="true">
-                    {occupantAvatars.slice(0, 4).map((o) => (
-                      <img
-                        key={o.id}
-                        src={o.src}
-                        alt={o.name}
-                        className="board-piece-img"
-                        draggable={false}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           );
@@ -141,3 +172,5 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
 };
 
 export default BoardRing;
+
+

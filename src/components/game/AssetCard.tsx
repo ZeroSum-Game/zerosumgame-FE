@@ -1,3 +1,4 @@
+
 import { formatKRW, formatKRWKoShort } from '../../utils/formatKRW';
 import type { Region } from '../../utils/regionCues';
 
@@ -11,6 +12,9 @@ type Props = {
   region?: Region | null;
   showPrice?: boolean;
   onClick?: () => void;
+  // [Merge Note] 2026-01-27: Added props for owner styling and special tile types
+  ownerColor?: string; // New prop for owner color
+  specialType?: string; // New prop for special tile types
 };
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -23,7 +27,19 @@ const hexToRgba = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const AssetCard = ({ name, price, changePct, active, selected, occupantColors, region, showPrice = true, onClick }: Props) => {
+const AssetCard = ({
+  name,
+  price,
+  changePct,
+  active,
+  selected,
+  occupantColors,
+  region,
+  showPrice = true,
+  onClick,
+  ownerColor,
+  specialType
+}: Props) => {
   const isUp = typeof changePct === 'number' && changePct > 0;
   const isDown = typeof changePct === 'number' && changePct < 0;
 
@@ -38,26 +54,57 @@ const AssetCard = ({ name, price, changePct, active, selected, occupantColors, r
     active ? 'asset-card-active' : '',
     selected ? 'asset-card-selected' : '',
     onClick ? 'asset-card-clickable' : '',
+    specialType ? `asset-card-special asset-card-${specialType.toLowerCase()}` : '', // Add special class
   ].join(' ');
 
   const cardStyle: React.CSSProperties | undefined = (() => {
-    if (!occupantColors || occupantColors.length === 0) return undefined;
+    // Priority 1: Current Occupants (already handled, but let's check conflict)
+    // If multiple people are on it, show gradient.
+    // If owner exists, maybe show border or background? 
+    // User said: "Show owner's character color when land is bought".
+    // Let's use border for owner, or background tint.
 
-    if (occupantColors.length === 1) {
-      const c = occupantColors[0]!;
-      return {
-        outline: `1px solid ${hexToRgba(c, 0.75)}`,
-        outlineOffset: 0,
-      };
+    let style: React.CSSProperties = {};
+
+    if (ownerColor) {
+      style.backgroundColor = hexToRgba(ownerColor, 0.2);
+      style.boxShadow = `inset 0 0 0 2px ${ownerColor}`;
     }
 
-    const colors = occupantColors.join(', ');
-    return {
-      border: '1px solid transparent',
-      background: `linear-gradient(var(--asset-card-bg), var(--asset-card-bg)) padding-box, conic-gradient(from 180deg, ${colors}) border-box`,
-      backgroundOrigin: 'border-box',
-      backgroundClip: 'padding-box, border-box',
-    };
+    // Occupants override/overlay border? Or use gradient border?
+    if (occupantColors && occupantColors.length > 0) {
+      if (occupantColors.length === 1) {
+        const c = occupantColors[0]!;
+        style.outline = `3px solid ${hexToRgba(c, 1)}`; // Make it pop
+        style.outlineOffset = -2;
+      } else {
+        const colors = occupantColors.join(', ');
+        style.border = '3px solid transparent';
+        style.background = `linear-gradient(${ownerColor ? hexToRgba(ownerColor, 0.2) : 'var(--asset-card-bg)'}, ${ownerColor ? hexToRgba(ownerColor, 0.2) : 'var(--asset-card-bg)'}) padding-box, conic-gradient(from 180deg, ${colors}) border-box`;
+        style.backgroundOrigin = 'border-box';
+        style.backgroundClip = 'padding-box, border-box';
+        style.boxShadow = 'none'; // Clear owner box shadow if multiple people
+      }
+    }
+
+    // Special Types Custom Colors
+    if (specialType) {
+      if (!ownerColor) {
+        // Default special styles if not owned (though special tiles usually aren't owned except stocks?)
+        // Stocks are effectively "owned" but here we mean Land ownership.
+        // Special tiles like Start, Key, etc.
+        switch (specialType) {
+          case 'START': style.backgroundColor = 'rgba(34, 197, 94, 0.1)'; style.borderColor = '#22c55e'; break;
+          case 'KEY': style.backgroundColor = 'rgba(234, 179, 8, 0.1)'; style.borderColor = '#eab308'; break;
+          case 'WAR': style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; style.borderColor = '#ef4444'; break;
+          case 'TAX': style.backgroundColor = 'rgba(100, 116, 139, 0.1)'; style.borderColor = '#64748b'; break;
+          case 'STOCK': style.backgroundColor = 'rgba(59, 130, 246, 0.1)'; style.borderColor = '#3b82f6'; break;
+          default: break;
+        }
+      }
+    }
+
+    return style;
   })();
 
   const body = (
@@ -94,3 +141,4 @@ const AssetCard = ({ name, price, changePct, active, selected, occupantColors, r
 };
 
 export default AssetCard;
+

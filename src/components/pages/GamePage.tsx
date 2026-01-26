@@ -18,12 +18,21 @@ export const useGameSocketContext = () => {
   return ctx;
 };
 
+import SpaceBackdrop from '../ui/SpaceBackdrop';
+
 const GamePage = () => {
   const gameSocket = useGameSocket(1); // Room ID 1
 
   return (
     <GameSocketContext.Provider value={gameSocket}>
-      <GameOverlay />
+      <div className="ui-page game-page-wrapper">
+        <SpaceBackdrop />
+        <div className="ui-bg-blobs" aria-hidden="true">
+          <div className="ui-blob -left-40 top-1/4 bg-sky-500/10" />
+          <div className="ui-blob -right-40 bottom-1/4 bg-fuchsia-500/10" />
+        </div>
+        <GameOverlay />
+      </div>
     </GameSocketContext.Provider>
   );
 };

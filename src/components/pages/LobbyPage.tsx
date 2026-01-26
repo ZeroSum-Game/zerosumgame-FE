@@ -35,6 +35,7 @@ type OrderPickingState = {
   isPickingOrder: boolean;
   availableCards: number[];
   pickedCards: number[];
+  revealedCards: Record<number, number>;
   myPickedCard: number | null;
   orderResults: OrderPickResult[] | null;
 };
@@ -52,6 +53,7 @@ const LobbyPage = () => {
     isPickingOrder: false,
     availableCards: [],
     pickedCards: [],
+    revealedCards: {},
     myPickedCard: null,
     orderResults: null,
   });
@@ -59,9 +61,15 @@ const LobbyPage = () => {
   const socketRef = useRef<Awaited<ReturnType<typeof connectSocket>> | null>(null);
   const preserveSocketRef = useRef(false);
   const myUserIdRef = useRef<number | null>(null);
+  const lobbyRef = useRef<LobbyState | null>(null); // [Fix] Add missing ref
 
   const myUserId = me?.userId ?? null;
   myUserIdRef.current = myUserId;
+
+  // [Fix] Sync lobby state to ref
+  useEffect(() => {
+    lobbyRef.current = lobby;
+  }, [lobby]);
 
   const myLobbyPlayer = useMemo(() => {
     if (!myUserId || !lobby) return null;
@@ -71,6 +79,41 @@ const LobbyPage = () => {
   const isHost = !!myUserId && !!lobby?.hostUserId && lobby.hostUserId === myUserId;
 
   const canStartGame = !!lobby && lobby.players.length >= 2 && lobby.allReady && isHost;
+
+  const roomStatusLabel =
+    roomStatus === 'WAITING' ? '대기중' : roomStatus === 'PLAYING' ? '게임중' : roomStatus;
+
+  const translateError = (message?: string | null) => {
+    if (!message) return null;
+    const normalized = String(message).trim();
+    switch (normalized) {
+      case 'At least 2 players are required':
+      case 'At least 2 players required':
+        return '최소 2명의 플레이어가 필요합니다.';
+      case 'All players must be ready':
+        return '모든 플레이어가 준비해야 합니다.';
+      case 'All players must select a character':
+        return '모든 플레이어가 캐릭터를 선택해야 합니다.';
+      case 'Only the host can start':
+        return '방장만 시작할 수 있어요.';
+      case 'Failed to start game':
+        return '게임 시작에 실패했어요.';
+      case 'Failed to join room':
+        return '방 참가에 실패했어요.';
+      case 'Invalid room':
+        return '잘못된 방 정보예요.';
+      case 'Room not joined':
+        return '방에 참가되어 있지 않습니다.';
+      case 'Unauthorized':
+        return '로그인 정보가 만료되었어요. 다시 로그인해주세요.';
+      case 'Order picking not active':
+        return '순서 뽑기가 진행 중이 아닙니다.';
+      case 'Invalid card':
+        return '유효하지 않은 카드입니다.';
+      default:
+        return normalized;
+    }
+  };
 
   const isCharacterTaken = (character: CharacterType) => {
     if (!lobby) return false;
@@ -85,7 +128,7 @@ const LobbyPage = () => {
     const mapLobby = (payload: any): LobbyState => {
       const players: LobbyPlayer[] = (payload?.players ?? []).map((p: any) => ({
         userId: Number(p.userId),
-        nickname: String(p.nickname ?? `Player${p.userId}`),
+        nickname: String(p.nickname ?? `플레이어${p.userId}`),
         playerId: Number(p.playerId),
         character: fromBackendCharacter(p.character),
         ready: Boolean(p.ready),
@@ -99,9 +142,13 @@ const LobbyPage = () => {
 
     const handlers = {
       connect: () => setConnecting(false),
-      connectError: () => {
+      connectError: (err?: any) => {
         setConnecting(false);
-        setError('서버 연결에 실패했어요! (socket)');
+        const message = translateError(err?.message) || '서버 연결에 실패했어요! (socket)';
+        setError(message);
+        if (err?.message === 'Unauthorized') {
+          apiLogout();
+        }
       },
       joinSuccess: (payload: any) => {
         if (!alive) return;
@@ -114,19 +161,42 @@ const LobbyPage = () => {
       },
       joinError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || '방 참가에 실패했어요!');
+        const message = translateError(payload?.message) || '방 참가에 실패했어요!';
+        setError(message);
+        if (payload?.message === 'Unauthorized') {
+          apiLogout();
+        }
       },
       lobbyUpdate: (payload: any) => {
         if (!alive) return;
         setLobby(mapLobby(payload));
       },
+      readyUpdate: (payload: any) => { // [Fix] Add readyUpdate handler
+        if (!alive) return;
+        setLobby((prev) => {
+          if (!prev) return prev;
+          const userId = Number(payload?.userId);
+          const ready = Boolean(payload?.ready);
+          // Also update allReady? usually payload has it or we wait for lobbyUpdate.
+          // Since we can't fully know allReady status just from one player update without checking others,
+          // we'll update the player and assume lobbyUpdate will follow if global state changes, 
+          // OR we check if everyone is ready.
+          const updatedPlayers = prev.players.map(p => p.userId === userId ? { ...p, ready } : p);
+          const allReady = updatedPlayers.length >= 2 && updatedPlayers.every(p => p.ready);
+          return {
+            ...prev,
+            players: updatedPlayers,
+            allReady // Optimistic update
+          };
+        });
+      },
       readyError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || '준비 상태 업데이트에 실패했어요!');
+        setError(translateError(payload?.message) || '준비 상태 업데이트에 실패했어요!');
       },
       startError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || '게임 시작에 실패했어요!');
+        setError(translateError(payload?.message) || '게임 시작에 실패했어요!');
       },
       characterUpdate: (payload: any) => {
         if (!alive) return;
@@ -141,12 +211,14 @@ const LobbyPage = () => {
         });
       },
       orderPickingStart: (payload: any) => {
+
         if (!alive) return;
         console.log('[Lobby] order_picking_start:', payload);
         setOrderPicking({
           isPickingOrder: true,
           availableCards: payload.availableCards || [],
           pickedCards: [],
+          revealedCards: {},
           myPickedCard: null,
           orderResults: null,
         });
@@ -155,12 +227,17 @@ const LobbyPage = () => {
         if (!alive) return;
         console.log('[Lobby] order_card_picked:', payload);
         const pickedUserId = Number(payload?.userId);
+        const cardId = Number(payload?.cardId);
         const cardNumber = Number(payload?.cardNumber);
         const currentMyUserId = myUserIdRef.current;
         setOrderPicking((prev) => ({
           ...prev,
           pickedCards: payload.pickedCards || [],
-          myPickedCard: pickedUserId === currentMyUserId ? cardNumber : prev.myPickedCard,
+          revealedCards:
+            Number.isFinite(cardId) && Number.isFinite(cardNumber)
+              ? { ...prev.revealedCards, [cardId]: cardNumber }
+              : prev.revealedCards,
+          myPickedCard: pickedUserId === currentMyUserId && Number.isFinite(cardId) ? cardId : prev.myPickedCard,
         }));
       },
       orderPickingComplete: (payload: any) => {
@@ -173,7 +250,7 @@ const LobbyPage = () => {
       },
       pickError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || '카드 선택에 실패했어요!');
+        setError(translateError(payload?.message) || '카드 선택에 실패했어요!');
       },
       gameStart: (payload: any) => {
         if (!alive) return;
@@ -209,7 +286,7 @@ const LobbyPage = () => {
             return {
               id: Number(p?.playerId ?? p?.id ?? idx + 1),
               userId: Number(p?.userId ?? 0),
-              name: String(p?.nickname ?? `Player ${p?.userId ?? idx + 1}`),
+              name: String(p?.nickname ?? `플레이어 ${p?.userId ?? idx + 1}`),
               avatar: character ? CHARACTER_INFO[character].avatar : '/assets/characters/default.png',
               character,
               position: typeof p?.location === 'number' ? p.location : 0,
@@ -299,7 +376,7 @@ const LobbyPage = () => {
           socket.emit('join_room', 1);
         } catch (e: any) {
           setConnecting(false);
-          setError(e?.message || '서버 연결에 실패했어요! (socket)');
+          setError(translateError(e?.message) || '서버 연결에 실패했어요! (socket)');
         }
       };
 
@@ -330,10 +407,10 @@ const LobbyPage = () => {
     };
   }, [setCurrentPage]);
 
-  const handlePickCard = (cardNumber: number) => {
+  const handlePickCard = (cardId: number) => {
     if (!socketRef.current || orderPicking.myPickedCard !== null) return;
-    if (orderPicking.pickedCards.includes(cardNumber)) return;
-    socketRef.current.emit('pick_order_card', cardNumber);
+    if (orderPicking.pickedCards.includes(cardId)) return;
+    socketRef.current.emit('pick_order_card', cardId);
   };
 
   if (orderPicking.isPickingOrder) {
@@ -347,7 +424,7 @@ const LobbyPage = () => {
 
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center">
           <div className="ui-card-lg w-full max-w-2xl text-center">
-            <h1 className="mb-2 text-3xl font-black text-white">🎴 순서 뽑기</h1>
+            <h1 className="mb-2 text-3xl font-black text-white">순서 뽑기</h1>
             <p className="mb-8 text-white/70">
               {orderPicking.orderResults
                 ? '순서가 결정되었습니다!'
@@ -356,12 +433,10 @@ const LobbyPage = () => {
                   : '카드를 선택하여 순서를 정해주세요.'}
             </p>
 
-            {/* ?쒖꽌 寃곌낵 ?쒖떆 */}
+            {/* 순서 결과 */}
             {orderPicking.orderResults ? (
               <div className="space-y-4">
-                <div className="text-lg font-bold text-amber-300">
-                  ?룇 寃뚯엫 ?쒖꽌
-                </div>
+                <div className="text-lg font-bold text-amber-300">순서 결과</div>
                 <div className="flex flex-wrap justify-center gap-4">
                   {orderPicking.orderResults.map((result) => {
                     const player = lobby?.players.find(
@@ -409,9 +484,9 @@ const LobbyPage = () => {
 
                   return (
                     <button
-                      key={cardNum}
+                      key={cardId}
                       type="button"
-                      onClick={() => handlePickCard(cardNum)}
+                      onClick={() => handlePickCard(cardId)}
                       disabled={!canPick}
                       className={`relative h-32 w-24 rounded-xl border-2 text-4xl font-black transition-all ${isMyPick
                         ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 ring-4 ring-emerald-400/30'
@@ -430,7 +505,7 @@ const LobbyPage = () => {
                       {
                         isMyPick && (
                           <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">
-                            Picked!
+                            선택됨
                           </div>
                         )
                       }
@@ -470,7 +545,7 @@ const LobbyPage = () => {
         <div className="mb-8 text-center">
           <h1 className="mb-2 text-4xl font-black text-white">캐릭터 선택</h1>
           <p className="text-white/70">
-            Players: {lobby?.players.length ?? 0} / {maxPlayers} · {roomStatus}
+            플레이어: {lobby?.players.length ?? 0} / {maxPlayers}명 · {roomStatusLabel}
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <button type="button" className="ui-btn ui-btn-secondary" onClick={() => void apiLogout()}>
@@ -491,8 +566,10 @@ const LobbyPage = () => {
                 const taken = isCharacterTaken(char);
                 const isMyCharacter = myLobbyPlayer?.character === char;
                 const amIReady = myLobbyPlayer?.ready ?? false;
-                // allow character selection immediately (no socket wait)
-                const canPick = !taken && roomStatus === 'WAITING' && !amIReady;
+                const isCancelAction = isHost && isMyCharacter && roomStatus === 'WAITING';
+                const isJoined = !!myLobbyPlayer && !connecting;
+                // allow character selection immediately after join success
+                const canPick = isJoined && !taken && roomStatus === 'WAITING' && (!amIReady || isCancelAction);
 
                 return (
                   <button
@@ -501,9 +578,10 @@ const LobbyPage = () => {
                     onClick={() => {
                       if (!canPick) return;
                       setError(null);
+                      const cancelSelection = isCancelAction;
                       void (async () => {
                         try {
-                          const result = await apiSetCharacter(toBackendCharacter(char));
+                          const result = await apiSetCharacter(cancelSelection ? null : toBackendCharacter(char));
                           setLobby((prev) => {
                             if (!prev || !myUserId) return prev;
                             return {
@@ -513,7 +591,7 @@ const LobbyPage = () => {
                                   ? {
                                     ...p,
                                     character: fromBackendCharacter(result.character),
-                                    ready: isHost ? true : false,
+                                    ready: cancelSelection ? false : isHost ? true : false,
                                   }
                                   : p
                               ),
@@ -521,11 +599,11 @@ const LobbyPage = () => {
                           });
                           const socket = socketRef.current;
                           if (socket) {
-                            const nextReady = isHost ? true : (myLobbyPlayer?.ready ?? false);
+                            const nextReady = cancelSelection ? false : isHost ? true : (myLobbyPlayer?.ready ?? false);
                             socket.emit('set_ready', { ready: nextReady });
                           }
                         } catch (e: any) {
-                          setError(e?.message || '캐릭터 선택에 실패했습니다.');
+                          setError(translateError(e?.message) || '캐릭터 선택에 실패했습니다.');
                         }
                       })();
                     }}
@@ -552,18 +630,18 @@ const LobbyPage = () => {
                     <h3 className="text-center text-lg font-bold text-white">{info.name}</h3>
                     <p className="mt-1 text-center text-xs text-white/70">{info.abilityShort}</p>
 
-                    {/* Taken badge */}
+                    {/* 상태 배지 */}
                     {isMyCharacter ? (
                       <div className="ui-badge mt-2 w-full justify-center border-sky-400/30 bg-sky-500/[0.2] text-sky-100 font-bold">
                         내 캐릭터
                       </div>
                     ) : taken ? (
                       <div className="ui-badge mt-2 w-full justify-center border-white/10 bg-black/20 text-white/70">
-                        Taken
+                        선택됨
                       </div>
                     ) : amIReady ? (
                       <div className="ui-badge mt-2 w-full justify-center border-white/10 bg-black/20 text-white/50">
-                        준비 - locked
+                        준비됨 (잠김)
                       </div>
                     ) : (
                       <div className="ui-badge mt-2 w-full justify-center border-sky-400/20 bg-sky-500/[0.12] text-sky-100">
@@ -581,9 +659,9 @@ const LobbyPage = () => {
             <div className="ui-card">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-white">Players</h2>
+                  <h2 className="text-xl font-bold text-white">플레이어</h2>
                   <p className="mt-1 text-sm text-white/60">
-                    {connecting ? 'Connecting to server...' : 'Players in the room'}
+                    {connecting ? '서버에 연결 중...' : '방에 있는 플레이어'}
                   </p>
                 </div>
                 {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && !isHost && (
@@ -596,7 +674,7 @@ const LobbyPage = () => {
                       socket.emit('set_ready', { ready: !myLobbyPlayer.ready });
                     }}
                   >
-                    {myLobbyPlayer.ready ? 'Cancel ready' : 'Ready'}
+                    {myLobbyPlayer.ready ? '준비 취소' : '준비'}
                   </button>
                 )}
               </div>
@@ -607,7 +685,7 @@ const LobbyPage = () => {
                 {(lobby?.players ?? []).map((p) => {
                   const isMe = p.userId === myUserId;
                   const isHostUser = p.userId === lobby?.hostUserId;
-                  const charName = p.character ? CHARACTER_INFO[p.character].name : 'No character';
+                  const charName = p.character ? CHARACTER_INFO[p.character].name : '캐릭터 없음';
                   const avatar = p.character ? CHARACTER_INFO[p.character].avatar : '/assets/characters/default.png';
                   const ring = p.character ? CHARACTER_THEME[p.character].ringClass : 'ring-white/20';
                   const bg = p.character ? CHARACTER_THEME[p.character].bgClass : 'bg-white/[0.06]';
@@ -640,7 +718,7 @@ const LobbyPage = () => {
                 })}
 
                 {(!lobby || lobby.players.length === 0) && (
-                  <div className="text-sm text-white/60">Loading players...</div>
+                  <div className="text-sm text-white/60">플레이어 불러오는 중...</div>
                 )}
               </div>
             </div>
@@ -653,12 +731,12 @@ const LobbyPage = () => {
                 }`}
             >
               {!lobby || lobby.players.length < 2
-                ? 'At least 2 players required'
+                ? '최소 2명이 필요합니다'
                 : !isHost
-                  ? 'Only the host can start'
+                  ? '방장만 시작할 수 있어요'
                   : !lobby.allReady
-                    ? 'All players must be ready'
-                    : 'Start Game'}
+                    ? '모든 플레이어가 준비해야 합니다'
+                    : '게임 시작'}
             </button>
           </div>
         </div>

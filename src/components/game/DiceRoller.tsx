@@ -1,122 +1,33 @@
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useGameStore from '../../store/useGameStore';
+import Dice3D from './Dice3D'; // [Merge Note] Imported 3D Dice component
 import './DiceRoller.css';
 
 const randDie = () => Math.floor(Math.random() * 6) + 1;
-
-const DiceFace = ({ value }: { value: number | null }) => {
-  return <div className="dice-face">{value ?? '?'}</div>;
-};
 
 const DiceRoller = () => {
   const rollTrigger = useGameStore((s) => s.rollTrigger);
   const rollReleaseTrigger = useGameStore((s) => s.rollReleaseTrigger);
   const isRolling = useGameStore((s) => s.isRolling);
   const rollStage = useGameStore((s) => s.rollStage);
-  const pendingDice = useGameStore((s) => s.pendingDice);
-  const rollStartedAt = useGameStore((s) => s.rollStartedAt);
   const dice = useGameStore((s) => s.dice);
-  const setDiceValues = useGameStore((s) => s.setDiceValues);
-  const rollingUserId = useGameStore((s) => s.rollingUserId);
 
-  const [ghost, setGhost] = useState<[number, number] | null>(null);
-  const [settleAnimKey, setSettleAnimKey] = useState(0);
-  const [lockedPreview, setLockedPreview] = useState(false);
+  // We don't need all the complex timeout logic if we rely on CSS transition + socket state.
+  // But to sync perfectly, we can keep using the store state.
 
-  const holdIntervalRef = useRef<number | null>(null);
-  const settleTimeoutsRef = useRef<number[]>([]);
-  const activeRollIdRef = useRef<number>(0);
-  const pendingRef = useRef<[number, number] | null>(null);
-
-  useEffect(() => {
-    pendingRef.current = pendingDice;
-  }, [pendingDice]);
-
-  const clearTimers = () => {
-    if (holdIntervalRef.current !== null) {
-      window.clearInterval(holdIntervalRef.current);
-      holdIntervalRef.current = null;
-    }
-    for (const t of settleTimeoutsRef.current) window.clearTimeout(t);
-    settleTimeoutsRef.current = [];
-  };
-
-  useEffect(() => {
-    if (rollTrigger <= 0) return;
-    activeRollIdRef.current = rollTrigger;
-    clearTimers();
-    setLockedPreview(false);
-
-    if (rollStage !== 'HOLDING') return;
-    setGhost([randDie(), randDie()]);
-    holdIntervalRef.current = window.setInterval(() => {
-      if (activeRollIdRef.current !== rollTrigger) return;
-      setGhost([randDie(), randDie()]);
-    }, 65);
-
-    return () => clearTimers();
-  }, [rollStage, rollTrigger]);
-
-  useEffect(() => {
-    if (rollReleaseTrigger <= 0) return;
-    if (rollStage !== 'SETTLING') return;
-
-    const rollId = activeRollIdRef.current;
-    clearTimers();
-
-    const minTotalMs = 420;
-    const elapsed = rollStartedAt ? Date.now() - rollStartedAt : minTotalMs;
-    const extraDelay = Math.max(0, minTotalMs - elapsed);
-
-    const ticks = [70, 90, 120, 170, 240, 320];
-    let acc = extraDelay;
-
-    for (const dt of ticks) {
-      acc += dt;
-      const t = window.setTimeout(() => {
-        if (activeRollIdRef.current !== rollId) return;
-        setGhost([randDie(), randDie()]);
-      }, acc);
-      settleTimeoutsRef.current.push(t);
-    }
-
-    const finalT = window.setTimeout(() => {
-      if (activeRollIdRef.current !== rollId) return;
-      const final = pendingRef.current;
-      if (!final) return;
-      setLockedPreview(true);
-      setGhost(final);
-      setSettleAnimKey((k) => k + 1);
-
-      const lockT = window.setTimeout(() => {
-        if (activeRollIdRef.current !== rollId) return;
-        setLockedPreview(false);
-        setGhost(null);
-        // avoid overwriting server dice in multiplayer
-        if (!rollingUserId) {
-          setDiceValues(final);
-        }
-      }, 220);
-      settleTimeoutsRef.current.push(lockT);
-    }, acc + 20);
-    settleTimeoutsRef.current.push(finalT);
-
-    return () => clearTimers();
-  }, [rollReleaseTrigger, rollStage, rollStartedAt, setDiceValues, rollingUserId]);
-
-  const shown = useMemo<[number, number]>(() => {
-    if (ghost) return ghost;
-    return dice;
-  }, [dice, ghost]);
+  // When rollStage is HOLDING: Rolling animation (random spinning)
+  // When rollStage is SETTLING: Smooth transition to final value
+  // When rollStage is IDLE: Static final value
 
   const meta =
     rollStage === 'HOLDING'
-      ? '??? ??? ?...'
+      ? '주사위 굴리는 중...'
       : rollStage === 'SETTLING'
-      ? '?? ?? ?...'
-      : isRolling
-      ? '??? ??? ?...'
-      : ' ';
+        ? '결과 확인 중...'
+        : isRolling
+          ? '주사위 굴리는 중...'
+          : ' ';
 
   return (
     <div
@@ -125,22 +36,17 @@ const DiceRoller = () => {
         rollStage === 'HOLDING' ? 'dice-roller-holding' : '',
         rollStage === 'SETTLING' ? 'dice-roller-settling' : '',
       ].join(' ')}
-      aria-label="???"
+      aria-label="주사위"
     >
-      <div
-        className={[
-          'dice-row',
-          rollStage === 'HOLDING' || (rollStage === 'SETTLING' && !lockedPreview) ? 'dice-row-rolling' : '',
-          lockedPreview ? 'dice-row-settle' : '',
-        ].join(' ')}
-        key={settleAnimKey}
-      >
-        <DiceFace value={shown[0] ?? null} />
-        <DiceFace value={shown[1] ?? null} />
+      <div className="dice-row">
+        <Dice3D value={dice[0]} rolling={rollStage === 'HOLDING'} />
+        <Dice3D value={dice[1]} rolling={rollStage === 'HOLDING'} />
       </div>
       <div className="dice-meta">{meta}</div>
     </div>
   );
 };
 
+
 export default DiceRoller;
+

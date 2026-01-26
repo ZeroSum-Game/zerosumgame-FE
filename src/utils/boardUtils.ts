@@ -24,7 +24,7 @@ export const BOARD_DATA: BoardSpace[] = [
   { id: 1, name: '베트남', type: 'COUNTRY', price: 535500, continent: 'ASIA', description: '동남아의 성장 시장—저가 생산과 관광이 강점.' },
   { id: 2, name: '오락실', type: 'MINIGAME' },
   { id: 3, name: '호주', type: 'COUNTRY', price: 665000, continent: 'ASIA', description: '자원 부국—광산·에너지 기반이 탄탄.' },
-  { id: 4, name: '현대차', type: 'STOCK' },
+  { id: 4, name: '테슬라', type: 'STOCK' },
   { id: 5, name: '중국', type: 'COUNTRY', price: 756000, continent: 'ASIA', description: '거대 내수와 제조업 중심—변동성도 큰 편.' },
   { id: 6, name: '일본', type: 'COUNTRY', price: 735000, continent: 'ASIA', description: '정밀 제조·브랜드 강국—안정적 이미지.' },
   { id: 7, name: '대한민국', type: 'COUNTRY', price: 700000, continent: 'ASIA', description: 'IT·콘텐츠·제조가 강점—성장과 경쟁이 치열.' },
@@ -36,7 +36,7 @@ export const BOARD_DATA: BoardSpace[] = [
   { id: 11, name: '이란', type: 'COUNTRY', price: 630000, continent: 'AFRICA', description: '에너지 자원 풍부—정세에 따라 리스크 변동.' },
   { id: 12, name: '황금열쇠', type: 'KEY' },
   { id: 13, name: '이집트', type: 'COUNTRY', price: 567000, continent: 'AFRICA', description: '수에즈 운하 물류 요충—관광 산업도 큼.' },
-  { id: 14, name: 'SK하이닉스', type: 'STOCK' },
+  { id: 14, name: '록히드마틴', type: 'STOCK' },
   { id: 15, name: '남아공', type: 'COUNTRY', price: 598500, continent: 'AFRICA', description: '광물 자원과 금융 중심—원자재 흐름 영향.' },
 
   // Top row (16-24): 9 tiles, right to left

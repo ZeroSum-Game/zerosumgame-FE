@@ -1,249 +1,317 @@
 /**
  * [Initial Survival] 2분반 초성 서바이벌 미니게임 컴포넌트
- * - 실시간 소켓 연동 (EC2 별도 서버)
  * - 초성 퀴즈 및 타임어택 서바이벌 로직
  * - 결과 처리 및 보상
  */
-import { useEffect, useRef, useState } from 'react';
-import io, { Socket } from 'socket.io-client';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import confetti from 'canvas-confetti';
-import axios from 'axios';
-import { getToken } from '../../services/auth';
 import useGameStore from '../../store/useGameStore';
+import { getChosung } from '../../utils/koreanUtils';
 import { formatKRWKo } from '../../utils/formatKRW';
+
+// [User Request] Provided List
+const NAMES = [
+    "박찬우", "김명성", "김지연", "임태빈", "배서연", "이건", "강예서",
+    "신원영", "박성재", "정재우", "민동휘", "임남중", "박성준", "이준엽",
+    "탁한진", "최영운", "정재원", "안준영", "박세윤", "임유진", "전하은"
+];
 
 // --- Types ---
 type PlayerStatus = {
-    socketId: string;
     userId: number;
     username: string;
     score: number;
-    isDropped: boolean; // false=생존, true=탈락
+    isDropped: boolean;
+    isReady: boolean; // Ready State
 };
 
-// 미니게임 전용 소켓
-const MINIGAME_SOCKET_URL = 'http://localhost:5173/';
+const SALARY_AMOUNT = 300000; // Example Salary Amount
 
 const InitialSurvival = () => {
-    const { closeModal, completeMinigame } = useGameStore();
+    const { closeModal } = useGameStore();
 
-    // --- Local State ---
-    const [socket, setSocket] = useState<Socket | null>(null);
-    const [phase, setPhase] = useState<'INTRO' | 'GAME' | 'RESULT'>('INTRO');
+    // --- Start with Mock Players ---
+    const [players, setPlayers] = useState<PlayerStatus[]>([
+        { userId: 1, username: '나', score: 0, isDropped: false, isReady: false },
+        { userId: 2, username: '알파고', score: 0, isDropped: false, isReady: true }, // Bots ready by default
+        { userId: 3, username: '베타고', score: 0, isDropped: false, isReady: true },
+        { userId: 4, username: '감마고', score: 0, isDropped: false, isReady: true },
+        { userId: 5, username: '델타고', score: 0, isDropped: false, isReady: true },
+    ]);
 
-    // Intro Countdown
-    const [introCount, setIntroCount] = useState(5);
-
-    // Game Data
-    const [players, setPlayers] = useState<PlayerStatus[]>([]);
-    const [currentInitial, setCurrentInitial] = useState(''); // e.g. "ㄱ ㅇ ㅅ"
+    const [phase, setPhase] = useState<'READY' | 'COUNTDOWN' | 'GAME' | 'RESULT'>('READY');
+    const [introCount, setIntroCount] = useState(3);
+    const [currentName, setCurrentName] = useState('');
     const [timeLeft, setTimeLeft] = useState(20);
     const [myInput, setMyInput] = useState('');
-    const [isMyTurn, setIsMyTurn] = useState(false); // (Optional: if turn-based? Req says "Real-time" but usually implies fast input)
-    // Requirement says: "누군가 정답을 맞히거나 탈락할 때마다 모든 플레이어의 보드가 즉시 업데이트" -> Real-time ffa?
-    // Actually usually initial game is FFA. Whoever types fast gets it?
-    // Req: "중복 정답: 동일한 초성... 인정해줘"
-    // Let's assume FFA.
 
-    const [myStatus, setMyStatus] = useState<PlayerStatus | null>(null);
-    const [winnerName, setWinnerName] = useState<string | null>(null);
+    // Winners info
+    const [winners, setWinners] = useState<{ names: string[], prizePerPerson: number } | null>(null);
 
     const inputRef = useRef<HTMLInputElement>(null);
+    const timerRef = useRef<number | null>(null);
+
+    // Get current Chosung
+    const currentChosung = useMemo(() => getChosung(currentName), [currentName]);
+
+    // Check if everyone is ready
+    const allReady = useMemo(() => players.every(p => p.isReady), [players]);
+
+    // --- Methods ---
+    const nextProblem = () => {
+        const randomName = NAMES[Math.floor(Math.random() * NAMES.length)];
+        setCurrentName(randomName);
+        setTimeLeft(20);
+        setMyInput('');
+        inputRef.current?.focus();
+    };
+
+    const toggleReady = () => {
+        setPlayers(prev => prev.map(p => p.userId === 1 ? { ...p, isReady: !p.isReady } : p));
+    };
 
     // --- Effects ---
 
-    // 1. Connect Socket on Mount
+    // 1. Ready Phase -> Countdown
     useEffect(() => {
-        const token = getToken();
-        const newSocket = io(MINIGAME_SOCKET_URL, {
-            transports: ['websocket'],
-            auth: { token },
-            // query: { ... } if needed
-        });
+        if (phase === 'READY' && allReady) {
+            setPhase('COUNTDOWN');
+        }
+    }, [phase, allReady]);
 
-        newSocket.on('connect', () => {
-            console.log('[MiniGame] Connected to dedicated server');
-            // Join room or identification happens via auth token usually
-            // If specific room logic needed: newSocket.emit('join_minigame', ...);
-        });
-
-        // Listeners
-        newSocket.on('update_players', (list: PlayerStatus[]) => {
-            setPlayers(list);
-            // Sync my status
-            // We need to know 'who am I'. Usually userId match.
-            // Assuming we have my userId from store or auth.
-        });
-
-        newSocket.on('new_problem', (initial: string) => {
-            setCurrentInitial(initial);
-            setMyInput(''); // Clear input
-            inputRef.current?.focus();
-        });
-
-        newSocket.on('time_update', (sec: number) => {
-            setTimeLeft(sec);
-        });
-
-        newSocket.on('game_end', (payload: { winnerId: number; winnerName: string; }) => {
-            setPhase('RESULT');
-            setWinnerName(payload.winnerName);
-
-            // If I am winner, I handle reward logic? Or server does?
-            // Req: "20초 종료 후 생존자 중 1등 유저의 userId를 서버로 보내... API를 호출"
-            // Better to trigger reward claim from client if this is the instruction, 
-            // but usually backend handles rewards. 
-            // "1등 유저의 userId를 서버로 보내 ... API를 호출하고" -> impling Client calls API.
-            if (payload.winnerName) {
-                handleGameEnd(payload.winnerId);
-            }
-        });
-
-        setSocket(newSocket);
-
-        // Intro Timer (Local for visual, strictly)
-        const introInterval = setInterval(() => {
+    // 2. Countdown -> Game
+    useEffect(() => {
+        if (phase !== 'COUNTDOWN') return;
+        const interval = setInterval(() => {
             setIntroCount((prev) => {
                 if (prev <= 1) {
-                    clearInterval(introInterval);
+                    clearInterval(interval);
                     setPhase('GAME');
+                    nextProblem();
                     return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [phase]);
+
+    // 3. Game Timer & Logic
+    useEffect(() => {
+        if (phase !== 'GAME') return;
+
+        timerRef.current = window.setInterval(() => {
+            setTimeLeft((prev) => {
+                if (prev <= 1) {
+                    nextProblem(); // Just loop for demo
+                    return 20;
+                }
+
+                // MOCK: Simulate bot activity
+                if (Math.random() < 0.1) {
+                    setPlayers(list => {
+                        const bots = list.filter(p => p.userId !== 1 && !p.isDropped);
+                        if (bots.length === 0) return list;
+                        const luckyBot = bots[Math.floor(Math.random() * bots.length)];
+                        return list.map(p => p.userId === luckyBot.userId ? { ...p, score: p.score + 10 } : p);
+                    });
                 }
                 return prev - 1;
             });
         }, 1000);
 
         return () => {
-            newSocket.disconnect();
-            clearInterval(introInterval);
+            if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, []);
+    }, [phase]);
 
-    // 2. Input Handling
     const handleInputSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!socket || !myInput.trim()) return;
+        if (!myInput.trim()) return;
 
-        socket.emit('submit_answer', { answer: myInput.trim() });
+        const input = myInput.trim();
+        const inputChosung = getChosung(input);
 
-        // Optimistic or wait? 
-        // Req: "오타나 오답 입력 시 즉시 탈락(isDropped)" -> Server decides correctness.
-        setMyInput('');
+        // Check Answer: Match Chosung AND in List
+        // User request: "맞힌 개수가 똑같으면..." -> Score is correct count * 10 or something.
+        // Currently +100 per correct answer.
+        if (inputChosung === currentChosung && NAMES.includes(input)) {
+            setPlayers(prev => prev.map(p => p.userId === 1 ? { ...p, score: p.score + 100 } : p));
+            nextProblem();
+        } else {
+            // Optional: Penalty
+            setMyInput('');
+        }
     };
 
-    // 3. Reward & Close
-    const handleGameEnd = async (winnerId: number) => {
-        // Confetti
-        confetti({
-            particleCount: 150,
-            spread: 70,
-            origin: { y: 0.6 },
+    // Manual Finish for Demo (or time based in real app)
+    const finishGame = () => {
+        // Calculate Winners
+        const maxScore = Math.max(...players.map(p => p.score));
+        const topPlayers = players.filter(p => p.score === maxScore);
+        const prizePerPerson = Math.floor(SALARY_AMOUNT / topPlayers.length);
+
+        setWinners({
+            names: topPlayers.map(p => p.username),
+            prizePerPerson
         });
-
-        // Check if I am winner to request salary? or just show result?
-        // User req: "API를 호출하고"
-        // Usually: await apiClaimMiniGameReward(winnerId);
-        // For now, standard wait and close.
-
-        setTimeout(() => {
-            closeModal();
-        }, 5000);
+        setPhase('RESULT');
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     };
 
     // --- Renders ---
 
-    // INTRO
-    if (phase === 'INTRO') {
+    // READY PHASE
+    if (phase === 'READY') {
         return (
-            <div className="flex flex-col items-center justify-center p-10 text-center animate-fade-in">
-                <img
-                    src="/quiz.png"
-                    alt="QUIZ"
-                    className="w-64 mb-6 animate-bounce-slow drop-shadow-lg"
-                />
-                <p className="text-white/90 text-lg mb-2 font-pixel">
-                    제한 시간 안에 우리 분반의 초성 이름을<br />가장 많이 맞힌 사람이 승리!
-                </p>
-                <div className="text-6xl font-black text-yellow-400 drop-shadow-md mt-4 font-pixel">
-                    {introCount}
+            <div className="flex flex-col items-center justify-center min-h-[500px] animate-fade-in relative">
+                <h2 className="text-4xl font-black text-white mb-8 font-pixel drop-shadow-lg">
+                    PLAYER READY
+                </h2>
+
+                <div className="grid grid-cols-5 gap-4 mb-12">
+                    {players.map(p => (
+                        <div key={p.userId} className={`flex flex-col items-center gap-2 p-4 rounded-xl border ${p.isReady ? 'bg-green-500/20 border-green-500' : 'bg-white/5 border-white/10'}`}>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${p.isReady ? 'bg-green-500 text-white' : 'bg-white/10 text-white/30'}`}>
+                                {p.username[0]}
+                            </div>
+                            <span className="text-sm text-white">{p.username}</span>
+                            <span className={`text-xs font-bold ${p.isReady ? 'text-green-400' : 'text-white/40'}`}>
+                                {p.isReady ? 'READY' : 'WAITING'}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="absolute bottom-10">
+                    <button
+                        onClick={toggleReady}
+                        className={`px-12 py-4 rounded-full text-2xl font-black transition-all transform hover:scale-105 active:scale-95 ${players[0].isReady ? 'bg-gray-600 text-gray-300' : 'bg-yellow-400 text-black shadow-[0_0_20px_rgba(250,204,21,0.5)]'}`}
+                    >
+                        {players[0].isReady ? 'WAITING...' : 'READY!'}
+                    </button>
+                    {allReady && <p className="mt-4 text-green-400 animate-pulse font-bold">All Players Ready! Starting...</p>}
                 </div>
             </div>
         );
     }
 
-    // GAME
+    // COUNTDOWN
+    if (phase === 'COUNTDOWN') {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[500px]">
+                <div className="text-9xl font-black text-yellow-400 animate-ping font-pixel">
+                    {introCount > 0 ? introCount : 'GO!'}
+                </div>
+            </div>
+        );
+    }
+
+    // GAME PHASE
     if (phase === 'GAME') {
         return (
-            <div className="flex flex-col w-full h-full relative">
-                {/* Top Right Scoreboard */}
-                <div className="absolute -top-12 -right-4 bg-black/60 p-2 rounded-lg border border-white/10 backdrop-blur-sm min-w-[200px]">
-                    <h3 className="text-xs text-white/60 mb-2 uppercase font-bold tracking-wider">Live Ranking</h3>
+            <div className="flex w-full h-full min-h-[500px] relative">
+                {/* Left (Game) & Right (Ranking) Container */}
+
+                {/* 1. Ranking Board (Top Right Absolute) */}
+                <div className="absolute top-0 right-0 w-64 bg-black/60 border border-white/10 rounded-xl p-4 backdrop-blur-md z-10 shadow-xl">
+                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
+                        <span className="text-xs font-black text-white/60 tracking-wider">LIVE RANKING</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    </div>
                     <div className="space-y-1">
-                        {players.sort((a, b) => b.score - a.score).map((p) => (
-                            <div key={p.userId} className={`flex justify-between items-center text-sm ${p.isDropped ? 'text-gray-500 line-through decoration-red-500' : 'text-white'}`}>
-                                <div className="flex items-center gap-1">
-                                    <span>{p.username}</span>
-                                    {p.isDropped && <span>💀</span>}
+                        {players.sort((a, b) => b.score - a.score).map((p, index) => (
+                            <div key={p.userId} className={`flex items-center justify-between text-sm p-1.5 rounded ${p.userId === 1 ? 'bg-white/10' : ''}`}>
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-4 text-center font-bold ${index < 3 ? 'text-yellow-400' : 'text-white/30'}`}>{index + 1}</span>
+                                    <span className="text-white truncate max-w-[80px]">{p.username}</span>
                                 </div>
-                                <span className="font-bold text-yellow-400">{p.score}</span>
+                                <span className="font-mono font-bold text-white/90">{p.score}</span>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Top Left Mini Logo */}
-                <div className="absolute -top-12 -left-4">
-                    <img src="/quiz.png" alt="logo" className="w-12 opacity-80" />
-                </div>
-
-                {/* Center Game Area */}
-                <div className="flex flex-col items-center justify-center mt-8 gap-6">
-                    <div className="bg-white/10 px-8 py-4 rounded-2xl border border-white/20 shadow-xl backdrop-blur">
-                        <span className="text-sm text-white/50 block text-center mb-1">Current Keyword</span>
-                        <h1 className="text-5xl font-black text-white tracking-[0.5em] font-pixel drop-shadow-[0_4px_0_rgba(0,0,0,0.5)]">
-                            {currentInitial || "???"}
-                        </h1>
-                    </div>
-
-                    <div className="w-full max-w-sm relative">
-                        <form onSubmit={handleInputSubmit}>
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                value={myInput}
-                                onChange={(e) => setMyInput(e.target.value)}
-                                className="w-full bg-black/40 border-2 border-yellow-400/50 rounded-xl px-4 py-3 text-center text-xl text-white placeholder-white/20 focus:outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/20 transition-all font-bold"
-                                placeholder="정답 입력..."
-                                autoFocus
-                            />
-                        </form>
-                        {/* Timer Bar */}
-                        <div className="mt-4 bg-gray-700 h-2 rounded-full overflow-hidden w-full">
-                            <div
-                                className="h-full bg-gradient-to-r from-green-400 to-yellow-400 transition-all duration-1000 linear"
-                                style={{ width: `${(timeLeft / 20) * 100}%` }}
-                            />
+                {/* 2. Main Game Area (Centered) */}
+                <div className="flex-1 flex flex-col items-center justify-center relative p-8">
+                    <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
+                        {/* Keyword Display */}
+                        <div className="w-full bg-white/5 px-12 py-10 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm text-center transform transition-all hover:bg-white/10">
+                            <span className="text-lg text-white/40 block mb-6 uppercase tracking-[0.3em] font-light">Target Keyword</span>
+                            <div className="flex justify-center gap-4">
+                                {currentChosung.split('').map((char, i) => (
+                                    <span key={i} className="text-7xl font-black text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] w-24 h-24 flex items-center justify-center bg-black/30 rounded-2xl border border-white/5 shadow-inner">
+                                        {char}
+                                    </span>
+                                ))}
+                            </div>
                         </div>
-                        <p className="text-center text-white/50 text-xs mt-1">{timeLeft}s remaining</p>
+
+                        {/* Input Area */}
+                        <div className="w-full relative group max-w-lg">
+                            <form onSubmit={handleInputSubmit}>
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    value={myInput}
+                                    onChange={(e) => setMyInput(e.target.value)}
+                                    className="w-full bg-black/60 border-2 border-yellow-400/30 rounded-2xl px-8 py-5 text-center text-3xl text-white placeholder-white/10 focus:outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/10 transition-all font-bold tracking-wider"
+                                    placeholder="정답 입력"
+                                    autoFocus
+                                />
+                            </form>
+
+                            {/* Timer Bar */}
+                            <div className="absolute -bottom-8 left-0 right-0 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full transition-all duration-1000 linear ${timeLeft < 5 ? 'bg-red-500' : 'bg-yellow-400'}`}
+                                    style={{ width: `${(timeLeft / 20) * 100}%` }}
+                                />
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Debug/Dev Button to End Game */}
+                    <button onClick={finishGame} className="absolute bottom-4 left-4 text-xs text-white/20 hover:text-white">
+                        [DEV] Finish Game
+                    </button>
                 </div>
             </div>
         );
     }
 
-    // RESULT
-    return (
-        <div className="flex flex-col items-center justify-center p-8 text-center animate-scale-in">
-            <h2 className="text-3xl font-black text-white mb-2 font-pixel">GAME OVER</h2>
-            <p className="text-white/60 mb-6">최종 우승자</p>
+    // RESULT PHASE
+    if (phase === 'RESULT' && winners) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[500px] text-center animate-scale-in">
+                <h2 className="text-5xl font-black text-white mb-2 font-pixel tracking-widest">GAME OVER</h2>
+                <div className="w-24 h-1 bg-yellow-400 mb-8 mx-auto" />
 
-            <div className="bg-gradient-to-b from-yellow-300 to-yellow-600 text-black px-8 py-4 rounded-xl shadow-[0_0_30px_rgba(234,179,8,0.4)] border-2 border-yellow-200 mb-8 transform hover:scale-105 transition-transform">
-                <span className="text-2xl font-black">{winnerName || "None"}</span>
+                <div className="bg-black/40 border border-yellow-400/30 p-8 rounded-2xl backdrop-blur-md max-w-md w-full">
+                    <p className="text-white/60 mb-4 uppercase tracking-widest text-sm">Winner(s)</p>
+                    <div className="text-3xl font-black text-yellow-400 mb-6 flex flex-wrap justify-center gap-2">
+                        {winners.names.map(name => (
+                            <span key={name} className="bg-yellow-400/10 px-3 py-1 rounded-lg border border-yellow-400/20">{name}</span>
+                        ))}
+                    </div>
+
+                    <div className="border-t border-white/10 pt-6">
+                        <p className="text-white/60 text-sm mb-1">Prize per person</p>
+                        <p className="text-4xl font-black text-white">{formatKRWKo(winners.prizePerPerson)}</p>
+                    </div>
+                </div>
+
+                <button
+                    onClick={closeModal}
+                    className="mt-8 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold transition-all"
+                >
+                    Close
+                </button>
             </div>
+        );
+    }
 
-            <p className="text-sm text-white/40">잠시 후 게임으로 돌아갑니다...</p>
-        </div>
-    );
+    return null;
 };
 
 export default InitialSurvival;

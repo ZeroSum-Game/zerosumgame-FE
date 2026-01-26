@@ -15,7 +15,7 @@ const LoginPage = () => {
     const MAX_RETRIES = 5;
     const RETRY_DELAY_MS = 500;
 
-    // OAuth 肄쒕갚?먯꽌 ?좏겙 異붿텧
+  
     const urlToken = extractTokenFromUrl();
     if (urlToken) {
       setToken(urlToken);
@@ -86,12 +86,12 @@ const LoginPage = () => {
                   ZERO SUM
                 </span>
               </h1>
-              <p className="text-lg text-white/70">Economic board game</p>
+              <p className="text-lg text-white/70">모두가 부자되는 게임</p>
             </div>
 
             {/* Login Card */}
             <div className="ui-card-lg">
-              <h2 className="mb-6 text-center text-2xl font-bold text-white">Enter Game</h2>
+              <h2 className="mb-6 text-center text-2xl font-bold text-white">게임 입장</h2>
 
               <div className="space-y-6">
                 <button
@@ -119,12 +119,12 @@ const LoginPage = () => {
                       d="M43.611 20.083H42V20H24v8h11.303c-.792 2.243-2.231 4.149-4.175 5.424l.003-.002 6.126 5.182C36.823 39.83 44 35 44 24c0-1.341-.138-2.65-.389-3.917z"
                     />
                   </svg>
-                  Continue with Google
+                  Google 계정으로 계속하기
                 </button>
-                <div className="text-center text-sm text-white/60">Log in to join the game.</div>
+                <div className="text-center text-sm text-white/60">로그인하여 게임에 참가하세요.</div>
               </div>
 
-              <div className="mt-6 text-center text-sm text-gray-400">Up to 4 players can join.</div>
+              <div className="mt-6 text-center text-sm text-gray-400">최대 4명까지 참가할 수 있습니다.</div>
             </div>
 
             {/* Characters preview (mobile) */}

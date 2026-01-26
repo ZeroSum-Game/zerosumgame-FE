@@ -383,7 +383,7 @@ const GameOverlay = () => {
             aria-label="모달 닫기"
           />
 
-          <div role="dialog" aria-modal="true" className="ui-modal" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" className={`ui-modal ${activeModal.type === 'INITIAL_GAME' ? 'max-w-5xl w-[95vw]' : ''}`} onClick={(e) => e.stopPropagation()}>
             {/* LAND BUY */}
             {activeModal.type === 'LAND_BUY' && (() => {
               const tileId = activeModal.tileId;

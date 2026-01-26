@@ -103,6 +103,32 @@ export const useGameSocket = (roomId: number = 1) => {
   const moveTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
   const playersSnapshot = useGameStore((s) => s.players);
+  const appendEventLog = useGameStore((s) => s.appendEventLog);
+
+  const translateSocketError = (message?: string | null) => {
+    if (!message) return null;
+    const normalized = String(message).trim();
+    switch (normalized) {
+      case 'Login session expired':
+        return '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.';
+      case 'Room not joined':
+        return '방에 참가되어 있지 않습니다. 로비로 이동합니다.';
+      case 'Player not found':
+        return '플레이어를 찾을 수 없습니다. 로비로 이동합니다.';
+      case 'Another player is rolling':
+        return '다른 플레이어가 주사위를 굴리는 중입니다.';
+      case 'Already rolling':
+        return '이미 주사위를 굴리는 중입니다.';
+      case 'Failed to broadcast dice result':
+        return '주사위 결과 전송에 실패했습니다. 다시 시도해 주세요.';
+      case 'Failed to roll dice':
+        return '주사위를 굴리는 데 실패했습니다.';
+      case 'Dice is still rolling':
+        return '주사위가 아직 굴러가는 중입니다.';
+      default:
+        return normalized;
+    }
+  };
 
   useEffect(() => {
     storeRef.current = useGameStore.getState();
@@ -499,8 +525,6 @@ export const useGameSocket = (roomId: number = 1) => {
           void syncMap();
           void hydratePlayersAssets(players.map((p) => p.userId));
         });
-
-        // 二쇱궗??援대━湲??쒖옉 (紐⑤뱺 ?뚮젅?댁뼱?먭쾶 - 愿?꾩옄???좊땲硫붿씠??蹂????덇쾶)
         socket.on('dice_rolling_started', (data: any) => {
           console.log('[GameSocket] dice_rolling_started:', data);
           const rollingUserId = toInt(data?.userId);
@@ -805,7 +829,7 @@ export const useGameSocket = (roomId: number = 1) => {
           });
         });
 
-        // ?꾩웳 ?곹깭
+  
         socket.on('war_state', (data: any) => {
           console.log('[GameSocket] war_state:', data);
           useGameStore.setState({ war: parseWar(data) });
@@ -907,13 +931,25 @@ export const useGameSocket = (roomId: number = 1) => {
             rollingUserId: null,
             pendingDice: null,
           });
-          setState(s => ({ ...s, error: data.message || '주사위 굴리기 실패' }));
+          const message = translateSocketError(data?.message) || '주사위 굴리기 실패';
+          setState((s) => ({ ...s, error: message }));
+          if (data?.message === 'Login session expired') {
+            storeRef.current.setCurrentPage('login');
+          } else if (data?.message === 'Room not joined' || data?.message === 'Player not found') {
+            storeRef.current.setCurrentPage('lobby');
+          }
         });
 
         // 턴 에러
         socket.on('turn_error', (data: any) => {
           console.error('[GameSocket] turn_error:', data);
-          setState(s => ({ ...s, error: data.message || '턴 종료 실패' }));
+          const message = translateSocketError(data?.message) || '턴 종료 실패';
+          setState((s) => ({ ...s, error: message }));
+          if (data?.message === 'Login session expired') {
+            storeRef.current.setCurrentPage('login');
+          } else if (data?.message === 'Room not joined' || data?.message === 'Player not found') {
+            storeRef.current.setCurrentPage('lobby');
+          }
         });
 
         // 방 입장 (이미 로비에서 처리됨. 게임 중 재연결용)
@@ -968,7 +1004,7 @@ export const useGameSocket = (roomId: number = 1) => {
     socket.emit('roll_dice');
   }, []);
 
-  // ??醫낅즺
+ 
   const endTurn = useCallback(() => {
     if (!socketRef.current) return;
     setState((s) => ({ ...s, error: null }));
