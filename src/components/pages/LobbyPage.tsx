@@ -61,9 +61,11 @@ const LobbyPage = () => {
   const socketRef = useRef<Awaited<ReturnType<typeof connectSocket>> | null>(null);
   const preserveSocketRef = useRef(false);
   const myUserIdRef = useRef<number | null>(null);
+  const lobbyRef = useRef<LobbyState | null>(null);
 
   const myUserId = me?.userId ?? null;
   myUserIdRef.current = myUserId;
+  lobbyRef.current = lobby;
 
   const myLobbyPlayer = useMemo(() => {
     if (!myUserId || !lobby) return null;
@@ -105,6 +107,7 @@ const LobbyPage = () => {
       },
       joinSuccess: (payload: any) => {
         if (!alive) return;
+        setConnecting(false);
         setRoomStatus(String(payload?.roomStatus ?? 'WAITING'));
         setLobby(mapLobby(payload?.lobby));
       },
@@ -210,6 +213,27 @@ const LobbyPage = () => {
       gameStart: (payload: any) => {
         if (!alive) return;
         const playersPayload = Array.isArray(payload?.players) ? payload.players : [];
+        const lobbySnapshot = lobbyRef.current;
+        const currentMyUserId = myUserIdRef.current;
+        const myLobbyPlayerSnapshot =
+          currentMyUserId && lobbySnapshot
+            ? lobbySnapshot.players.find((p) => p.userId === currentMyUserId) ?? null
+            : null;
+        const myPayloadPlayer =
+          currentMyUserId && playersPayload.length > 0
+            ? playersPayload.find((p: any) => Number(p?.userId) === currentMyUserId) ?? null
+            : null;
+        const myCharacter = myLobbyPlayerSnapshot?.character ?? fromBackendCharacter(myPayloadPlayer?.character);
+        const canEnterGame =
+          playersPayload.length >= 2 &&
+          !!myCharacter &&
+          Boolean(myLobbyPlayerSnapshot?.ready) &&
+          Boolean(lobbySnapshot?.allReady);
+        if (!canEnterGame) {
+          setError('캐릭터 선택 후 모든 플레이어가 준비 완료되면 게임이 시작돼요.');
+          setRoomStatus('WAITING');
+          return;
+        }
         if (playersPayload.length > 0) {
           const players = playersPayload.map((p: any, idx: number) => {
             const character = fromBackendCharacter(p?.character);
@@ -283,6 +307,9 @@ const LobbyPage = () => {
         const socket = await connectSocket();
         if (!alive) return;
         socketRef.current = socket;
+        if (socket.connected) {
+          setConnecting(false);
+        }
 
         socket.on('connect', handlers.connect);
         socket.on('connect_error', handlers.connectError);
