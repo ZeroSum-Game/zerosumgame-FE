@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import useGameStore, { CHARACTER_INFO, CharacterType, GAME_RULES, SAMSUNG_START_SHARES, STOCK_INFO } from '../../store/useGameStore';
+import useGameStore, { CHARACTER_INFO, CharacterType, GAME_RULES, SAMSUNG_START_SHARES, STOCK_INFO, type Player } from '../../store/useGameStore';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
 import SpaceBackdrop from '../ui/SpaceBackdrop';
 import { apiGetMe, apiLogout, apiSetCharacter } from '../../services/api';
@@ -40,6 +40,27 @@ type OrderPickingState = {
   orderResults: OrderPickResult[] | null;
 };
 
+const sortPlayersByCardOrder = <T extends { userId: number }>(
+  players: T[],
+  orderResults: Array<{ userId: number; cardNumber: number }> | null | undefined
+) => {
+  if (!orderResults || orderResults.length === 0) return players;
+  const orderMap = new Map(orderResults.map((result) => [result.userId, result.cardNumber]));
+  return players
+    .map((player, index) => ({
+      player,
+      index,
+      cardNumber: orderMap.get(player.userId),
+    }))
+    .sort((a, b) => {
+      if (a.cardNumber != null && b.cardNumber != null) return a.cardNumber - b.cardNumber;
+      if (a.cardNumber != null) return -1;
+      if (b.cardNumber != null) return 1;
+      return a.index - b.index;
+    })
+    .map(({ player }) => player);
+};
+
 const LobbyPage = () => {
   const setCurrentPage = useGameStore((s) => s.setCurrentPage);
   const maxPlayers = useGameStore((s) => s.maxPlayers);
@@ -58,6 +79,7 @@ const LobbyPage = () => {
     orderResults: null,
   });
 
+  const orderPickingRef = useRef(orderPicking);
   const socketRef = useRef<Awaited<ReturnType<typeof connectSocket>> | null>(null);
   const preserveSocketRef = useRef(false);
   const myUserIdRef = useRef<number | null>(null);
@@ -66,6 +88,7 @@ const LobbyPage = () => {
   const myUserId = me?.userId ?? null;
   myUserIdRef.current = myUserId;
   lobbyRef.current = lobby;
+  orderPickingRef.current = orderPicking;
 
   const myLobbyPlayer = useMemo(() => {
     if (!myUserId || !lobby) return null;
@@ -237,7 +260,7 @@ const LobbyPage = () => {
           return;
         }
         if (playersPayload.length > 0) {
-          const players = playersPayload.map((p: any, idx: number) => {
+          const players: Player[] = playersPayload.map((p: any, idx: number) => {
             const character = fromBackendCharacter(p?.character);
             const baseCash = GAME_RULES.START_CASH;
             const bonusCash = character === 'ELON' ? 1000000 : 0;
@@ -262,15 +285,23 @@ const LobbyPage = () => {
             };
           });
 
+          const orderResultsFromPayload = Array.isArray(payload?.orderResults) ? payload.orderResults : null;
+          const orderResults =
+            orderResultsFromPayload && orderResultsFromPayload.length > 0
+              ? orderResultsFromPayload
+              : orderPickingRef.current.orderResults;
+          const orderedPlayers = sortPlayersByCardOrder(players, orderResults);
           const currentTurnUserId = Number(payload?.currentTurn ?? 0);
           const turnPlayerId = Number(payload?.turnPlayerId ?? 0);
           const currentPlayerIndex =
             turnPlayerId > 0
-              ? players.findIndex((p: any) => p.id === turnPlayerId)
-              : players.findIndex((p: any) => p.userId === currentTurnUserId);
+              ? orderedPlayers.findIndex((p: any) => p.id === turnPlayerId)
+              : currentTurnUserId > 0
+                ? orderedPlayers.findIndex((p: any) => p.userId === currentTurnUserId)
+                : 0;
 
           useGameStore.setState({
-            players,
+            players: orderedPlayers,
             currentPlayerIndex: currentPlayerIndex >= 0 ? currentPlayerIndex : 0,
             phase: 'IDLE',
             round: 1,
@@ -403,7 +434,9 @@ const LobbyPage = () => {
                   게임 순서
                 </div>
                 <div className="flex flex-wrap justify-center gap-4">
-                  {orderPicking.orderResults.map((result) => {
+                  {[...orderPicking.orderResults]
+                    .sort((a, b) => a.cardNumber - b.cardNumber)
+                    .map((result, index) => {
                     const player = lobby?.players.find((p) => p.userId === result.userId);
                     const character = player?.character;
                     const avatar = character
@@ -415,7 +448,7 @@ const LobbyPage = () => {
                         className="flex h-44 w-40 flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-center"
                       >
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20 text-xl font-black text-amber-300">
-                          {result.turnOrder}
+                          {result.cardNumber || index + 1}
                         </div>
                         <img src={avatar} alt={result.nickname} className="h-12 w-12 rounded-full object-cover" />
                         <div className="w-full truncate text-sm font-bold text-white">{result.nickname}</div>
@@ -457,7 +490,7 @@ const LobbyPage = () => {
                       ) : isPicked && Number.isFinite(revealedNumber) ? (
                         revealedNumber
                       ) : (
-                        cardId
+                        <span className="text-2xl text-white/40">?</span>
                       )}
                       {isMyPick && (
                         <div className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">

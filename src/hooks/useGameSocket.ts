@@ -67,6 +67,27 @@ export type OrderPickingState = {
   orderResults: OrderPickResult[] | null;
 };
 
+const sortPlayersByCardOrder = <T extends { userId: number }>(
+  players: T[],
+  orderResults: Array<{ userId: number; cardNumber: number }> | null | undefined
+) => {
+  if (!orderResults || orderResults.length === 0) return players;
+  const orderMap = new Map(orderResults.map((result) => [result.userId, result.cardNumber]));
+  return players
+    .map((player, index) => ({
+      player,
+      index,
+      cardNumber: orderMap.get(player.userId),
+    }))
+    .sort((a, b) => {
+      if (a.cardNumber != null && b.cardNumber != null) return a.cardNumber - b.cardNumber;
+      if (a.cardNumber != null) return -1;
+      if (b.cardNumber != null) return 1;
+      return a.index - b.index;
+    })
+    .map(({ player }) => player);
+};
+
 export type GameSocketState = {
   connected: boolean;
   error: string | null;
@@ -99,6 +120,7 @@ export const useGameSocket = (roomId: number = 1) => {
   const myUserIdRef = useRef<number | null>(null);
   const currentTurnUserIdRef = useRef<number | null>(null);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const orderResultsRef = useRef<OrderPickResult[] | null>(null);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
   const playersSnapshot = useGameStore((s) => s.players);
 
@@ -428,6 +450,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
         socket.on('order_picking_start', (data: any) => {
           console.log('[GameSocket] order_picking_start:', data);
+          orderResultsRef.current = null;
           setState((s) => ({
             ...s,
             orderPicking: {
@@ -464,6 +487,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
         socket.on('order_picking_complete', (data: any) => {
           console.log('[GameSocket] order_picking_complete:', data);
+          orderResultsRef.current = data.orderResults || [];
           setState((s) => ({
             ...s,
             orderPicking: {
@@ -480,6 +504,11 @@ export const useGameSocket = (roomId: number = 1) => {
 
         socket.on('game_start', (data: any) => {
           console.log('[GameSocket] game_start:', data);
+          const orderResultsFromPayload = Array.isArray(data?.orderResults) ? data.orderResults : null;
+          const orderResults =
+            orderResultsFromPayload && orderResultsFromPayload.length > 0
+              ? orderResultsFromPayload
+              : orderResultsRef.current;
           setState((s) => ({
             ...s,
             orderPicking: {
@@ -493,15 +522,16 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
 
           const players: Player[] = (data.players || []).map((p: any, idx: number) => mapBackendPlayer(p, idx));
-          const fallbackTurnUserId = players.length > 0 ? players[0].userId : null;
+          const orderedPlayers = sortPlayersByCardOrder(players, orderResults);
+          const fallbackTurnUserId = orderedPlayers.length > 0 ? orderedPlayers[0].userId : null;
           const currentTurnUserId =
             resolveTurnUserId(data?.currentTurn, data?.turnPlayerId, data?.players) ?? fallbackTurnUserId;
           const currentPlayerIndex = currentTurnUserId
-            ? players.findIndex((p) => p.userId === currentTurnUserId)
+            ? orderedPlayers.findIndex((p) => p.userId === currentTurnUserId)
             : -1;
 
           useGameStore.setState({
-            players,
+            players: orderedPlayers,
             currentPlayerIndex: currentPlayerIndex >= 0 ? currentPlayerIndex : 0,
             phase: 'IDLE',
             round: 1,
@@ -519,7 +549,7 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
           void syncMap();
           void syncMarket();
-          void hydratePlayersAssets(players.map((p) => p.userId));
+          void hydratePlayersAssets(orderedPlayers.map((p) => p.userId));
         });
 
         socket.on('dice_rolling_started', (data: any) => {
