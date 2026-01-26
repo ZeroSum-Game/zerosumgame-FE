@@ -434,7 +434,12 @@ const GameOverlay = () => {
             aria-label="모달 닫기"
           />
 
-          <div role="dialog" aria-modal="true" className="ui-modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            className={`ui-modal${activeModal.type === 'SPACE_TRAVEL' ? ' ui-modal-wide' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* LAND BUY */}
             {activeModal.type === 'LAND_BUY' && (() => {
               const tileId = activeModal.tileId;
@@ -624,17 +629,17 @@ const GameOverlay = () => {
                     선택한 위치로 다음 턴 시작 시 이동합니다.
                   </div>
 
-                  <div className="mt-4 max-h-56 space-y-2 overflow-auto">
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {destinations.map((space) => (
                       <button
                         key={space.id}
                         type="button"
                         disabled={apiLoading}
                         onClick={() => void spaceMove(space.id)}
-                        className="dash-action dash-action-secondary w-full justify-between px-4 py-3 text-left font-black disabled:opacity-50"
+                        className="dash-action dash-action-secondary w-full justify-between px-3 py-2 text-left text-sm font-black disabled:opacity-50"
                       >
                         <span className="truncate">{space.name}</span>
-                        <span className="text-xs text-white/60">{space.type}</span>
+                        <span className="text-[10px] text-white/60">{space.type}</span>
                       </button>
                     ))}
                   </div>

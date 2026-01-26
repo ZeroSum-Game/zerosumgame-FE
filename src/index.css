@@ -110,6 +110,10 @@
     z-index: 2147483647;
   }
 
+  .ui-modal-wide {
+    width: min(94vw, 46rem);
+  }
+
   .war-fight-avatar {
     @apply flex h-24 w-24 items-center justify-center rounded-full border border-white/20 bg-black/30;
     box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
