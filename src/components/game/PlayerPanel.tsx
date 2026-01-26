@@ -4,6 +4,7 @@ import { BOARD_DATA } from '../../utils/boardUtils';
 import { CHARACTER_THEME } from '../../utils/characterTheme';
 import { formatKRW, formatKRWKoShort } from '../../utils/formatKRW';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
+import { useGameSocketContext } from '../pages/GamePage';
 
 const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'];
 
@@ -79,9 +80,6 @@ const PlayerSummary = () => {
   const assetPrices = useGameStore((s) => s.assetPrices);
   const landPrices = useGameStore((s) => s.landPrices);
   const lands = useGameStore((s) => s.lands);
-  const dice = useGameStore((s) => s.dice);
-  const hasRolledThisTurn = useGameStore((s) => s.hasRolledThisTurn);
-  const rollStage = useGameStore((s) => s.rollStage);
 
   const currentPlayer = players[currentPlayerIndex] ?? null;
   const currentPlayerTheme = currentPlayer?.character ? CHARACTER_THEME[currentPlayer.character] : null;
@@ -99,39 +97,33 @@ const PlayerSummary = () => {
 
   return (
     <div className="dash-section">
-        <div className="dash-section-header">
-          <div className="min-w-0">
-            <div className="dash-kicker">이번 턴</div>
-            <div className="dash-title-row">
-              <div
+      <div className="dash-section-header">
+        <div className="min-w-0">
+          <div className="dash-kicker">이번 턴</div>
+          <div className="dash-title-row">
+            <div
+              className={[
+                'h-9 w-9 rounded-full border border-white/10 p-[2px] shadow-lg shadow-black/40',
+                currentPlayerTheme?.bgClass ?? 'bg-white/[0.06]',
+              ].join(' ')}
+            >
+              <img
+                src={currentPlayer?.avatar || '/assets/characters/default.png'}
+                alt={currentPlayer?.name ?? '플레이어'}
                 className={[
-                  'h-9 w-9 rounded-full border border-white/10 p-[2px] shadow-lg shadow-black/40',
-                  currentPlayerTheme?.bgClass ?? 'bg-white/[0.06]',
+                  'h-full w-full rounded-full object-cover ring-2',
+                  currentPlayerTheme?.ringClass ?? 'ring-white/20',
                 ].join(' ')}
-              >
-                <img
-                  src={currentPlayer?.avatar || '/assets/characters/default.png'}
-                  alt={currentPlayer?.name ?? '플레이어'}
-                  className={[
-                    'h-full w-full rounded-full object-cover ring-2',
-                    currentPlayerTheme?.ringClass ?? 'ring-white/20',
-                  ].join(' ')}
-                />
-              </div>
-              <div className="min-w-0">
-                <div className="dash-title truncate">{currentPlayer?.name ?? '—'}</div>
+              />
+            </div>
+            <div className="min-w-0">
+              <div className="dash-title truncate">{currentPlayer?.name ?? '—'}</div>
               <div className="dash-subtitle">
                 {round} / {maxRounds}턴
               </div>
             </div>
           </div>
         </div>
-
-        {hasRolledThisTurn && (
-          <div className="dash-chip font-mono">
-            {rollStage !== 'IDLE' ? '— + — = —' : `${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`}
-          </div>
-        )}
       </div>
 
       <div className="dash-metrics">
@@ -156,13 +148,14 @@ const PlayerSummary = () => {
 };
 
 const PlayerAssets = () => {
+  const { myUserId } = useGameSocketContext();
   const players = useGameStore((s) => s.players);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
   const assetPrices = useGameStore((s) => s.assetPrices);
   const landPrices = useGameStore((s) => s.landPrices);
   const lands = useGameStore((s) => s.lands);
 
-  const currentPlayer = players[currentPlayerIndex] ?? null;
+  const currentPlayer = players.find((p) => p.userId === myUserId) ?? players[currentPlayerIndex] ?? null;
   const [open, setOpen] = useState(false);
 
   const holdings = currentPlayer?.stockHoldings ?? {};
