@@ -129,13 +129,28 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
                 />
 
                 {occupantAvatars.length > 0 && (
-                  <div className="board-piece-stack" aria-hidden="true">
+                  <div
+                    className={`board-piece-stack${
+                      occupantAvatars.length >= 4
+                        ? ' board-piece-stack-compact board-piece-stack-compact-4'
+                        : occupantAvatars.length >= 3
+                          ? ' board-piece-stack-compact board-piece-stack-compact-3'
+                          : ''
+                    }`}
+                    aria-hidden="true"
+                  >
                     {occupantAvatars.slice(0, 4).map((o) => (
                       <img
                         key={o.id}
                         src={o.src}
                         alt={o.name}
-                        className={`board-piece-img ring-2 ${o.ringClass}`}
+                        className={`board-piece-img ring-2 ${o.ringClass}${
+                          occupantAvatars.length >= 4
+                            ? ' board-piece-img-compact board-piece-img-compact-4'
+                            : occupantAvatars.length >= 3
+                              ? ' board-piece-img-compact board-piece-img-compact-3'
+                              : ''
+                        }`}
                         draggable={false}
                       />
                     ))}
