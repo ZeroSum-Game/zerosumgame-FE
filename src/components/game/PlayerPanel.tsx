@@ -5,7 +5,7 @@ import { CHARACTER_THEME } from '../../utils/characterTheme';
 import { formatKRW, formatKRWKoShort } from '../../utils/formatKRW';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
 
-const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'];
+const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'];
 
 const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
   const mult = landType === 'LANDMARK' ? 1.8 : 1.0;
@@ -50,8 +50,8 @@ const computePlayerTotals = (
   const cash = getPlayerCash();
 
   const stockValue = (holdings.SAMSUNG ?? 0) * assetPrices.SAMSUNG +
-    (holdings.SK_HYNIX ?? 0) * assetPrices.SK_HYNIX +
-    (holdings.HYUNDAI ?? 0) * assetPrices.HYUNDAI;
+    (holdings.LOCKHEED ?? 0) * assetPrices.LOCKHEED +
+    (holdings.TESLA ?? 0) * assetPrices.TESLA;
   const cryptoValue = (holdings.BITCOIN ?? 0) * assetPrices.BITCOIN;
   const commodityValue = (holdings.GOLD ?? 0) * assetPrices.GOLD;
 

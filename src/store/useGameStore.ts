@@ -7,7 +7,7 @@ import type { GoldenKeyCardPayload } from '../utils/goldenKey';
 export const GAME_RULES = {
   START_CASH: 2000000,
   START_SALARY: 500000,
-  MAX_ROUNDS: 10,
+  MAX_ROUNDS: 20,
   TAX_RATE: 0.15,
   TAKEOVER_MULTIPLIER: 1.5,
   LANDMARK_COST_MULTIPLIER: 1.0,
@@ -22,12 +22,12 @@ export const GAME_RULES = {
 
 export type CharacterType = 'ELON' | 'SAMSUNG' | 'TRUMP' | 'PUTIN';
 
-export type StockSymbol = 'SAMSUNG' | 'SK_HYNIX' | 'HYUNDAI' | 'BITCOIN' | 'GOLD';
+export type StockSymbol = 'SAMSUNG' | 'LOCKHEED' | 'TESLA' | 'BITCOIN' | 'GOLD';
 
 export const STOCK_INFO: Record<StockSymbol, { name: string; nameKr: string; basePrice: number }> = {
   SAMSUNG: { name: 'SAMSUNG', nameKr: '삼성전자', basePrice: 72500 },
-  SK_HYNIX: { name: 'SK HYNIX', nameKr: 'SK하이닉스', basePrice: 178000 },
-  HYUNDAI: { name: 'HYUNDAI', nameKr: '현대차', basePrice: 215000 },
+  LOCKHEED: { name: 'LOCKHEED', nameKr: '록히드마틴', basePrice: 178000 },
+  TESLA: { name: 'TESLA', nameKr: '테슬라', basePrice: 215000 },
   BITCOIN: { name: 'BITCOIN', nameKr: '비트코인', basePrice: 95450000 },
   GOLD: { name: 'GOLD', nameKr: '금', basePrice: 285000 },
 };
@@ -38,9 +38,9 @@ const SAMSUNG_START_DIVIDEND_MIN = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_R
 const SAMSUNG_START_DIVIDEND_MAX = Math.round(SAMSUNG_START_STOCK_VALUE * GAME_RULES.DIVIDEND_MAX);
 
 export const TILE_TO_STOCK: Record<number, StockSymbol> = {
-  4: 'HYUNDAI',
+  4: 'TESLA',
   9: 'GOLD',
-  14: 'SK_HYNIX',
+  14: 'LOCKHEED',
   18: 'SAMSUNG',
   25: 'BITCOIN',
 };
@@ -239,6 +239,8 @@ type GameState = {
   completeMinigame: (success: boolean) => void;
   confirmTax: () => void;
   chooseWarTarget: (defenderId: number) => void;
+  handleGoldenKey: () => Promise<void>;
+  applyGoldenKeyCard: (card: GoldenKeyCardPayload) => void;
 
   // Backend sync helpers
   setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
@@ -252,8 +254,8 @@ type GameState = {
   }) => void;
 };
 
-const STOCK_SYMBOLS = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI', 'BITCOIN', 'GOLD'] as const satisfies readonly StockSymbol[];
-const EQUITY_SYMBOLS = ['SAMSUNG', 'SK_HYNIX', 'HYUNDAI'] as const;
+const STOCK_SYMBOLS = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'] as const satisfies readonly StockSymbol[];
+const EQUITY_SYMBOLS = ['SAMSUNG', 'LOCKHEED', 'TESLA'] as const;
 type EquitySymbol = (typeof EQUITY_SYMBOLS)[number];
 
 const clamp = (min: number, max: number, value: number) => Math.max(min, Math.min(max, value));
@@ -270,8 +272,8 @@ const getBaseLandPrices = () => {
 
 const getInitialAssetPrices = (): Record<StockSymbol, number> => ({
   SAMSUNG: STOCK_INFO.SAMSUNG.basePrice,
-  SK_HYNIX: STOCK_INFO.SK_HYNIX.basePrice,
-  HYUNDAI: STOCK_INFO.HYUNDAI.basePrice,
+  LOCKHEED: STOCK_INFO.LOCKHEED.basePrice,
+  TESLA: STOCK_INFO.TESLA.basePrice,
   BITCOIN: STOCK_INFO.BITCOIN.basePrice,
   GOLD: STOCK_INFO.GOLD.basePrice,
 });
@@ -370,7 +372,7 @@ const useGameStore = create<GameState>((set, get) => {
 
     let cash = player.cash;
     const holdings = { ...player.stockHoldings };
-    const sellOrder: StockSymbol[] = ['BITCOIN', 'GOLD', 'SAMSUNG', 'SK_HYNIX', 'HYUNDAI'];
+    const sellOrder: StockSymbol[] = ['BITCOIN', 'GOLD', 'SAMSUNG', 'LOCKHEED', 'TESLA'];
 
     for (const symbol of sellOrder) {
       if (cash >= amountNeeded) break;
@@ -750,7 +752,6 @@ const useGameStore = create<GameState>((set, get) => {
       set({
         phase: 'MODAL',
         activeModal: { type: 'GOLDEN_KEY', title: card.title, description: card.message },
-        modalData: { goldenKey: card },
       });
     } catch {
       set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '황금열쇠 오류', description: '카드 정보를 불러오지 못했습니다.' } });
@@ -933,12 +934,12 @@ const useGameStore = create<GameState>((set, get) => {
 
       const dividendRates: Record<EquitySymbol, number> = {
         SAMSUNG: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
-        SK_HYNIX: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
-        HYUNDAI: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
+        LOCKHEED: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
+        TESLA: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
       };
       if (state.dividendOverrides.SAMSUNG != null) dividendRates.SAMSUNG = state.dividendOverrides.SAMSUNG;
-      if (state.dividendOverrides.TESLA != null) dividendRates.TESLA = state.dividendOverrides.TESLA;
       if (state.dividendOverrides.LOCKHEED != null) dividendRates.LOCKHEED = state.dividendOverrides.LOCKHEED;
+      if (state.dividendOverrides.TESLA != null) dividendRates.TESLA = state.dividendOverrides.TESLA;
 
       const players = state.players.map((p) => {
         if (p.isBankrupt) return p;
@@ -1218,7 +1219,7 @@ const useGameStore = create<GameState>((set, get) => {
         set({ activeModal: queued, queuedModal: null, phase: 'MODAL' });
         return;
       }
-      set({ activeModal: null, phase: 'IDLE', modalData: null });
+      set({ activeModal: null, phase: 'IDLE' });
       checkGameEnd();
     },
 
@@ -1705,6 +1706,9 @@ const useGameStore = create<GameState>((set, get) => {
       });
       checkGameEnd();
     },
+
+    handleGoldenKey,
+    applyGoldenKeyCard,
 
     // Backend sync helpers
     setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => {

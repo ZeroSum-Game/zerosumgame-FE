@@ -30,6 +30,7 @@ const GamePage = () => {
         <div className="ui-bg-blobs" aria-hidden="true">
           <div className="ui-blob -left-40 top-1/4 bg-sky-500/10" />
           <div className="ui-blob -right-40 bottom-1/4 bg-fuchsia-500/10" />
+          <div className="ui-blob left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-indigo-500/10" />
         </div>
         <GameOverlay />
       </div>

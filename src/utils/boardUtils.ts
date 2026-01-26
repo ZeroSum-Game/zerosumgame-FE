@@ -48,7 +48,7 @@ export const BOARD_DATA: BoardSpace[] = [
   { id: 21, name: '프랑스', type: 'COUNTRY', price: 770000, continent: 'EUROPE', description: '럭셔리·관광·항공우주—브랜드 파워.' },
   { id: 22, name: '영국', type: 'COUNTRY', price: 924000, continent: 'EUROPE', description: '금융·서비스 중심—시장 이슈 영향.' },
   { id: 23, name: '독일', type: 'COUNTRY', price: 885000, continent: 'EUROPE', description: '기계·자동차·제조 강국—기술 기반 탄탄.' },
-  { id: 24, name: '월드컵', type: 'ISLAND' },
+  { id: 24, name: '우주여행', type: 'ISLAND' },
 
   // Left column (25-31): 7 tiles, top to bottom (excluding corners)
   { id: 25, name: '비트코인', type: 'STOCK' },

@@ -166,7 +166,7 @@ const InitialSurvival = () => {
         return (
             <div className="flex flex-col items-center justify-center min-h-[500px] animate-fade-in relative">
                 <h2 className="text-4xl font-black text-white mb-8 font-pixel drop-shadow-lg">
-                    PLAYER READY
+                    준비
                 </h2>
 
                 <div className="grid grid-cols-5 gap-4 mb-12">
@@ -190,7 +190,7 @@ const InitialSurvival = () => {
                     >
                         {players[0].isReady ? 'WAITING...' : 'READY!'}
                     </button>
-                    {allReady && <p className="mt-4 text-green-400 animate-pulse font-bold">All Players Ready! Starting...</p>}
+                    {allReady && <p className="mt-4 text-green-400 animate-pulse font-bold">곧 시작합니다...</p>}
                 </div>
             </div>
         );
@@ -216,7 +216,7 @@ const InitialSurvival = () => {
                 {/* 1. Ranking Board (Top Right Absolute) */}
                 <div className="absolute top-0 right-0 w-64 bg-black/60 border border-white/10 rounded-xl p-4 backdrop-blur-md z-10 shadow-xl">
                     <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
-                        <span className="text-xs font-black text-white/60 tracking-wider">LIVE RANKING</span>
+                        <span className="text-xs font-black text-white/60 tracking-wider">실시간 순위</span>
                         <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                     </div>
                     <div className="space-y-1">
@@ -237,7 +237,7 @@ const InitialSurvival = () => {
                     <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
                         {/* Keyword Display */}
                         <div className="w-full bg-white/5 px-12 py-10 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm text-center transform transition-all hover:bg-white/10">
-                            <span className="text-lg text-white/40 block mb-6 uppercase tracking-[0.3em] font-light">Target Keyword</span>
+                            <span className="text-lg text-white/40 block mb-6 uppercase tracking-[0.3em] font-light">이름 초성을 맞히세요!</span>
                             <div className="flex justify-center gap-4">
                                 {currentChosung.split('').map((char, i) => (
                                     <span key={i} className="text-7xl font-black text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] w-24 h-24 flex items-center justify-center bg-black/30 rounded-2xl border border-white/5 shadow-inner">
@@ -273,7 +273,7 @@ const InitialSurvival = () => {
 
                     {/* Debug/Dev Button to End Game */}
                     <button onClick={finishGame} className="absolute bottom-4 left-4 text-xs text-white/20 hover:text-white">
-                        [DEV] Finish Game
+                        [DEV] 게임 끝!
                     </button>
                 </div>
             </div>
@@ -284,11 +284,11 @@ const InitialSurvival = () => {
     if (phase === 'RESULT' && winners) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[500px] text-center animate-scale-in">
-                <h2 className="text-5xl font-black text-white mb-2 font-pixel tracking-widest">GAME OVER</h2>
+                <h2 className="text-5xl font-black text-white mb-2 font-pixel tracking-widest">게임 종료</h2>
                 <div className="w-24 h-1 bg-yellow-400 mb-8 mx-auto" />
 
                 <div className="bg-black/40 border border-yellow-400/30 p-8 rounded-2xl backdrop-blur-md max-w-md w-full">
-                    <p className="text-white/60 mb-4 uppercase tracking-widest text-sm">Winner(s)</p>
+                    <p className="text-white/60 mb-4 uppercase tracking-widest text-sm">우승자</p>
                     <div className="text-3xl font-black text-yellow-400 mb-6 flex flex-wrap justify-center gap-2">
                         {winners.names.map(name => (
                             <span key={name} className="bg-yellow-400/10 px-3 py-1 rounded-lg border border-yellow-400/20">{name}</span>
@@ -296,7 +296,7 @@ const InitialSurvival = () => {
                     </div>
 
                     <div className="border-t border-white/10 pt-6">
-                        <p className="text-white/60 text-sm mb-1">Prize per person</p>
+                        <p className="text-white/60 text-sm mb-1">상금</p>
                         <p className="text-4xl font-black text-white">{formatKRWKo(winners.prizePerPerson)}</p>
                     </div>
                 </div>
@@ -305,7 +305,7 @@ const InitialSurvival = () => {
                     onClick={closeModal}
                     className="mt-8 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold transition-all"
                 >
-                    Close
+                    종료
                 </button>
             </div>
         );

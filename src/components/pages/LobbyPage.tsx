@@ -569,7 +569,8 @@ const LobbyPage = () => {
                 const isCancelAction = isHost && isMyCharacter && roomStatus === 'WAITING';
                 const isJoined = !!myLobbyPlayer && !connecting;
                 // allow character selection immediately after join success
-                const canPick = isJoined && !taken && roomStatus === 'WAITING' && (!amIReady || isCancelAction);
+                // [Fix] Host can always pick/switch/cancel (ignore ready lock)
+                const canPick = isJoined && !taken && roomStatus === 'WAITING' && (!amIReady || isHost);
 
                 return (
                   <button
@@ -641,7 +642,7 @@ const LobbyPage = () => {
                       </div>
                     ) : amIReady ? (
                       <div className="ui-badge mt-2 w-full justify-center border-white/10 bg-black/20 text-white/50">
-                        준비됨 (잠김)
+                        준비됨
                       </div>
                     ) : (
                       <div className="ui-badge mt-2 w-full justify-center border-sky-400/20 bg-sky-500/[0.12] text-sky-100">

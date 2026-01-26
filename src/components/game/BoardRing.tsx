@@ -8,7 +8,7 @@ import AssetCard from './AssetCard';
 
 const STOCK_LABEL: Record<StockSymbol, string> = {
   SAMSUNG: '삼성',
-  LOCKHEED: '록히드',
+  LOCKHEED: '록히드마틴',
   TESLA: '테슬라',
   BITCOIN: '비트코인',
   GOLD: '금',
