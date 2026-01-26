@@ -17,6 +17,7 @@ const Tile = ({ tile }: TileProps) => {
   const isSelected = selectedTile === tile.id;
   const landInfo = lands[tile.id];
   const landOwner = landInfo ? players.find((p) => p.id === landInfo.ownerId) ?? null : null;
+  const ownerColor = landOwner?.character ? CHARACTER_INFO[landOwner.character].color : null;
 
   // Continent color bands
   const continentColor = useMemo(() => {
@@ -32,6 +33,7 @@ const Tile = ({ tile }: TileProps) => {
 
   // Base tile color
   const baseColor = useMemo(() => {
+    if (tile.space.type === 'COUNTRY' && ownerColor) return ownerColor;
     switch (tile.space.type) {
       case 'START': return '#7dd3fc';
       case 'ISLAND': return '#93c5fd';
@@ -42,7 +44,7 @@ const Tile = ({ tile }: TileProps) => {
       case 'TAX': return '#cbd5e1';
       default: return '#e2e8f0';
     }
-  }, [tile.space.type]);
+  }, [ownerColor, tile.space.type]);
 
   // Icon based on type
   const tileIcon = useMemo(() => {

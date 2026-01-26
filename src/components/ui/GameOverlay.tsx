@@ -34,6 +34,7 @@ const GameOverlay = () => {
   const activeModal = useGameStore((state) => state.activeModal);
   const closeModal = useGameStore((state) => state.closeModal);
   const queuedModal = useGameStore((state) => state.queuedModal);
+  const modalData = useGameStore((state) => state.modalData);
   const rollStage = useGameStore((state) => state.rollStage);
   const isRolling = useGameStore((state) => state.isRolling);
 
@@ -555,11 +556,12 @@ const GameOverlay = () => {
               const space = BOARD_DATA[tileId];
               const owner = players.find((p) => p.id === activeModal.ownerId) ?? null;
               const takeoverPrice = activeModal.takeoverPrice;
+              const tollAlreadyPaid = modalData?.tollAlreadyPaid === true;
               return (
                 <>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h2 className="text-xl font-black text-white">🧾 통행료</h2>
+                      <h2 className="text-xl font-black text-white">🧾 통행료 {tollAlreadyPaid ? '지불 완료' : ''}</h2>
                       <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
                       <p className="mt-1 flex items-center gap-2 text-sm text-white/70">
                         <span>소유자:</span>
@@ -574,15 +576,18 @@ const GameOverlay = () => {
                   </div>
 
                   <div className="mt-5 grid gap-3">
-                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                      <p className="text-sm text-white/60">통행료</p>
+                    <div className={`rounded-xl border p-4 ${tollAlreadyPaid ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-white/10 bg-white/[0.04]'}`}>
+                      <p className="text-sm text-white/60">{tollAlreadyPaid ? '지불한 통행료' : '통행료'}</p>
                       <p className="mt-1 text-lg font-black text-white">{formatKRWKo(activeModal.toll)}</p>
+                      {tollAlreadyPaid && (
+                        <p className="mt-1 text-xs text-emerald-300">✓ 자동으로 지불되었습니다</p>
+                      )}
                     </div>
                     {takeoverPrice && (
-                      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                        <p className="text-sm text-white/60">인수 제안가 (150%)</p>
+                      <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4">
+                        <p className="text-sm text-white/60">인수 비용 (150%)</p>
                         <p className="mt-1 text-lg font-black text-white">{formatKRWKo(takeoverPrice)}</p>
-                        <p className="mt-1 text-xs text-white/50">랜드마크가 없을 때만 인수 가능합니다.</p>
+                        <p className="mt-1 text-xs text-amber-200">이 땅을 인수할 수 있습니다</p>
                       </div>
                     )}
                   </div>
@@ -811,45 +816,50 @@ const GameOverlay = () => {
             )}
 
             {/* WAR SELECT */}
-	            {activeModal.type === 'WAR_SELECT' && (
-	              <>
-	                <div className="flex items-start justify-between gap-3">
-	                  <div>
-	                    <h2 className="text-xl font-black text-white">⚔️ 전쟁 선포</h2>
-	                    <p className="mt-1 text-sm text-white/70">공격 대상을 선택하세요.</p>
-	                    {activeModal.byCard && <p className="mt-1 text-xs text-white/70">황금열쇠 전쟁: 승률 +5%</p>}
-	                  </div>
-	                </div>
-	                {apiError && (
-	                  <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
-	                    {apiError}
-	                  </div>
-	                )}
-	                <div className="mt-5 space-y-2">
-	                  {players
-	                    .filter((p) => !p.isBankrupt && p.id !== currentPlayer?.id)
-	                    .map((p) => (
-	                      <button
-	                        key={p.id}
-	                        type="button"
-	                        disabled={apiLoading}
-	                        className="dash-action dash-action-secondary w-full justify-between px-4 py-3 text-left font-black disabled:opacity-50"
-	                        onClick={() => void startWar(p.userId, p.name)}
-	                      >
-	                        <span className="flex items-center gap-2">
-	                          <img
-	                            src={p.avatar || '/assets/characters/default.png'}
-	                            alt={p.name}
-	                            className="h-6 w-6 rounded-full object-cover ring-2 ring-white/20"
-	                          />
-	                          {p.name}
-	                        </span>
-	                        <span className="text-xs text-white/50">선택</span>
-	                      </button>
-	                    ))}
-	                </div>
-	              </>
-	            )}
+            {activeModal.type === 'WAR_SELECT' && (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">⚔️ 전쟁 선포</h2>
+                    <p className="mt-1 text-sm text-white/70">공격 대상을 선택하세요.</p>
+                    {activeModal.byCard && <p className="mt-1 text-xs text-white/70">황금열쇠 전쟁: 승률 +5%</p>}
+                  </div>
+                </div>
+                {apiError && (
+                  <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
+                    {apiError}
+                  </div>
+                )}
+                <div className="mt-5 space-y-3">
+                  {players
+                    .filter((p) => !p.isBankrupt && p.id !== currentPlayer?.id)
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={apiLoading}
+                        onClick={() => void startWar(p.userId, p.name)}
+                        className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.06] disabled:opacity-50"
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <img
+                            src={p.avatar || '/assets/characters/default.png'}
+                            alt={p.name}
+                            className="h-9 w-9 rounded-full object-cover ring-2 ring-white/20"
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-black text-white">{p.name}</span>
+                            <span className="mt-0.5 block text-xs text-white/60">공격 대상</span>
+                          </span>
+                        </span>
+                        <span className="shrink-0 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-200 transition group-hover:-translate-y-0.5 group-hover:bg-amber-500/20">
+                          선택
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
 
             {/* WAR RESULT */}
             {activeModal.type === 'WAR_RESULT' && (

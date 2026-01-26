@@ -8,6 +8,7 @@ type Props = {
   active?: boolean;
   selected?: boolean;
   occupantColors?: string[];
+  ownerColor?: string | null;
   region?: Region | null;
   showPrice?: boolean;
   onClick?: () => void;
@@ -23,7 +24,7 @@ const hexToRgba = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const AssetCard = ({ name, price, changePct, active, selected, occupantColors, region, showPrice = true, onClick }: Props) => {
+const AssetCard = ({ name, price, changePct, active, selected, occupantColors, ownerColor, region, showPrice = true, onClick }: Props) => {
   const isUp = typeof changePct === 'number' && changePct > 0;
   const isDown = typeof changePct === 'number' && changePct < 0;
 
@@ -41,11 +42,16 @@ const AssetCard = ({ name, price, changePct, active, selected, occupantColors, r
   ].join(' ');
 
   const cardStyle: React.CSSProperties | undefined = (() => {
-    if (!occupantColors || occupantColors.length === 0) return undefined;
+    const ownerStyle = ownerColor
+      ? { ['--asset-card-bg' as any]: hexToRgba(ownerColor, 0.16) }
+      : undefined;
+
+    if (!occupantColors || occupantColors.length === 0) return ownerStyle;
 
     if (occupantColors.length === 1) {
       const c = occupantColors[0]!;
       return {
+        ...ownerStyle,
         outline: `1px solid ${hexToRgba(c, 0.75)}`,
         outlineOffset: 0,
       };
@@ -53,6 +59,7 @@ const AssetCard = ({ name, price, changePct, active, selected, occupantColors, r
 
     const colors = occupantColors.join(', ');
     return {
+      ...ownerStyle,
       border: '1px solid transparent',
       background: `linear-gradient(var(--asset-card-bg), var(--asset-card-bg)) padding-box, conic-gradient(from 180deg, ${colors}) border-box`,
       backgroundOrigin: 'border-box',

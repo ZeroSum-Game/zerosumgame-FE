@@ -584,15 +584,16 @@ export const useGameSocket = (roomId: number = 1) => {
             appendEventLog('MOVE', '주사위 결과', `${name} ${dice1} + ${dice2} = ${dice1 + dice2}`);
           }
 
+          // 통행료 지불 로그
+          if (data.tollPaid) {
+            const payerName = useGameStore.getState().players.find((p) => p.userId === toInt(data?.userId))?.name ?? '플레이어';
+            const ownerName = useGameStore.getState().players.find((p) => p.id === toInt(data.tollPaid.ownerId))?.name ?? '소유자';
+            appendEventLog('LAND', '통행료 지불', `${payerName} → ${ownerName}: ${toNumber(data.tollPaid.amount).toLocaleString()}원`);
+          }
+
           setTimeout(() => {
-            useGameStore.setState((state) => ({
-              hasRolledThisTurn: true,
-              extraRolls: data.hasExtraTurn ? 1 : 0,
-              rollStage: 'IDLE',
-              isRolling: false,
-              rollingUserId: null,
-              pendingDice: null,
-              players: state.players.map((p) => {
+            useGameStore.setState((state) => {
+              let updatedPlayers = state.players.map((p) => {
                 if (p.userId !== toInt(data?.userId)) return p;
                 return {
                   ...p,
@@ -600,8 +601,29 @@ export const useGameSocket = (roomId: number = 1) => {
                   cash: toNumber(data?.player?.cash, p.cash),
                   totalAsset: data?.player?.totalAsset != null ? toNumber(data.player.totalAsset) : p.totalAsset,
                 };
-              }),
-            }));
+              });
+
+              // 통행료를 받은 소유자의 현금도 업데이트
+              if (data.tollPaid && data.tollPaid.ownerId) {
+                updatedPlayers = updatedPlayers.map((p) => {
+                  if (p.id !== toInt(data.tollPaid.ownerId)) return p;
+                  return {
+                    ...p,
+                    cash: toNumber(data.tollPaid.ownerCash, p.cash),
+                  };
+                });
+              }
+
+              return {
+                hasRolledThisTurn: true,
+                extraRolls: data.hasExtraTurn ? 1 : 0,
+                rollStage: 'IDLE',
+                isRolling: false,
+                rollingUserId: null,
+                pendingDice: null,
+                players: updatedPlayers,
+              };
+            });
           }, 500);
 
           if (data?.turnUserId != null) {
@@ -663,18 +685,30 @@ export const useGameSocket = (roomId: number = 1) => {
               return;
             }
 
-            const owner = snap.players.find((p) => p.id === land.ownerId) ?? null;
-            const baseToll = snap.landTolls[newLocation] ?? 0;
-            const trumpBonus = owner?.character === 'TRUMP' ? 1.05 : 1;
-            const toll = applyWarMultiplier(Math.round(baseToll * trumpBonus), newLocation, true, snap.war);
+            // 백엔드에서 통행료 정보가 왔으면 그것을 사용, 아니면 로컬 계산
+            const tollPaid = data?.tollPaid;
+            const toll = tollPaid ? toNumber(tollPaid.amount, 0) : (() => {
+              const owner = snap.players.find((p) => p.id === land.ownerId) ?? null;
+              const baseToll = snap.landTolls[newLocation] ?? 0;
+              const trumpBonus = owner?.character === 'TRUMP' ? 1.05 : 1;
+              return applyWarMultiplier(Math.round(baseToll * trumpBonus), newLocation, true, snap.war);
+            })();
 
+            const isLandmark = tollPaid ? Boolean(tollPaid.isLandmark) : land.type === 'LANDMARK';
             const basePrice = snap.landPrices[newLocation] ?? 0;
             const ownedPrice = applyWarMultiplier(basePrice, newLocation, true, snap.war);
-            const takeoverPrice = land.type === 'LAND' ? Math.round(ownedPrice * 1.5) : undefined;
+            const takeoverPrice = !isLandmark ? Math.round(ownedPrice * 1.5) : undefined;
 
             useGameStore.setState({
-              activeModal: { type: 'LAND_VISIT', tileId: newLocation, ownerId: land.ownerId, toll, takeoverPrice },
+              activeModal: {
+                type: 'LAND_VISIT',
+                tileId: newLocation,
+                ownerId: tollPaid ? toInt(tollPaid.ownerId, land.ownerId) : land.ownerId,
+                toll,
+                takeoverPrice,
+              },
               phase: 'MODAL',
+              modalData: { tollAlreadyPaid: !!tollPaid },
             });
             return;
           }

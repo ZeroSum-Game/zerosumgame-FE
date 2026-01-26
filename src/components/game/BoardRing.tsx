@@ -39,6 +39,7 @@ type Props = {
 const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landChange }: Props) => {
   const assetPrices = useGameStore((s) => s.assetPrices);
   const landPrices = useGameStore((s) => s.landPrices);
+  const lands = useGameStore((s) => s.lands);
   const players = useGameStore((s) => s.players);
   const currentPlayerIndex = useGameStore((s) => s.currentPlayerIndex);
 
@@ -80,6 +81,14 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
           const occupantColors = occupantColorsByTile.get(space.id) ?? [];
           const occupantAvatars = occupantAvatarsByTile.get(space.id) ?? [];
           const region = getRegionForBoardSpace(space, { stockSymbol: symbol });
+          const landInfo = space.type === 'COUNTRY' ? lands[space.id] : undefined;
+          const landOwner = landInfo ? players.find((p) => p.id === landInfo.ownerId) ?? null : null;
+          const landOwnerIndex = landOwner ? players.findIndex((p) => p.id === landOwner.id) : -1;
+          const ownerColor = landOwner?.character
+            ? CHARACTER_INFO[landOwner.character].color
+            : landOwnerIndex >= 0
+              ? getPlayerSlotColor(landOwnerIndex)
+              : null;
 
           const price =
             space.type === 'COUNTRY'
@@ -113,6 +122,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
                   active={isActive}
                   selected={isSelected}
                   occupantColors={occupantColors}
+                  ownerColor={ownerColor}
                   region={region}
                   showPrice={false}
                   onClick={() => onSelectAsset(space.id)}
