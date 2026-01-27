@@ -1,10 +1,55 @@
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import useGameStore from '../../store/useGameStore';
-import Dice3D from './Dice3D'; // [Merge Note] Imported 3D Dice component
 import './DiceRoller.css';
 
-const randDie = () => Math.floor(Math.random() * 6) + 1;
+const clampDie = (value: number) => Math.min(6, Math.max(1, Math.round(value)));
+
+const PIP_MAP: Record<number, number[]> = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+};
+
+const FACE_ROTATION: Record<number, string> = {
+  1: 'rotateX(0deg) rotateY(0deg)',
+  2: 'rotateY(-90deg)',
+  3: 'rotateX(90deg)',
+  4: 'rotateX(-90deg)',
+  5: 'rotateY(90deg)',
+  6: 'rotateY(180deg)',
+};
+
+const DicePips = ({ value }: { value: number }) => {
+  const pips = PIP_MAP[value] ?? PIP_MAP[1];
+  return (
+    <div className="dice-pip-grid">
+      {Array.from({ length: 9 }).map((_, idx) => (
+        <span key={idx} className={`dice-pip ${pips.includes(idx) ? 'on' : ''}`} />
+      ))}
+    </div>
+  );
+};
+
+const DiceCube = ({ value, rolling, settling }: { value: number; rolling: boolean; settling: boolean }) => {
+  const rotation = FACE_ROTATION[value] ?? FACE_ROTATION[1];
+  const cubeStyle = rolling ? undefined : { transform: rotation };
+  return (
+    <div className={`dice-cube-shell ${settling ? 'settling' : ''}`}>
+      <div className={`dice-cube ${rolling ? 'rolling' : ''}`} style={cubeStyle} aria-label={`dice-${value}`}>
+        <div className="dice-face dice-face--front"><DicePips value={1} /></div>
+        <div className="dice-face dice-face--back"><DicePips value={6} /></div>
+        <div className="dice-face dice-face--right"><DicePips value={2} /></div>
+        <div className="dice-face dice-face--left"><DicePips value={5} /></div>
+        <div className="dice-face dice-face--top"><DicePips value={3} /></div>
+        <div className="dice-face dice-face--bottom"><DicePips value={4} /></div>
+      </div>
+    </div>
+  );
+};
 
 const DiceRoller = () => {
   const rollTrigger = useGameStore((s) => s.rollTrigger);
@@ -14,6 +59,18 @@ const DiceRoller = () => {
   const dice = useGameStore((s) => s.dice);
   const isDouble = useGameStore((s) => s.isDouble);
   const hasRolledThisTurn = useGameStore((s) => s.hasRolledThisTurn);
+  const setDice = useGameStore((s) => s.setDiceValues);
+
+  const safeDice = useMemo(
+    () => [clampDie(dice[0]), clampDie(dice[1])] as [number, number],
+    [dice],
+  );
+
+  useEffect(() => {
+    if (safeDice[0] !== dice[0] || safeDice[1] !== dice[1]) {
+      setDice(safeDice);
+    }
+  }, [dice, safeDice, setDice]);
 
   // We don't need all the complex timeout logic if we rely on CSS transition + socket state.
   // But to sync perfectly, we can keep using the store state.
@@ -32,6 +89,14 @@ const DiceRoller = () => {
           : ' ';
 
   const showDouble = !isRolling && rollStage === 'IDLE' && hasRolledThisTurn && isDouble;
+  const rowClass =
+    rollStage === 'HOLDING'
+      ? 'dice-row dice-row-rolling'
+      : rollStage === 'SETTLING'
+        ? 'dice-row dice-row-settle'
+        : 'dice-row';
+  const isHolding = rollStage === 'HOLDING';
+  const isSettling = rollStage === 'SETTLING';
 
   return (
     <div
@@ -42,7 +107,7 @@ const DiceRoller = () => {
       ].join(' ')}
       aria-label="주사위"
     >
-      <div className="dice-row relative">
+      <div className={`${rowClass} relative`}>
         {/* DOUBLE! Effect */}
         {showDouble && (
           <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
@@ -52,8 +117,8 @@ const DiceRoller = () => {
             </div>
           </div>
         )}
-        <Dice3D value={dice[0]} rolling={rollStage === 'HOLDING'} />
-        <Dice3D value={dice[1]} rolling={rollStage === 'HOLDING'} />
+        <DiceCube value={safeDice[0]} rolling={isHolding} settling={isSettling} />
+        <DiceCube value={safeDice[1]} rolling={isHolding} settling={isSettling} />
       </div>
       <div className="dice-meta">{meta}</div>
     </div>

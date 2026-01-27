@@ -19,6 +19,111 @@
   /* Increased gap for 3D cubes */
 }
 
+/* 3D cube dice (CSS) */
+.dice-cube-shell {
+  width: 56px;
+  height: 56px;
+  perspective: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dice-cube-shell.settling {
+  animation: diceCubeSettle 220ms ease-out;
+}
+
+.dice-cube {
+  width: 56px;
+  height: 56px;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dice-cube.rolling {
+  animation: diceCubeRoll 0.65s linear infinite;
+}
+
+.dice-face {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.95));
+  box-shadow: 0 18px 60px -40px rgba(0, 0, 0, 0.9), inset 0 0 12px rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+}
+
+.dice-face--front {
+  transform: translateZ(28px);
+}
+
+.dice-face--back {
+  transform: rotateY(180deg) translateZ(28px);
+}
+
+.dice-face--right {
+  transform: rotateY(90deg) translateZ(28px);
+}
+
+.dice-face--left {
+  transform: rotateY(-90deg) translateZ(28px);
+}
+
+.dice-face--top {
+  transform: rotateX(90deg) translateZ(28px);
+}
+
+.dice-face--bottom {
+  transform: rotateX(-90deg) translateZ(28px);
+}
+
+.dice-pip-grid {
+  width: 70%;
+  height: 70%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.dice-pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: transparent;
+  justify-self: center;
+  align-self: center;
+}
+
+.dice-pip.on {
+  background: #f8fafc;
+  box-shadow: 0 0 6px rgba(248, 250, 252, 0.7);
+}
+
+@keyframes diceCubeRoll {
+  0% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+  100% {
+    transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg);
+  }
+}
+
+@keyframes diceCubeSettle {
+  0% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* 3D Cube Styles */
 .scene {
   width: 60px;

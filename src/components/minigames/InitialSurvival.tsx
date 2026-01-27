@@ -143,7 +143,7 @@ const InitialSurvival = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px]">
         <img src="/quiz.png" alt="Quiz" className="w-[220px] h-auto mb-5 drop-shadow-xl" />
-        <p className="text-base text-white/80 font-bold">제한 시간 안에 우리 분반의 이름을 많이 맞힌 사람이 승리!</p>
+        <p className="text-base text-white/80 font-bold">제한 시간 내 2분반의 이름을 많이 맞히면 승리!</p>
         <p className="mt-3 text-xs text-white/50">시작까지 {introLeft}s</p>
       </div>
     );
