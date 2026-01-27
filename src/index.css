@@ -72,7 +72,7 @@
 
 @layer components {
   .ui-page {
-    @apply relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950;
+    @apply relative min-h-screen w-full overflow-hidden;
   }
 
   .ui-bg-blobs {

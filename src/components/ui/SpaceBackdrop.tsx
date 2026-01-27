@@ -23,7 +23,7 @@ const MovingStars = () => {
 
 const SpaceBackdrop = ({ className = '' }: { className?: string }) => {
   return (
-    <div className={`absolute inset-0 -z-10 bg-slate-950 ${className}`} aria-hidden="true">
+    <div className={`fixed inset-0 z-0 bg-slate-950 ${className}`} aria-hidden="true">
       <Canvas camera={{ position: [0, 0, 1] }} style={{ width: '100%', height: '100%' }}>
         <MovingStars />
         <ambientLight intensity={0.5} />
