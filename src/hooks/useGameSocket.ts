@@ -5,6 +5,7 @@ import { fromBackendCharacter } from '../utils/characterMapping';
 import useGameStore, {
   CHARACTER_INFO,
   GAME_RULES,
+  clampDiceValue,
   START_TILE_TRADE_SYMBOLS,
   TILE_TO_STOCK,
   type CharacterType,
@@ -568,18 +569,20 @@ export const useGameSocket = (roomId: number = 1) => {
           console.log('[GameSocket] dice_rolled:', data);
           clearRollTimeout();
 
+          const safeDice1 = clampDiceValue(data.dice1);
+          const safeDice2 = clampDiceValue(data.dice2);
           useGameStore.setState((s) => ({
-            dice: [data.dice1, data.dice2],
+            dice: [safeDice1, safeDice2],
             isDouble: data.isDouble,
             rollStage: 'SETTLING',
-            pendingDice: [data.dice1, data.dice2],
+            pendingDice: [safeDice1, safeDice2],
             rollReleaseTrigger: s.rollReleaseTrigger + 1,
           }));
 
           const userId = toInt(data?.userId);
           const name = useGameStore.getState().players.find((p) => p.userId === userId)?.name ?? '플레이어';
-          const dice1 = toInt(data?.dice1, 0);
-          const dice2 = toInt(data?.dice2, 0);
+          const dice1 = safeDice1;
+          const dice2 = safeDice2;
           appendEventLog('MOVE', '주사위 결과', `${name} ${dice1} + ${dice2} = ${dice1 + dice2}`);
 
           if (data.tollPaid) {
@@ -783,7 +786,9 @@ export const useGameSocket = (roomId: number = 1) => {
           const totalTiles = BOARD_DATA.length || 0;
           const currentPos = useGameStore.getState().players.find((p) => p.id === playerId)?.position ?? newLocation;
           const explicitSteps = toInt(data?.steps, 0);
-          const diceSteps = toInt(data?.dice1, 0) + toInt(data?.dice2, 0);
+          const safeDice1 = clampDiceValue(data?.dice1);
+          const safeDice2 = clampDiceValue(data?.dice2);
+          const diceSteps = safeDice1 + safeDice2;
           const deltaSteps = totalTiles > 0 ? (newLocation - currentPos + totalTiles) % totalTiles : Math.max(newLocation - currentPos, 0);
           const steps = explicitSteps > 0 ? explicitSteps : diceSteps > 0 ? diceSteps : deltaSteps;
 

@@ -173,9 +173,15 @@
     width: min(94vw, 46rem);
   }
 
+  .ui-modal-war {
+    width: min(100vw, 56rem);
+    max-height: min(90vh, 46rem);
+    padding: 2.5rem;
+  }
+
   .war-fight-avatar {
-    @apply flex h-24 w-24 items-center justify-center rounded-full border border-white/20 bg-black/30;
-    box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
+    @apply flex h-52 w-52 items-center justify-center rounded-full border border-white/20 bg-black/30;
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.25);
   }
 
   .war-fight-left {

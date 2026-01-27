@@ -446,7 +446,7 @@ const GameOverlay = () => {
           <div
             role="dialog"
             aria-modal="true"
-            className={`ui-modal${activeModal.type === 'SPACE_TRAVEL' ? ' ui-modal-wide' : ''}`}
+            className={`ui-modal${activeModal.type === 'SPACE_TRAVEL' ? ' ui-modal-wide' : ''}${activeModal.type === 'WAR_FIGHT' ? ' ui-modal-war' : ''}`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* LAND BUY */}
@@ -1057,7 +1057,7 @@ const GameOverlay = () => {
                         <img
                           src={activeModal.attackerAvatar}
                           alt={activeModal.attackerName}
-                          className="h-36 w-36 rounded-full object-cover"
+                          className="h-48 w-48 rounded-full object-cover"
                         />
                       </div>
                       <div className="w-full truncate text-sm font-bold text-white">
@@ -1072,7 +1072,7 @@ const GameOverlay = () => {
                         <img
                           src={activeModal.defenderAvatar}
                           alt={activeModal.defenderName}
-                          className="h-36 w-36 rounded-full object-cover"
+                          className="h-48 w-48 rounded-full object-cover"
                         />
                       </div>
                       <div className="w-full truncate text-sm font-bold text-white">

@@ -23,6 +23,13 @@ export type CharacterType = 'ELON' | 'SAMSUNG' | 'TRUMP' | 'PUTIN';
 
 export type StockSymbol = 'SAMSUNG' | 'LOCKHEED' | 'TESLA' | 'BITCOIN' | 'GOLD';
 
+export const clampDiceValue = (value: unknown) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 1;
+  const rounded = Math.round(num);
+  return Math.min(6, Math.max(1, rounded));
+};
+
 export const STOCK_INFO: Record<StockSymbol, { name: string; nameKr: string; basePrice: number }> = {
   SAMSUNG: { name: 'SAMSUNG', nameKr: '삼성전자', basePrice: 72500 },
   LOCKHEED: { name: 'LOCKHEED', nameKr: '록히드마틴', basePrice: 178000 },
@@ -1307,8 +1314,10 @@ const useGameStore = create<GameState>((set, get) => {
     },
 
     setDiceValues: ([d1, d2]) => {
+      const safeD1 = clampDiceValue(d1);
+      const safeD2 = clampDiceValue(d2);
       const state = get();
-      const isDouble = d1 === d2;
+      const isDouble = safeD1 === safeD2;
       const newConsecutiveDoubles = isDouble ? state.consecutiveDoubles + 1 : 0;
 
       const WAR_TILE_ID = 8;
@@ -1318,7 +1327,7 @@ const useGameStore = create<GameState>((set, get) => {
 
         set((s) => ({
           isRolling: false,
-          dice: [d1, d2],
+          dice: [safeD1, safeD2],
           isDouble: true,
           extraRolls: 0,
           consecutiveDoubles: 0,
@@ -1337,7 +1346,7 @@ const useGameStore = create<GameState>((set, get) => {
         return;
       }
 
-      const steps = d1 + d2;
+          const steps = safeD1 + safeD2;
       set((s) => ({
         isRolling: false,
         dice: [d1, d2],

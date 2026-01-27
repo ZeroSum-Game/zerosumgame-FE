@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useBox } from '@react-three/cannon';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
-import useGameStore from '../../store/useGameStore';
+import useGameStore, { clampDiceValue } from '../../store/useGameStore';
 
 const DICE_SIZE = 1.3;
 
@@ -218,7 +218,8 @@ const Dice = () => {
   }, [rollTrigger]);
 
   const handleStop = (index: 0 | 1, val: number) => {
-    results.current[index] = val;
+    const safeVal = clampDiceValue(val);
+    results.current[index] = safeVal;
     if (results.current[0] !== null && results.current[1] !== null) {
       // keep server dice as source of truth in multiplayer
       if (!rollingUserId) {
