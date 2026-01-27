@@ -318,6 +318,7 @@ export const useGameSocket = (roomId: number = 1) => {
             'order_picking_start',
             'order_card_picked',
             'order_picking_complete',
+            'minigame_start',
             'pick_error',
           ];
           events.forEach((event) => socket.off(event));
@@ -478,6 +479,10 @@ export const useGameSocket = (roomId: number = 1) => {
           }));
         });
 
+        socket.on('minigame_start', () => {
+          useGameStore.setState({ activeModal: { type: 'INITIAL_GAME' }, phase: 'MODAL' });
+        });
+
         socket.on('pick_error', (data: any) => {
           console.error('[GameSocket] pick_error:', data);
           setState((s) => ({ ...s, error: data.message || '오류가 발생했습니다.' }));
@@ -621,6 +626,11 @@ export const useGameSocket = (roomId: number = 1) => {
 
             // [Initial Survival] 오락실(MINIGAME) 타일 도착 시 미니게임 트리거 시작
             if (space.type === 'MINIGAME') {
+              const socket = socketRef.current;
+              if (socket) {
+                socket.emit('minigame_start');
+                return;
+              }
               useGameStore.setState({ activeModal: { type: 'INITIAL_GAME' }, phase: 'MODAL' });
               return;
             }
@@ -1028,14 +1038,15 @@ export const useGameSocket = (roomId: number = 1) => {
   }, []);
 
   const isMyTurn = useCallback(() => {
-    const myUserId = toInt(state.myUserId, 0);
-    const socketTurnUserId = toInt(state.currentTurnUserId, 0);
+    const socketState = socketStateRef.current;
+    const myUserId = toInt(socketState?.myUserId ?? myUserIdRef.current, 0);
+    const socketTurnUserId = toInt(socketState?.currentTurnUserId ?? currentTurnUserIdRef.current, 0);
     const storeState = useGameStore.getState();
     const fallbackTurnUserId = toInt(storeState.players[storeState.currentPlayerIndex]?.userId, 0);
     const turnUserId = socketTurnUserId > 0 ? socketTurnUserId : fallbackTurnUserId;
     if (myUserId <= 0 || turnUserId <= 0) return false;
     return turnUserId === myUserId;
-  }, [state.currentTurnUserId, state.myUserId]);
+  }, []);
 
   const pickOrderCard = useCallback((cardNumber: number) => {
     if (!socketRef.current) return;

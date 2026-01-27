@@ -387,6 +387,19 @@ export const apiWarLose = async (loserUserId: number) => {
   return (await res.json().catch(() => null)) as { ok: boolean } | null;
 };
 
+export const apiGrantMinigameReward = async (winnerUserId: number) => {
+  const res = await fetch('/api/game/minigame-reward', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ winnerUserId }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || '보상 지급 실패');
+  }
+  return (await res.json().catch(() => null)) as { ok?: boolean; reward?: number } | null;
+};
+
 export const apiLogout = () => {
   resetSocket();
   removeToken();
