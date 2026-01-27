@@ -665,8 +665,15 @@ export const useGameSocket = (roomId: number = 1) => {
           if (!myUserId) return;
           if (toInt(data?.userId) !== myUserId) return;
 
+          const isSpaceTravel = data?.type === 'SPACE';
           const snap = useGameStore.getState();
-          if (snap.activeModal) return;
+
+          // 우주여행 이동일 때는 기존 모달을 닫고 새 모달을 열 수 있도록 함
+          if (isSpaceTravel) {
+            useGameStore.setState({ activeModal: null });
+          } else if (snap.activeModal) {
+            return;
+          }
 
           const me = snap.players.find((p) => p.userId === myUserId) ?? null;
           if (!me) return;
@@ -753,6 +760,12 @@ export const useGameSocket = (roomId: number = 1) => {
 
           if (newLocation === 8) {
             useGameStore.setState({ activeModal: { type: 'WAR_SELECT', byCard: false }, phase: 'MODAL' });
+            return;
+          }
+
+          // 황금열쇠 칸 처리 - node 12, 20, 28
+          if ([12, 20, 28].includes(newLocation) || data?.isKeyNode) {
+            useGameStore.getState().triggerGoldenKey();
             return;
           }
 

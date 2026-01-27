@@ -85,6 +85,13 @@ export const CHARACTER_BATTLE_AVATAR: Record<CharacterType, string> = {
   PUTIN: '/assets/characters/putin_battle.png',
 };
 
+export const CHARACTER_WORLDCUP_AVATAR: Record<CharacterType, string> = {
+  ELON: '/assets/characters/musk_worldcup.png',
+  SAMSUNG: '/assets/characters/lee_worldcup.png',
+  TRUMP: '/assets/characters/trump_worldcup.png',
+  PUTIN: '/assets/characters/putin_worldcup.png',
+};
+
 export type LandType = 'LAND' | 'LANDMARK';
 
 export type LandState = {
@@ -143,7 +150,7 @@ export type ModalState =
   | { type: 'WAR_FIGHT'; attackerName: string; attackerAvatar: string; defenderName: string; defenderAvatar: string; durationMs?: number }
   | { type: 'WAR_RESULT'; title: string; description: string }
   | { type: 'TAX'; due: number; paid?: number; beforeCash?: number; afterCash?: number; autoSales?: Array<{ asset: string; qty: number; price: number }>; isBankrupt?: boolean }
-  | { type: 'INFO'; title: string; description: string }
+  | { type: 'INFO'; title: string; description: string; imageSrc?: string; imageAlt?: string }
   | { type: 'BUY_ASSET' }
   | { type: 'WAR_CHOICE' }
   | { type: 'WORLDCUP_HOST'; nodeIdx: number };
@@ -243,6 +250,7 @@ type GameState = {
   completeMinigame: (success: boolean) => void;
   confirmTax: () => void;
   chooseWarTarget: (defenderId: number) => void;
+  triggerGoldenKey: () => void;
 
   setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
   showModal: (modal: ModalState) => void;
@@ -872,11 +880,21 @@ const useGameStore = create<GameState>((set, get) => {
     if (space.name === '월드컵') {
       const dest = BOARD_DATA.find((s) => s.name === '미국')?.id ?? 31;
       const fee = 200000;
+      const worldCupImage = currentPlayer.character ? CHARACTER_WORLDCUP_AVATAR[currentPlayer.character] : undefined;
       pushLog('TURN', '월드컵', `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동! 관광료 ${formatMoney(fee)}`);
       set((s) => ({
         players: s.players.map((p) => (p.isBankrupt ? p : { ...p, position: dest })),
       }));
-      set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '월드컵 개최!', description: `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동합니다.` } });
+      set({
+        phase: 'MODAL',
+        activeModal: {
+          type: 'INFO',
+          title: '월드컵 개최!',
+          description: `전원 ${BOARD_DATA[dest]?.name ?? '개최국'}로 이동합니다.`,
+          imageSrc: worldCupImage,
+          imageAlt: currentPlayer.character ? `${CHARACTER_INFO[currentPlayer.character].name} 월드컵` : '월드컵',
+        },
+      });
       setTimeout(() => {
         const after = get();
         after.players
@@ -1742,6 +1760,28 @@ const useGameStore = create<GameState>((set, get) => {
         phase: 'MODAL',
       });
       checkGameEnd();
+    },
+
+    triggerGoldenKey: () => {
+      try {
+        const state = get();
+        const card = drawGoldenKeyCard({
+          players: state.players,
+          lands: state.lands,
+          landPrices: state.landPrices,
+          assetPrices: state.assetPrices,
+        });
+
+        applyGoldenKeyCard(card);
+        pushLog('KEY', `황금열쇠: ${card.title}`, card.message);
+        set({
+          phase: 'MODAL',
+          activeModal: { type: 'GOLDEN_KEY', title: card.title, description: card.message },
+          modalData: { goldenKey: card },
+        });
+      } catch {
+        set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '황금열쇠 오류', description: '카드 정보를 불러오지 못했습니다.' } });
+      }
     },
 
     setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => {

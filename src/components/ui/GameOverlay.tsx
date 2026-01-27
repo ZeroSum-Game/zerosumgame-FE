@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import useGameStore, { CHARACTER_BATTLE_AVATAR, CHARACTER_INFO, STOCK_INFO, type StockSymbol } from '../../store/useGameStore';
+import useGameStore, {
+  CHARACTER_BATTLE_AVATAR,
+  CHARACTER_INFO,
+  CHARACTER_WORLDCUP_AVATAR,
+  STOCK_INFO,
+  type StockSymbol,
+} from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import AssetDetailModal from '../game/AssetDetailModal';
 import BoardRing from '../game/BoardRing';
@@ -167,7 +173,7 @@ const GameOverlay = () => {
     setApiError(null);
     try {
       await apiSpaceMove(nodeIdx);
-      closeModal();
+      // 모달은 playerMove 소켓 이벤트에서 처리됨 (새 위치의 모달로 전환)
     } catch (e: any) {
       setApiError(e.message || '이동 실패');
     } finally {
@@ -562,13 +568,15 @@ const GameOverlay = () => {
                     </button>
                   </div>
 
-                  <div className="mt-4">
-                    <img
-                      src="/assets/characters/worldcup.png"
-                      alt="월드컵"
-                      className="mx-auto w-full max-w-md rounded-2xl border border-white/10 shadow-lg"
-                    />
-                  </div>
+                  {currentPlayer?.character && (
+                    <div className="mt-4">
+                      <img
+                        src={CHARACTER_WORLDCUP_AVATAR[currentPlayer.character]}
+                        alt={`${CHARACTER_INFO[currentPlayer.character].name} 월드컵`}
+                        className="mx-auto w-full max-w-md rounded-2xl border border-white/10 shadow-lg"
+                      />
+                    </div>
+                  )}
 
                   <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
                     <p className="text-sm text-white/60">개최 비용</p>
@@ -621,44 +629,47 @@ const GameOverlay = () => {
               const destinations = BOARD_DATA.filter((space) => space.name !== '우주여행');
               return (
                 <>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-2xl lg:flex-row">
+                    <div className="flex items-center justify-center">
                       <img
                         src="/assets/characters/dogecoin.png"
-                        alt="도지코인"
-                        className="h-12 w-12 rounded-full object-cover ring-2 ring-amber-300/40"
+                        alt="도지코인 우주여행"
+                        className="h-48 w-48 rounded-3xl border border-white/20 object-cover shadow-[0_25px_60px_rgba(249,115,22,0.45)]"
                       />
+                    </div>
+
+                    <div className="flex-1 space-y-4">
                       <div>
                         <h2 className="text-xl font-black text-white">🚀 우주여행</h2>
                         <p className="mt-1 text-sm text-white/70">다음 턴에 이동할 위치를 선택하세요.</p>
                       </div>
+
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/70">
+                        선택한 위치로 다음 턴 시작 시 이동합니다.
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                        {destinations.map((space) => (
+                          <button
+                            key={space.id}
+                            type="button"
+                            disabled={apiLoading}
+                            onClick={() => void spaceMove(space.id)}
+                            className="dash-action dash-action-secondary w-full justify-between px-3 py-2 text-left text-sm font-black disabled:opacity-50"
+                          >
+                            <span className="truncate">{space.name}</span>
+                            <span className="text-[10px] text-white/60">{space.type}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {apiError && (
+                        <div className="rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
+                          {apiError}
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/70">
-                    선택한 위치로 다음 턴 시작 시 이동합니다.
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {destinations.map((space) => (
-                      <button
-                        key={space.id}
-                        type="button"
-                        disabled={apiLoading}
-                        onClick={() => void spaceMove(space.id)}
-                        className="dash-action dash-action-secondary w-full justify-between px-3 py-2 text-left text-sm font-black disabled:opacity-50"
-                      >
-                        <span className="truncate">{space.name}</span>
-                        <span className="text-[10px] text-white/60">{space.type}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {apiError && (
-                    <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
-                      {apiError}
-                    </div>
-                  )}
                 </>
               );
             })()}
@@ -1067,7 +1078,7 @@ const GameOverlay = () => {
                         <img
                           src={activeModal.attackerAvatar}
                           alt={activeModal.attackerName}
-                          className="h-20 w-20 rounded-full object-cover"
+                          className="h-36 w-36 rounded-full object-cover"
                         />
                       </div>
                       <div className="w-full truncate text-sm font-bold text-white">
@@ -1082,7 +1093,7 @@ const GameOverlay = () => {
                         <img
                           src={activeModal.defenderAvatar}
                           alt={activeModal.defenderName}
-                          className="h-20 w-20 rounded-full object-cover"
+                          className="h-36 w-36 rounded-full object-cover"
                         />
                       </div>
                       <div className="w-full truncate text-sm font-bold text-white">
@@ -1106,6 +1117,15 @@ const GameOverlay = () => {
                     ✕
                   </button>
                 </div>
+                {activeModal.imageSrc && (
+                  <div className="mt-4">
+                    <img
+                      src={activeModal.imageSrc}
+                      alt={activeModal.imageAlt ?? activeModal.title}
+                      className="mx-auto w-full max-w-md rounded-2xl border border-white/10 shadow-lg"
+                    />
+                  </div>
+                )}
                 <div className="mt-6 flex gap-3">
                   <button onClick={closeModal} className="dash-action dash-action-primary flex-1">
                     확인
