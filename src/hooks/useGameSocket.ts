@@ -755,6 +755,40 @@ export const useGameSocket = (roomId: number = 1) => {
             useGameStore.setState({ activeModal: { type: 'WAR_SELECT', byCard: false }, phase: 'MODAL' });
             return;
           }
+
+          // 국세청 (TAX) 노드 처리 - node 30
+          if (newLocation === 30) {
+            const eventResult = data?.eventResult;
+            if (eventResult && eventResult.type === 'TAX') {
+              const taxAmount = toNumber(eventResult.amount, 0);
+              const paid = toNumber(eventResult.paid, 0);
+              const beforeCash = me.cash + paid;
+              const isBankrupt = Boolean(eventResult.isBankrupt);
+              const autoSales = eventResult.autoSales || [];
+
+              appendEventLog('TAX', '국세청', `세금 ${taxAmount.toLocaleString()}원 (자산의 20%)`);
+
+              useGameStore.setState({
+                activeModal: {
+                  type: 'TAX',
+                  due: taxAmount,
+                  paid,
+                  beforeCash,
+                  afterCash: me.cash,
+                  autoSales,
+                  isBankrupt,
+                },
+                phase: 'MODAL',
+              });
+            } else {
+              // eventResult가 없는 경우 기본 모달
+              useGameStore.setState({
+                activeModal: { type: 'TAX', due: 0, paid: 0 },
+                phase: 'MODAL',
+              });
+            }
+            return;
+          }
         });
 
         socket.on('market_update', (data: any) => {

@@ -562,6 +562,14 @@ const GameOverlay = () => {
                     </button>
                   </div>
 
+                  <div className="mt-4">
+                    <img
+                      src="/assets/characters/worldcup.png"
+                      alt="월드컵"
+                      className="mx-auto w-full max-w-md rounded-2xl border border-white/10 shadow-lg"
+                    />
+                  </div>
+
                   <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
                     <p className="text-sm text-white/60">개최 비용</p>
                     <p className="mt-1 text-lg font-black text-white">{formatKRWKo(WORLD_CUP_COST)}</p>
@@ -927,16 +935,51 @@ const GameOverlay = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-black text-white">🏛️ 국세청</h2>
-                    <p className="mt-1 text-sm text-white/70">총 자산의 15%를 납부합니다. 현금이 부족하면 강제 매각됩니다.</p>
+                    <p className="mt-1 text-sm text-white/70">총 자산의 20%를 세금으로 납부합니다.</p>
+                    {activeModal.isBankrupt && (
+                      <p className="mt-1 text-sm text-red-400">현금이 부족하여 자산이 강제 매각되었습니다.</p>
+                    )}
                   </div>
                 </div>
                 <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-sm text-white/60">납부 금액</p>
+                  <p className="text-sm text-white/60">세금 (자산의 20%)</p>
                   <p className="mt-1 text-lg font-black text-white">{formatKRWKo(activeModal.due)}</p>
                 </div>
+                {activeModal.paid != null && activeModal.beforeCash != null && activeModal.afterCash != null && (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="text-sm text-white/60">잔액 변동</p>
+                    <div className="mt-1 space-y-1 text-sm text-white/80">
+                      <div className="flex justify-between">
+                        <span>납부 전:</span>
+                        <span>{formatKRWKo(activeModal.beforeCash)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400">
+                        <span>세금:</span>
+                        <span>-{formatKRWKo(activeModal.paid)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold">
+                        <span>납부 후:</span>
+                        <span>{formatKRWKo(activeModal.afterCash)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {activeModal.autoSales && activeModal.autoSales.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-yellow-400/20 bg-yellow-500/[0.08] p-4">
+                    <p className="text-sm text-yellow-300">강제 매각 내역</p>
+                    <div className="mt-1 space-y-1 text-sm text-white/80">
+                      {activeModal.autoSales.map((sale: { asset: string; qty: number; price: number }, i: number) => (
+                        <div key={i} className="flex justify-between">
+                          <span>{sale.asset} {sale.qty}주</span>
+                          <span>+{formatKRWKo(sale.price * sale.qty)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-6 flex gap-3">
-                  <button onClick={confirmTax} className="dash-action dash-action-danger flex-1">
-                    납부
+                  <button onClick={confirmTax} className="dash-action dash-action-primary flex-1">
+                    확인
                   </button>
                 </div>
               </>

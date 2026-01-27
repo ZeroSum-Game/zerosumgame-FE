@@ -142,7 +142,7 @@ export type ModalState =
   | { type: 'WAR_SELECT'; byCard: boolean }
   | { type: 'WAR_FIGHT'; attackerName: string; attackerAvatar: string; defenderName: string; defenderAvatar: string; durationMs?: number }
   | { type: 'WAR_RESULT'; title: string; description: string }
-  | { type: 'TAX'; due: number }
+  | { type: 'TAX'; due: number; paid?: number; beforeCash?: number; afterCash?: number; autoSales?: Array<{ asset: string; qty: number; price: number }>; isBankrupt?: boolean }
   | { type: 'INFO'; title: string; description: string }
   | { type: 'BUY_ASSET' }
   | { type: 'WAR_CHOICE' }
