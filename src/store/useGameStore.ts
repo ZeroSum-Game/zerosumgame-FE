@@ -1346,10 +1346,10 @@ const useGameStore = create<GameState>((set, get) => {
         return;
       }
 
-          const steps = safeD1 + safeD2;
+      const steps = safeD1 + safeD2;
       set((s) => ({
         isRolling: false,
-        dice: [d1, d2],
+        dice: [safeD1, safeD2],
         isDouble,
         extraRolls: isDouble ? s.extraRolls + 1 : s.extraRolls,
         consecutiveDoubles: newConsecutiveDoubles,
