@@ -1,0 +1,555 @@
+﻿diff --git a/src/components/minigames/InitialSurvival.tsx b/src/components/minigames/InitialSurvival.tsx
+index b20db54..709e586 100644
+--- a/src/components/minigames/InitialSurvival.tsx
++++ b/src/components/minigames/InitialSurvival.tsx
+@@ -1,317 +1,238 @@
+-/**
+- * [Initial Survival] 2遺꾨컲 珥덉꽦 ?쒕컮?대쾶 誘몃땲寃뚯엫 而댄룷?뚰듃
+- * - 珥덉꽦 ?댁쫰 諛???꾩뼱???쒕컮?대쾶 濡쒖쭅
+- * - 寃곌낵 泥섎━ 諛?蹂댁긽
+- */
+-import { useEffect, useRef, useState, useMemo } from 'react';
++import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+ import confetti from 'canvas-confetti';
+ import useGameStore from '../../store/useGameStore';
+-import { getChosung } from '../../utils/koreanUtils';
+-import { formatKRWKo } from '../../utils/formatKRW';
++import { useGameSocketContext } from '../pages/GamePage';
+ 
+-// [User Request] Provided List
+-const NAMES = [
+-    "諛뺤갔??, "源紐낆꽦", "源吏??, "?꾪깭鍮?, "諛곗꽌??, "?닿굔", "媛뺤삁??,
+-    "?좎썝??, "諛뺤꽦??, "?뺤옱??, "誘쇰룞??, "?꾨궓以?, "諛뺤꽦以", "?댁???,
+-    "?곹븳吏?, "理쒖쁺??, "?뺤옱??, "?덉???, "諛뺤꽭??, "?꾩쑀吏?, "?꾪븯?"
+-];
++type MinigamePhase = 'COUNTDOWN' | 'GAME' | 'RESULT';
+ 
+-// --- Types ---
+-type PlayerStatus = {
+-    userId: number;
+-    username: string;
+-    score: number;
+-    isDropped: boolean;
+-    isReady: boolean; // Ready State
++type MinigamePlayer = {
++  userId: number;
++  nickname: string;
++  score: number;
++  isDropped: boolean;
+ };
+ 
+-const SALARY_AMOUNT = 300000; // Example Salary Amount
+-
+ const InitialSurvival = () => {
+-    const { closeModal } = useGameStore();
+-
+-    // --- Start with Mock Players ---
+-    const [players, setPlayers] = useState<PlayerStatus[]>([
+-        { userId: 1, username: '??, score: 0, isDropped: false, isReady: false },
+-        { userId: 2, username: '?뚰뙆怨?, score: 0, isDropped: false, isReady: true }, // Bots ready by default
+-        { userId: 3, username: '踰좏?怨?, score: 0, isDropped: false, isReady: true },
+-        { userId: 4, username: '媛먮쭏怨?, score: 0, isDropped: false, isReady: true },
+-        { userId: 5, username: '?명?怨?, score: 0, isDropped: false, isReady: true },
+-    ]);
+-
+-    const [phase, setPhase] = useState<'READY' | 'COUNTDOWN' | 'GAME' | 'RESULT'>('READY');
+-    const [introCount, setIntroCount] = useState(3);
+-    const [currentName, setCurrentName] = useState('');
+-    const [timeLeft, setTimeLeft] = useState(20);
+-    const [myInput, setMyInput] = useState('');
+-
+-    // Winners info
+-    const [winners, setWinners] = useState<{ names: string[], prizePerPerson: number } | null>(null);
+-
+-    const inputRef = useRef<HTMLInputElement>(null);
+-    const timerRef = useRef<number | null>(null);
+-
+-    // Get current Chosung
+-    const currentChosung = useMemo(() => getChosung(currentName), [currentName]);
+-
+-    // Check if everyone is ready
+-    const allReady = useMemo(() => players.every(p => p.isReady), [players]);
+-
+-    // --- Methods ---
+-    const nextProblem = () => {
+-        const randomName = NAMES[Math.floor(Math.random() * NAMES.length)];
+-        setCurrentName(randomName);
+-        setTimeLeft(20);
+-        setMyInput('');
+-        inputRef.current?.focus();
++  const { closeModal } = useGameStore();
++  const { socket, myUserId } = useGameSocketContext();
++  const [phase, setPhase] = useState<MinigamePhase>('COUNTDOWN');
++  const [players, setPlayers] = useState<MinigamePlayer[]>([]);
++  const [currentChosung, setCurrentChosung] = useState('');
++  const [timeLeft, setTimeLeft] = useState(0);
++  const [timeLimit, setTimeLimit] = useState(0);
++  const [countdown, setCountdown] = useState(0);
++  const [totalLeft, setTotalLeft] = useState(0);
++  const [winners, setWinners] = useState<string[] | null>(null);
++  const [inputValue, setInputValue] = useState('');
++  const [errorMessage, setErrorMessage] = useState<string | null>(null);
++  const inputRef = useRef<HTMLInputElement>(null);
++  const joinedRef = useRef(false);
++  const prevPhaseRef = useRef<MinigamePhase>('COUNTDOWN');
++
++  const myPlayer = useMemo(
++    () => players.find((p) => p.userId === myUserId),
++    [players, myUserId]
++  );
++
++  const sortedPlayers = useMemo(
++    () => [...players].sort((a, b) => b.score - a.score),
++    [players]
++  );
++
++  useEffect(() => {
++    if (!socket) return;
++
++    const handleState = (payload: any) => {
++      if (!payload) return;
++      setPhase(payload.phase ?? 'COUNTDOWN');
++      setPlayers(Array.isArray(payload.players) ? payload.players : []);
++      setCurrentChosung(payload.currentChosung || '');
++      setTimeLeft(Number(payload.timeLeft || 0));
++      setTimeLimit(Number(payload.timeLimit || 0));
++      setCountdown(Number(payload.countdown || 0));
++      setTotalLeft(Number(payload.totalLeft || 0));
++      setWinners(payload.winners || null);
++      if (payload.phase === 'GAME') setErrorMessage(null);
+     };
+ 
+-    const toggleReady = () => {
+-        setPlayers(prev => prev.map(p => p.userId === 1 ? { ...p, isReady: !p.isReady } : p));
++    const handleError = (payload: any) => {
++      const message = payload?.message ? String(payload.message) : '?ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.';
++      setErrorMessage(message);
+     };
+ 
+-    // --- Effects ---
+-
+-    // 1. Ready Phase -> Countdown
+-    useEffect(() => {
+-        if (phase === 'READY' && allReady) {
+-            setPhase('COUNTDOWN');
+-        }
+-    }, [phase, allReady]);
+-
+-    // 2. Countdown -> Game
+-    useEffect(() => {
+-        if (phase !== 'COUNTDOWN') return;
+-        const interval = setInterval(() => {
+-            setIntroCount((prev) => {
+-                if (prev <= 1) {
+-                    clearInterval(interval);
+-                    setPhase('GAME');
+-                    nextProblem();
+-                    return 0;
+-                }
+-                return prev - 1;
+-            });
+-        }, 1000);
+-        return () => clearInterval(interval);
+-    }, [phase]);
+-
+-    // 3. Game Timer & Logic
+-    useEffect(() => {
+-        if (phase !== 'GAME') return;
++    socket.on('minigame_state', handleState);
++    socket.on('minigame_error', handleError);
+ 
+-        timerRef.current = window.setInterval(() => {
+-            setTimeLeft((prev) => {
+-                if (prev <= 1) {
+-                    nextProblem(); // Just loop for demo
+-                    return 20;
+-                }
+-
+-                // MOCK: Simulate bot activity
+-                if (Math.random() < 0.1) {
+-                    setPlayers(list => {
+-                        const bots = list.filter(p => p.userId !== 1 && !p.isDropped);
+-                        if (bots.length === 0) return list;
+-                        const luckyBot = bots[Math.floor(Math.random() * bots.length)];
+-                        return list.map(p => p.userId === luckyBot.userId ? { ...p, score: p.score + 10 } : p);
+-                    });
+-                }
+-                return prev - 1;
+-            });
+-        }, 1000);
+-
+-        return () => {
+-            if (timerRef.current) clearInterval(timerRef.current);
+-        };
+-    }, [phase]);
+-
+-    const handleInputSubmit = (e: React.FormEvent) => {
+-        e.preventDefault();
+-        if (!myInput.trim()) return;
+-
+-        const input = myInput.trim();
+-        const inputChosung = getChosung(input);
+-
+-        // Check Answer: Match Chosung AND in List
+-        // User request: "留욏엺 媛쒖닔媛 ?묎컳?쇰㈃..." -> Score is correct count * 10 or something.
+-        // Currently +100 per correct answer.
+-        if (inputChosung === currentChosung && NAMES.includes(input)) {
+-            setPlayers(prev => prev.map(p => p.userId === 1 ? { ...p, score: p.score + 100 } : p));
+-            nextProblem();
+-        } else {
+-            // Optional: Penalty
+-            setMyInput('');
+-        }
++    return () => {
++      socket.off('minigame_state', handleState);
++      socket.off('minigame_error', handleError);
+     };
++  }, [socket]);
+ 
+-    // Manual Finish for Demo (or time based in real app)
+-    const finishGame = () => {
+-        // Calculate Winners
+-        const maxScore = Math.max(...players.map(p => p.score));
+-        const topPlayers = players.filter(p => p.score === maxScore);
+-        const prizePerPerson = Math.floor(SALARY_AMOUNT / topPlayers.length);
+-
+-        setWinners({
+-            names: topPlayers.map(p => p.username),
+-            prizePerPerson
+-        });
+-        setPhase('RESULT');
+-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+-    };
+-
+-    // --- Renders ---
+-
+-    // READY PHASE
+-    if (phase === 'READY') {
+-        return (
+-            <div className="flex flex-col items-center justify-center min-h-[500px] animate-fade-in relative">
+-                <h2 className="text-4xl font-black text-white mb-8 font-pixel drop-shadow-lg">
+-                    以鍮?-                </h2>
+-
+-                <div className="grid grid-cols-5 gap-4 mb-12">
+-                    {players.map(p => (
+-                        <div key={p.userId} className={`flex flex-col items-center gap-2 p-4 rounded-xl border ${p.isReady ? 'bg-green-500/20 border-green-500' : 'bg-white/5 border-white/10'}`}>
+-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${p.isReady ? 'bg-green-500 text-white' : 'bg-white/10 text-white/30'}`}>
+-                                {p.username[0]}
+-                            </div>
+-                            <span className="text-sm text-white">{p.username}</span>
+-                            <span className={`text-xs font-bold ${p.isReady ? 'text-green-400' : 'text-white/40'}`}>
+-                                {p.isReady ? 'READY' : 'WAITING'}
+-                            </span>
+-                        </div>
+-                    ))}
+-                </div>
+-
+-                <div className="absolute bottom-10">
+-                    <button
+-                        onClick={toggleReady}
+-                        className={`px-12 py-4 rounded-full text-2xl font-black transition-all transform hover:scale-105 active:scale-95 ${players[0].isReady ? 'bg-gray-600 text-gray-300' : 'bg-yellow-400 text-black shadow-[0_0_20px_rgba(250,204,21,0.5)]'}`}
+-                    >
+-                        {players[0].isReady ? 'WAITING...' : 'READY!'}
+-                    </button>
+-                    {allReady && <p className="mt-4 text-green-400 animate-pulse font-bold">怨??쒖옉?⑸땲??..</p>}
+-                </div>
+-            </div>
+-        );
++  useEffect(() => {
++    if (!socket) return;
++    if (socket.connected && !joinedRef.current) {
++      socket.emit('minigame_join');
++      joinedRef.current = true;
+     }
+-
+-    // COUNTDOWN
+-    if (phase === 'COUNTDOWN') {
+-        return (
+-            <div className="flex flex-col items-center justify-center min-h-[500px]">
+-                <div className="text-9xl font-black text-yellow-400 animate-ping font-pixel">
+-                    {introCount > 0 ? introCount : 'GO!'}
+-                </div>
+-            </div>
+-        );
++    if (!socket.connected) {
++      joinedRef.current = false;
+     }
++  }, [socket, socket?.connected]);
+ 
+-    // GAME PHASE
+-    if (phase === 'GAME') {
+-        return (
+-            <div className="flex w-full h-full min-h-[500px] relative">
+-                {/* Left (Game) & Right (Ranking) Container */}
+-
+-                {/* 1. Ranking Board (Top Right Absolute) */}
+-                <div className="absolute top-0 right-0 w-64 bg-black/60 border border-white/10 rounded-xl p-4 backdrop-blur-md z-10 shadow-xl">
+-                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
+-                        <span className="text-xs font-black text-white/60 tracking-wider">?ㅼ떆媛??쒖쐞</span>
+-                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+-                    </div>
+-                    <div className="space-y-1">
+-                        {players.sort((a, b) => b.score - a.score).map((p, index) => (
+-                            <div key={p.userId} className={`flex items-center justify-between text-sm p-1.5 rounded ${p.userId === 1 ? 'bg-white/10' : ''}`}>
+-                                <div className="flex items-center gap-2">
+-                                    <span className={`w-4 text-center font-bold ${index < 3 ? 'text-yellow-400' : 'text-white/30'}`}>{index + 1}</span>
+-                                    <span className="text-white truncate max-w-[80px]">{p.username}</span>
+-                                </div>
+-                                <span className="font-mono font-bold text-white/90">{p.score}</span>
+-                            </div>
+-                        ))}
+-                    </div>
+-                </div>
+-
+-                {/* 2. Main Game Area (Centered) */}
+-                <div className="flex-1 flex flex-col items-center justify-center relative p-8">
+-                    <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
+-                        {/* Keyword Display */}
+-                        <div className="w-full bg-white/5 px-12 py-10 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm text-center transform transition-all hover:bg-white/10">
+-                            <span className="text-lg text-white/40 block mb-6 uppercase tracking-[0.3em] font-light">?대쫫 珥덉꽦??留욏엳?몄슂!</span>
+-                            <div className="flex justify-center gap-4">
+-                                {currentChosung.split('').map((char, i) => (
+-                                    <span key={i} className="text-7xl font-black text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] w-24 h-24 flex items-center justify-center bg-black/30 rounded-2xl border border-white/5 shadow-inner">
+-                                        {char}
+-                                    </span>
+-                                ))}
+-                            </div>
+-                        </div>
+-
+-                        {/* Input Area */}
+-                        <div className="w-full relative group max-w-lg">
+-                            <form onSubmit={handleInputSubmit}>
+-                                <input
+-                                    ref={inputRef}
+-                                    type="text"
+-                                    value={myInput}
+-                                    onChange={(e) => setMyInput(e.target.value)}
+-                                    className="w-full bg-black/60 border-2 border-yellow-400/30 rounded-2xl px-8 py-5 text-center text-3xl text-white placeholder-white/10 focus:outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/10 transition-all font-bold tracking-wider"
+-                                    placeholder="?뺣떟 ?낅젰"
+-                                    autoFocus
+-                                />
+-                            </form>
+-
+-                            {/* Timer Bar */}
+-                            <div className="absolute -bottom-8 left-0 right-0 h-1.5 bg-white/10 rounded-full overflow-hidden">
+-                                <div
+-                                    className={`h-full transition-all duration-1000 linear ${timeLeft < 5 ? 'bg-red-500' : 'bg-yellow-400'}`}
+-                                    style={{ width: `${(timeLeft / 20) * 100}%` }}
+-                                />
+-                            </div>
+-                        </div>
+-                    </div>
+-
+-                    {/* Debug/Dev Button to End Game */}
+-                    <button onClick={finishGame} className="absolute bottom-4 left-4 text-xs text-white/20 hover:text-white">
+-                        [DEV] 寃뚯엫 ??
+-                    </button>
+-                </div>
+-            </div>
+-        );
++  useEffect(() => {
++    if (phase === 'RESULT' && prevPhaseRef.current !== 'RESULT') {
++      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+     }
++    prevPhaseRef.current = phase;
++  }, [phase]);
+ 
+-    // RESULT PHASE
+-    if (phase === 'RESULT' && winners) {
+-        return (
+-            <div className="flex flex-col items-center justify-center min-h-[500px] text-center animate-scale-in">
+-                <h2 className="text-5xl font-black text-white mb-2 font-pixel tracking-widest">寃뚯엫 醫낅즺</h2>
+-                <div className="w-24 h-1 bg-yellow-400 mb-8 mx-auto" />
+-
+-                <div className="bg-black/40 border border-yellow-400/30 p-8 rounded-2xl backdrop-blur-md max-w-md w-full">
+-                    <p className="text-white/60 mb-4 uppercase tracking-widest text-sm">?곗듅??/p>
+-                    <div className="text-3xl font-black text-yellow-400 mb-6 flex flex-wrap justify-center gap-2">
+-                        {winners.names.map(name => (
+-                            <span key={name} className="bg-yellow-400/10 px-3 py-1 rounded-lg border border-yellow-400/20">{name}</span>
+-                        ))}
+-                    </div>
+-
+-                    <div className="border-t border-white/10 pt-6">
+-                        <p className="text-white/60 text-sm mb-1">?곴툑</p>
+-                        <p className="text-4xl font-black text-white">{formatKRWKo(winners.prizePerPerson)}</p>
+-                    </div>
++  useEffect(() => {
++    if (phase === 'GAME' && !myPlayer?.isDropped) {
++      inputRef.current?.focus();
++    }
++  }, [phase, myPlayer, currentChosung]);
++
++  const handleSubmit = (event: FormEvent) => {
++    event.preventDefault();
++    if (phase !== 'GAME') return;
++    if (!socket) return;
++    if (myPlayer?.isDropped) return;
++    const answer = inputValue.trim();
++    if (!answer) return;
++    socket.emit('minigame_answer', { answer });
++    setInputValue('');
++  };
++
++  if (phase === 'COUNTDOWN') {
++    return (
++      <div className="flex flex-col items-center justify-center min-h-[500px]">
++        <div className="text-6xl font-black text-white/70 mb-6">
++          ?꾩껜 ?쒗븳 ?쒓컙 {totalLeft}s
++        </div>
++        <div className="text-9xl font-black text-yellow-400 animate-ping font-pixel">
++          {countdown > 0 ? countdown : 'GO!'}
++        </div>
++      </div>
++    );
++  }
++
++  if (phase === 'GAME') {
++    const progress = timeLimit > 0 ? Math.max(0, Math.min(100, (timeLeft / timeLimit) * 100)) : 0;
++    return (
++      <div className="flex w-full h-full min-h-[500px] relative">
++        <div className="absolute top-0 left-0 px-4 py-2 text-white/60 text-sm">
++          ?꾩껜 ?쒗븳 ?쒓컙 {totalLeft}s
++        </div>
++
++        <div className="absolute top-0 right-0 w-64 bg-black/60 border border-white/10 rounded-xl p-4 backdrop-blur-md z-10 shadow-xl">
++          <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
++            <span className="text-xs font-black text-white/60 tracking-wider">?ㅼ떆媛??쒖쐞</span>
++            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
++          </div>
++          <div className="space-y-1">
++            {sortedPlayers.map((p, index) => (
++              <div
++                key={p.userId}
++                className={`flex items-center justify-between text-sm p-1.5 rounded ${
++                  p.userId === myUserId ? 'bg-white/10' : ''
++                }`}
++              >
++                <div className="flex items-center gap-2">
++                  <span className={`w-4 text-center font-bold ${index < 3 ? 'text-yellow-400' : 'text-white/30'}`}>
++                    {index + 1}
++                  </span>
++                  <span className="text-white truncate max-w-[80px]">{p.nickname}</span>
+                 </div>
++                <span className="font-mono font-bold text-white/90">{p.score}</span>
++              </div>
++            ))}
++          </div>
++        </div>
++
++        <div className="flex-1 flex flex-col items-center justify-center relative p-8">
++          <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
++            <div className="w-full bg-white/5 px-12 py-10 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm text-center">
++              <span className="text-lg text-white/40 block mb-6 uppercase tracking-[0.3em] font-light">
++                ?뚮젅?댁뼱 珥덉꽦???낅젰?섏꽭??+              </span>
++              <div className="flex justify-center gap-4">
++                {(currentChosung || '-').split('').map((char, i) => (
++                  <span
++                    key={i}
++                    className="text-7xl font-black text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] w-24 h-24 flex items-center justify-center bg-black/30 rounded-2xl border border-white/5 shadow-inner"
++                  >
++                    {char}
++                  </span>
++                ))}
++              </div>
++            </div>
+ 
+-                <button
+-                    onClick={closeModal}
+-                    className="mt-8 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold transition-all"
+-                >
+-                    醫낅즺
+-                </button>
++            <div className="w-full relative group max-w-lg">
++              <form onSubmit={handleSubmit}>
++                <input
++                  ref={inputRef}
++                  type="text"
++                  value={inputValue}
++                  onChange={(e) => setInputValue(e.target.value)}
++                  className="w-full bg-black/60 border-2 border-yellow-400/30 rounded-2xl px-8 py-5 text-center text-3xl text-white placeholder-white/10 focus:outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/10 transition-all font-bold tracking-wider"
++                  placeholder="?뺣떟 ?낅젰"
++                  disabled={myPlayer?.isDropped}
++                  autoFocus
++                />
++              </form>
++
++              <div className="absolute -bottom-8 left-0 right-0 h-1.5 bg-white/10 rounded-full overflow-hidden">
++                <div
++                  className={`h-full transition-all duration-1000 linear ${timeLeft < 3 ? 'bg-red-500' : 'bg-yellow-400'}`}
++                  style={{ width: `${progress}%` }}
++                />
++              </div>
+             </div>
+-        );
+-    }
+ 
+-    return null;
++            {myPlayer?.isDropped && (
++              <p className="text-red-400 font-bold">?ㅻ떟?쇰줈 ?덈씫?덉뒿?덈떎.</p>
++            )}
++            {errorMessage && <p className="text-red-300 text-sm">{errorMessage}</p>}
++          </div>
++        </div>
++      </div>
++    );
++  }
++
++  if (phase === 'RESULT') {
++    const winnerNames = winners && winners.length > 0 ? winners : null;
++    return (
++      <div className="flex flex-col items-center justify-center min-h-[500px] text-center animate-scale-in">
++        <h2 className="text-5xl font-black text-white mb-2 font-pixel tracking-widest">寃뚯엫 醫낅즺</h2>
++        <div className="w-24 h-1 bg-yellow-400 mb-8 mx-auto" />
++
++        <div className="bg-black/40 border border-yellow-400/30 p-8 rounded-2xl backdrop-blur-md max-w-md w-full">
++          <p className="text-white/60 mb-4 uppercase tracking-widest text-sm">?곗듅??/p>
++          {winnerNames ? (
++            <div className="text-3xl font-black text-yellow-400 mb-2 flex flex-wrap justify-center gap-2">
++              {winnerNames.map((name) => (
++                <span key={name} className="bg-yellow-400/10 px-3 py-1 rounded-lg border border-yellow-400/20">
++                  {name}
++                </span>
++              ))}
++            </div>
++          ) : (
++            <p className="text-white/70 text-xl font-bold">?뱀옄 ?놁쓬</p>
++          )}
++        </div>
++
++        <button
++          onClick={closeModal}
++          className="mt-8 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold transition-all"
++        >
++          醫낅즺
++        </button>
++      </div>
++    );
++  }
++
++  return null;
+ };
+ 
+ export default InitialSurvival;
+diff --git a/src/hooks/useGameSocket.ts b/src/hooks/useGameSocket.ts
+index 6084202..544a2ad 100644
+--- a/src/hooks/useGameSocket.ts
++++ b/src/hooks/useGameSocket.ts
+@@ -1028,14 +1028,15 @@ export const useGameSocket = (roomId: number = 1) => {
+   }, []);
+ 
+   const isMyTurn = useCallback(() => {
+-    const myUserId = toInt(state.myUserId, 0);
+-    const socketTurnUserId = toInt(state.currentTurnUserId, 0);
++    const socketState = socketStateRef.current;
++    const myUserId = toInt(socketState?.myUserId ?? myUserIdRef.current, 0);
++    const socketTurnUserId = toInt(socketState?.currentTurnUserId ?? currentTurnUserIdRef.current, 0);
+     const storeState = useGameStore.getState();
+     const fallbackTurnUserId = toInt(storeState.players[storeState.currentPlayerIndex]?.userId, 0);
+     const turnUserId = socketTurnUserId > 0 ? socketTurnUserId : fallbackTurnUserId;
+     if (myUserId <= 0 || turnUserId <= 0) return false;
+     return turnUserId === myUserId;
+-  }, [state.currentTurnUserId, state.myUserId]);
++  }, []);
+ 
+   const pickOrderCard = useCallback((cardNumber: number) => {
+     if (!socketRef.current) return;

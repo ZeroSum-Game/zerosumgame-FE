@@ -38,6 +38,7 @@ declare global {
 
 let loadPromise: Promise<void> | null = null;
 let sharedSocket: SocketLike | null = null;
+let sharedToken: string | null = null;
 
 export const ensureSocketIoClient = async () => {
   if (typeof window === 'undefined') return;
@@ -79,13 +80,16 @@ export const connectSocket = async (): Promise<SocketLike> => {
   await ensureSocketIoClient();
   if (!window.io) throw new Error('socket.io ?대씪?댁뼵?몃? 遺덈윭?????놁뼱??');
 
-  if (sharedSocket && sharedSocket.connected) {
-    return sharedSocket;
-  }
-
   const token = getToken();
   if (!token) {
     throw new Error('?몄쬆 ?좏겙???놁뼱?? ?ㅼ떆 濡쒓렇?명빐二쇱꽭??');
+  }
+
+  if (sharedSocket && sharedSocket.connected && sharedToken === token) {
+    return sharedSocket;
+  }
+  if (sharedSocket && sharedSocket.connected && sharedToken !== token) {
+    sharedSocket.disconnect();
   }
 
   const backend = getBackendOrigin() ?? undefined;
@@ -97,5 +101,14 @@ export const connectSocket = async (): Promise<SocketLike> => {
       token,
     },
   });
+  sharedToken = token;
   return sharedSocket;
+};
+
+export const resetSocket = () => {
+  if (sharedSocket) {
+    sharedSocket.disconnect();
+  }
+  sharedSocket = null;
+  sharedToken = null;
 };

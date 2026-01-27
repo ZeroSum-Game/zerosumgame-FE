@@ -1,8 +1,8 @@
 import { getToken, removeToken } from './auth';
+import { resetSocket } from './socketio';
 import { toInt, toNumber } from '../utils/parseNumber';
 import { drawGoldenKeyCard, type GoldenKeyCardPayload, type GoldenKeyContext } from '../utils/goldenKey';
 
-// 인증 헤더 생성
 const getAuthHeaders = (): HeadersInit => {
   const token = getToken();
   const headers: HeadersInit = {
@@ -43,7 +43,7 @@ export const apiGetMe = async (): Promise<ApiMe | null> => {
   }
 };
 
-export const apiSetCharacter = async (backendCharacter: string) => {
+export const apiSetCharacter = async (backendCharacter: string | null) => {
   const res = await fetch('/api/game/character', {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -51,17 +51,17 @@ export const apiSetCharacter = async (backendCharacter: string) => {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || '캐릭터 선택에 실패했어요.');
+    throw new Error(body?.error || '??? ?? ??');
   }
   const body = (await res.json()) as any;
   return {
     playerId: toInt(body?.playerId),
-    character: String(body?.character ?? ''),
+    character: body?.character ?? null,
     cash: toNumber(body?.cash),
   };
 };
 
-// 유저 프로필 조회
+// ?? ??? ??
 export type ApiUserProfile = {
   nickname: string;
   totalWins: number;
@@ -155,7 +155,7 @@ export const apiGetMap = async (): Promise<ApiMapNode[] | null> => {
   }
 };
 
-// 마켓 정보 조회
+// ?? ?? ??
 export type ApiMarket = {
   samsung: number;
   tesla: number;
@@ -183,17 +183,20 @@ export const apiGetMarket = async (): Promise<ApiMarket | null> => {
   }
 };
 
+export const apiDrawGoldenKey = async (context: GoldenKeyContext): Promise<GoldenKeyCardPayload> => {
+  return drawGoldenKeyCard(context);
+};
+
 export const apiRollDice = async () => {
   const res = await fetch('/api/test/roll', {
     headers: getAuthHeaders(),
   });
   if (!res.ok) {
-    throw new Error('주사위 굴리기 실패');
+    throw new Error('??? ??? ??');
   }
   return res.json();
 };
 
-// [신규] 시작점 자산 매수
 export const apiBuyAsset = async (type: string, quantity: number) => {
   const res = await fetch('/api/game/buy-asset', {
     method: 'POST',
@@ -202,7 +205,7 @@ export const apiBuyAsset = async (type: string, quantity: number) => {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || '매수 실패');
+    throw new Error(err.error || '?? ??');
   }
   return res.json();
 };
@@ -214,12 +217,11 @@ export const apiStartWar = async () => {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || '전쟁 선포 실패');
+    throw new Error(err.error || '?? ?? ??');
   }
   return res.json();
 };
 
-// [신규] 우주여행 이동
 export const apiSpaceMove = async (nodeIdx: number) => {
   const res = await fetch('/api/game/space-move', {
     method: 'POST',
@@ -228,7 +230,7 @@ export const apiSpaceMove = async (nodeIdx: number) => {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || '이동 실패');
+    throw new Error(err.error || '?? ??');
   }
   return res.json();
 };
@@ -257,7 +259,7 @@ export const apiTradeStock = async (
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || '주식 거래에 실패했어요.');
+    throw new Error(body?.error || '?? ?? ??');
   }
   const body = (await res.json()) as any;
   const assets = body?.assets ?? {};
@@ -279,7 +281,6 @@ export const apiTradeStock = async (
   };
 };
 
-// 땅 구매/인수/랜드마크/매각
 export type ApiPurchaseResult = {
   playerId: number;
   cash: number;
@@ -298,7 +299,7 @@ export const apiPurchaseLand = async (
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || '땅 거래에 실패했어요.');
+    throw new Error(body?.error || '? ?? ??');
   }
   const body = (await res.json()) as any;
   return {
@@ -309,7 +310,6 @@ export const apiPurchaseLand = async (
   };
 };
 
-// 플레이어 자산 조회
 export type ApiPlayerLand = {
   nodeIdx: number;
   isLandmark: boolean;
@@ -364,7 +364,7 @@ export const apiGetPlayerAssets = async (userId: number): Promise<ApiPlayerAsset
   }
 };
 
-// 전쟁 승률 조회
+// ?? ?? ??
 export type ApiWarRate = {
   myAsset: number;
   oppAsset: number;
@@ -390,7 +390,7 @@ export const apiGetWarRate = async (opponentUserId: number): Promise<ApiWarRate 
   }
 };
 
-// 월드컵 개최
+// ??? ??
 export const apiWorldCup = async (nodeIdx: number) => {
   const res = await fetch('/api/game/worldcup', {
     method: 'POST',
@@ -399,7 +399,7 @@ export const apiWorldCup = async (nodeIdx: number) => {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || '월드컵 개최에 실패했어요.');
+    throw new Error(body?.error || '??? ?? ??');
   }
   const body = (await res.json()) as any;
   return { roomId: toInt(body?.roomId), hostId: toInt(body?.hostId), nodeIdx: toInt(body?.nodeIdx) };
@@ -416,12 +416,26 @@ export const apiWarLose = async (loserUserId: number) => {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || '전쟁 패배 처리에 실패했어요.');
+    throw new Error(body?.error || '?? ?? ?? ??');
   }
   return (await res.json().catch(() => null)) as { ok: boolean } | null;
 };
 
+export const apiGrantMinigameReward = async (winnerUserId: number) => {
+  const res = await fetch('/api/game/minigame-reward', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ winnerUserId }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || '보상 지급 실패');
+  }
+  return (await res.json().catch(() => null)) as { ok?: boolean; reward?: number } | null;
+};
+
 export const apiLogout = () => {
+  resetSocket();
   removeToken();
   window.location.href = '/';
 };

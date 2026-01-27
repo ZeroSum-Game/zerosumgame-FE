@@ -176,7 +176,7 @@ const TurnControls = () => {
           </div>
         ) : (
           <div className="turn-controls-waiting">
-            <span>상대 플레이어 대기 중</span>
+            <span>다른 플레이어 기다리는 중</span>
           </div>
         )}
       </div>
@@ -188,31 +188,31 @@ const TurnControls = () => {
   const disabled =
     action === 'WAIT' || (action === 'ROLL' ? !canRoll : action === 'END_TURN' ? !canEndTurn : true);
 
-  let label = connected ? '대기' : '연결 중';
+  let label = connected ? 'WAIT' : '연결 중..';
   if (action === 'ROLL') label = '주사위 굴리기';
   if (action === 'END_TURN') label = '턴 종료';
-  if (phase === 'MOVING') label = '이동 중';
-  if (isHoldRolling) label = '굴리는 중';
+  if (phase === 'MOVING') label = '움직이는 중..';
+  if (isHoldRolling) label = '굴리는 중..';
   if (isSettling) label = `주사위 ${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
-  if (activeModal) label = '행동 필요';
+  if (activeModal) label = '움직임이 필요합니다';
 
   const hint =
     error ??
     (!connected
-      ? '서버 연결 중입니다. 잠시만 기다려 주세요.'
+      ? '서버에 연결하는 중 입니다.'
       : canRoll && extraRolls > 0
-      ? `추가 굴림 ${extraRolls}`
+      ? `추가 굴리기 ${extraRolls}`
       : canRoll
-      ? '클릭해서 주사위를 굴리세요.'
+      ? '주사위를 굴리세요'
       : canEndTurn
-      ? '턴 종료로 다음 플레이어에게 넘기세요.'
+      ? '다음 플레이어로 턴을 넘기세요.'
       : activeModal
-      ? '모달을 처리해야 계속할 수 있어요.'
+      ? '모달을 해결하세요.'
       : phase === 'MOVING'
-      ? '이동 중...'
+      ? '움직이는 중...'
       : isSettling
       ? dice[0] === dice[1]
-        ? '더블! 한 번 더 굴릴 수 있어요.'
+        ? '더블! 한번 더!'
         : ''
       : ' ');
 

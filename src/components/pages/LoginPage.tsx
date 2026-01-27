@@ -15,7 +15,7 @@ const LoginPage = () => {
     const MAX_RETRIES = 5;
     const RETRY_DELAY_MS = 500;
 
-    // OAuth 肄쒕갚?먯꽌 ?좏겙 異붿텧
+  
     const urlToken = extractTokenFromUrl();
     if (urlToken) {
       setToken(urlToken);
@@ -86,7 +86,7 @@ const LoginPage = () => {
                   ZERO SUM
                 </span>
               </h1>
-              <p className="text-lg text-white/70">경제 보드게임</p>
+              <p className="text-lg text-white/70">모두가 부자되는 게임</p>
             </div>
 
             {/* Login Card */}

@@ -4,7 +4,7 @@ import { apiGenerateNews } from '../../services/api';
 import { formatKRWKoShort } from '../../utils/formatKRW';
 import { getRegionForStockSymbol } from '../../utils/regionCues';
 
-const MAJOR_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'];
+const MAJOR_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'];
 
 const MarketPanel = () => {
   const assetPrices = useGameStore((s) => s.assetPrices);

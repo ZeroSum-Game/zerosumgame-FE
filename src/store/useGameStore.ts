@@ -4,10 +4,10 @@ import { formatKRWKo } from '../utils/formatKRW';
 import { drawGoldenKeyCard, type GoldenKeyCardPayload } from '../utils/goldenKey';
 
 export const GAME_RULES = {
-  START_CASH: 3000000,
-  START_SALARY: 200000,
-  MAX_ROUNDS: 10,
-  TAX_RATE: 0.1,
+  START_CASH: 2000000,
+  START_SALARY: 500000,
+  MAX_ROUNDS: 20,
+  TAX_RATE: 0.15,
   TAKEOVER_MULTIPLIER: 1.5,
   LANDMARK_COST_MULTIPLIER: 0.4,
   STOCK_PRICE_CHANGE_MIN: -0.1,
@@ -21,12 +21,12 @@ export const GAME_RULES = {
 
 export type CharacterType = 'ELON' | 'SAMSUNG' | 'TRUMP' | 'PUTIN';
 
-export type StockSymbol = 'SAMSUNG' | 'TESLA' | 'LOCKHEED' | 'BITCOIN' | 'GOLD';
+export type StockSymbol = 'SAMSUNG' | 'LOCKHEED' | 'TESLA' | 'BITCOIN' | 'GOLD';
 
 export const STOCK_INFO: Record<StockSymbol, { name: string; nameKr: string; basePrice: number }> = {
   SAMSUNG: { name: 'SAMSUNG', nameKr: '삼성전자', basePrice: 72500 },
-  TESLA: { name: 'TESLA', nameKr: '테슬라', basePrice: 248000 },
-  LOCKHEED: { name: 'LOCKHEED', nameKr: '록히드마틴', basePrice: 485000 },
+  LOCKHEED: { name: 'LOCKHEED', nameKr: '록히드마틴', basePrice: 178000 },
+  TESLA: { name: 'TESLA', nameKr: '테슬라', basePrice: 215000 },
   BITCOIN: { name: 'BITCOIN', nameKr: '비트코인', basePrice: 95450000 },
   GOLD: { name: 'GOLD', nameKr: '금', basePrice: 285000 },
 };
@@ -153,7 +153,8 @@ export type ModalState =
   | { type: 'INFO'; title: string; description: string; imageSrc?: string; imageAlt?: string }
   | { type: 'BUY_ASSET' }
   | { type: 'WAR_CHOICE' }
-  | { type: 'WORLDCUP_HOST'; nodeIdx: number };
+  | { type: 'WORLDCUP_HOST'; nodeIdx: number }
+  | { type: 'INITIAL_GAME' }; // [Initial Survival] 미니게임 모달 타입 추가
 
 type PageType = 'login' | 'lobby' | 'game' | 'result';
 type PhaseType = 'IDLE' | 'ROLLING' | 'MOVING' | 'MODAL' | 'GAME_OVER';
@@ -210,6 +211,7 @@ type GameState = {
   modalData: any;
 
   eventLog: EventLogEntry[];
+  appendEventLog: (type: EventLogType, title: string, message: string) => void;
 
   isRolling: boolean;
   rollTrigger: number;
@@ -250,7 +252,8 @@ type GameState = {
   completeMinigame: (success: boolean) => void;
   confirmTax: () => void;
   chooseWarTarget: (defenderId: number) => void;
-  triggerGoldenKey: () => void;
+  handleGoldenKey: () => Promise<void>;
+  applyGoldenKeyCard: (card: GoldenKeyCardPayload) => void;
 
   setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
   showModal: (modal: ModalState) => void;
@@ -264,8 +267,8 @@ type GameState = {
   }) => void;
 };
 
-const STOCK_SYMBOLS = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'] as const satisfies readonly StockSymbol[];
-const EQUITY_SYMBOLS = ['SAMSUNG', 'TESLA', 'LOCKHEED'] as const;
+const STOCK_SYMBOLS = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'] as const satisfies readonly StockSymbol[];
+const EQUITY_SYMBOLS = ['SAMSUNG', 'LOCKHEED', 'TESLA'] as const;
 type EquitySymbol = (typeof EQUITY_SYMBOLS)[number];
 
 const clamp = (min: number, max: number, value: number) => Math.max(min, Math.min(max, value));
@@ -282,8 +285,8 @@ const getBaseLandPrices = () => {
 
 const getInitialAssetPrices = (): Record<StockSymbol, number> => ({
   SAMSUNG: STOCK_INFO.SAMSUNG.basePrice,
-  TESLA: STOCK_INFO.TESLA.basePrice,
   LOCKHEED: STOCK_INFO.LOCKHEED.basePrice,
+  TESLA: STOCK_INFO.TESLA.basePrice,
   BITCOIN: STOCK_INFO.BITCOIN.basePrice,
   GOLD: STOCK_INFO.GOLD.basePrice,
 });
@@ -382,7 +385,7 @@ const useGameStore = create<GameState>((set, get) => {
 
     let cash = player.cash;
     const holdings = { ...player.stockHoldings };
-    const sellOrder: StockSymbol[] = ['BITCOIN', 'GOLD', 'SAMSUNG', 'TESLA', 'LOCKHEED'];
+    const sellOrder: StockSymbol[] = ['BITCOIN', 'GOLD', 'SAMSUNG', 'LOCKHEED', 'TESLA'];
 
     for (const symbol of sellOrder) {
       if (cash >= amountNeeded) break;
@@ -762,7 +765,6 @@ const useGameStore = create<GameState>((set, get) => {
       set({
         phase: 'MODAL',
         activeModal: { type: 'GOLDEN_KEY', title: card.title, description: card.message },
-        modalData: { goldenKey: card },
       });
     } catch {
       set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '황금열쇠 오류', description: '카드 정보를 불러오지 못했습니다.' } });
@@ -802,7 +804,8 @@ const useGameStore = create<GameState>((set, get) => {
 
     if (space.type === 'MINIGAME') {
       pushLog('MINIGAME', '미니게임', `${currentPlayer.name} 미니게임 도전!`);
-      set({ phase: 'MODAL', activeModal: { type: 'MINIGAME', salary: GAME_RULES.START_SALARY } });
+      // Use INITIAL_GAME type
+      set({ phase: 'MODAL', activeModal: { type: 'INITIAL_GAME' } });
       return;
     }
 
@@ -974,12 +977,12 @@ const useGameStore = create<GameState>((set, get) => {
 
       const dividendRates: Record<EquitySymbol, number> = {
         SAMSUNG: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
-        TESLA: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
         LOCKHEED: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
+        TESLA: randBetween(GAME_RULES.DIVIDEND_MIN, GAME_RULES.DIVIDEND_MAX),
       };
       if (state.dividendOverrides.SAMSUNG != null) dividendRates.SAMSUNG = state.dividendOverrides.SAMSUNG;
-      if (state.dividendOverrides.TESLA != null) dividendRates.TESLA = state.dividendOverrides.TESLA;
       if (state.dividendOverrides.LOCKHEED != null) dividendRates.LOCKHEED = state.dividendOverrides.LOCKHEED;
+      if (state.dividendOverrides.TESLA != null) dividendRates.TESLA = state.dividendOverrides.TESLA;
 
       const players = state.players.map((p) => {
         if (p.isBankrupt) return p;
@@ -1046,6 +1049,7 @@ const useGameStore = create<GameState>((set, get) => {
     modalData: null,
 
     eventLog: [],
+    appendEventLog: pushLog,
 
     isRolling: false,
     rollTrigger: 0,
@@ -1259,7 +1263,7 @@ const useGameStore = create<GameState>((set, get) => {
         set({ activeModal: queued, queuedModal: null, phase: 'MODAL' });
         return;
       }
-      set({ activeModal: null, phase: 'IDLE', modalData: null });
+      set({ activeModal: null, phase: 'IDLE' });
       checkGameEnd();
     },
 
@@ -1584,10 +1588,10 @@ const useGameStore = create<GameState>((set, get) => {
         players: s.players.map((p, idx) =>
           idx === s.currentPlayerIndex
             ? {
-                ...p,
-                cash: p.cash - total,
-                stockHoldings: { ...p.stockHoldings, [modal.symbol]: currentHolding + qty },
-              }
+              ...p,
+              cash: p.cash - total,
+              stockHoldings: { ...p.stockHoldings, [modal.symbol]: currentHolding + qty },
+            }
             : p
         ),
       }));
@@ -1614,10 +1618,10 @@ const useGameStore = create<GameState>((set, get) => {
         players: s.players.map((p, idx) =>
           idx === s.currentPlayerIndex
             ? {
-                ...p,
-                cash: p.cash + total,
-                stockHoldings: { ...p.stockHoldings, [modal.symbol]: holding - qty },
-              }
+              ...p,
+              cash: p.cash + total,
+              stockHoldings: { ...p.stockHoldings, [modal.symbol]: holding - qty },
+            }
             : p
         ),
       }));
@@ -1762,28 +1766,10 @@ const useGameStore = create<GameState>((set, get) => {
       checkGameEnd();
     },
 
-    triggerGoldenKey: () => {
-      try {
-        const state = get();
-        const card = drawGoldenKeyCard({
-          players: state.players,
-          lands: state.lands,
-          landPrices: state.landPrices,
-          assetPrices: state.assetPrices,
-        });
+    handleGoldenKey,
+    applyGoldenKeyCard,
 
-        applyGoldenKeyCard(card);
-        pushLog('KEY', `황금열쇠: ${card.title}`, card.message);
-        set({
-          phase: 'MODAL',
-          activeModal: { type: 'GOLDEN_KEY', title: card.title, description: card.message },
-          modalData: { goldenKey: card },
-        });
-      } catch {
-        set({ phase: 'MODAL', activeModal: { type: 'INFO', title: '황금열쇠 오류', description: '카드 정보를 불러오지 못했습니다.' } });
-      }
-    },
-
+    // Backend sync helpers
     setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => {
       set((s) => ({
         assetPrices: { ...s.assetPrices, ...prices },
@@ -1816,10 +1802,10 @@ const useGameStore = create<GameState>((set, get) => {
         players: s.players.map((p) =>
           p.id === data.playerId
             ? {
-                ...p,
-                cash: data.cash,
-                position: data.location,
-              }
+              ...p,
+              cash: data.cash,
+              position: data.location,
+            }
             : p
         ),
       }));

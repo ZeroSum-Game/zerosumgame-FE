@@ -1,14 +1,11 @@
 ﻿import { createContext, useContext } from 'react';
 import GameOverlay from '../ui/GameOverlay';
-import { useGameSocket, type GameSocketState } from '../../hooks/useGameSocket';
+import {
+  useGameSocket,
+  type GameSocketContextValue,
+} from '../../hooks/useGameSocket';
 
-type GameSocketContextType = GameSocketState & {
-  rollDice: () => void;
-  endTurn: () => void;
-  isMyTurn: () => boolean;
-  pickOrderCard: (cardNumber: number) => void;
-  socket: ReturnType<typeof useGameSocket>['socket'];
-};
+type GameSocketContextType = GameSocketContextValue;
 
 const GameSocketContext = createContext<GameSocketContextType | null>(null);
 
@@ -18,6 +15,8 @@ export const useGameSocketContext = () => {
   return ctx;
 };
 
+import SpaceBackdrop from '../ui/SpaceBackdrop';
+
 const GamePage = () => {
   const gameSocket = useGameSocket(1);
 
@@ -26,8 +25,16 @@ const GamePage = () => {
   };
 
   return (
-    <GameSocketContext.Provider value={contextValue}>
-      <GameOverlay />
+    <GameSocketContext.Provider value={gameSocket}>
+      <div className="ui-page game-page-wrapper">
+        <SpaceBackdrop />
+        <div className="ui-bg-blobs" aria-hidden="true">
+          <div className="ui-blob -left-40 top-1/4 bg-sky-500/10" />
+          <div className="ui-blob -right-40 bottom-1/4 bg-fuchsia-500/10" />
+          <div className="ui-blob left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-indigo-500/10" />
+        </div>
+        <GameOverlay />
+      </div>
     </GameSocketContext.Provider>
   );
 };

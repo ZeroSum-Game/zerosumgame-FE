@@ -8,6 +8,7 @@ import useGameStore, {
 } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import AssetDetailModal from '../game/AssetDetailModal';
+import InitialSurvival from '../minigames/InitialSurvival'; // [Initial Survival] 미니게임 컴포넌트 추가
 import BoardRing from '../game/BoardRing';
 import DiceRoller from '../game/DiceRoller';
 import GameLayout from '../game/GameLayout';
@@ -19,7 +20,7 @@ import { apiGetMap, apiGetWarRate, apiPurchaseLand, apiSpaceMove, apiTradeStock,
 import { toBackendStockSymbol } from '../../utils/stockMapping';
 import { applyWarMultiplier } from '../../utils/warMultiplier';
 
-const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'];
+const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'];
 const WAR_FIGHT_DURATION_MS = 2600;
 const getBattleAvatar = (character: string | null | undefined, fallback: string) => {
   if (character && character in CHARACTER_BATTLE_AVATAR) {
@@ -196,8 +197,8 @@ const GameOverlay = () => {
                 cash: Number(result.cash),
                 stockHoldings: {
                   SAMSUNG: result.assets.samsung,
-                  TESLA: result.assets.tesla,
                   LOCKHEED: result.assets.lockheed,
+                  TESLA: result.assets.tesla,
                   GOLD: result.assets.gold,
                   BITCOIN: result.assets.bitcoin,
                 },
@@ -228,8 +229,8 @@ const GameOverlay = () => {
                 cash: Number(result.cash),
                 stockHoldings: {
                   SAMSUNG: result.assets.samsung,
-                  TESLA: result.assets.tesla,
                   LOCKHEED: result.assets.lockheed,
+                  TESLA: result.assets.tesla,
                   GOLD: result.assets.gold,
                   BITCOIN: result.assets.bitcoin,
                 },
@@ -467,8 +468,8 @@ const GameOverlay = () => {
 
                   <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
                     <p className="text-sm text-white/60">가격</p>
-                      <p className="mt-1 text-lg font-black text-white">{formatKRWKo(price)}</p>
-                    </div>
+                    <p className="mt-1 text-lg font-black text-white">{formatKRWKo(price)}</p>
+                  </div>
 
                   {space?.description && (
                     <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-4">
@@ -551,9 +552,9 @@ const GameOverlay = () => {
               const WORLD_CUP_COST = 800000;
               const ownedTiles = currentPlayer
                 ? Object.entries(lands)
-                    .filter(([, land]) => land.ownerId === currentPlayer.id)
-                    .map(([tileId]) => Number(tileId))
-                    .sort((a, b) => (landPrices[b] ?? 0) - (landPrices[a] ?? 0))
+                  .filter(([, land]) => land.ownerId === currentPlayer.id)
+                  .map(([tileId]) => Number(tileId))
+                  .sort((a, b) => (landPrices[b] ?? 0) - (landPrices[a] ?? 0))
                 : [];
 
               return (
@@ -791,9 +792,8 @@ const GameOverlay = () => {
                           key={sym}
                           type="button"
                           onClick={() => setTradeSymbol(sym)}
-                          className={`dash-action ${
-                            sym === symbol ? 'dash-action-primary' : 'dash-action-secondary'
-                          }`}
+                          className={`dash-action ${sym === symbol ? 'dash-action-primary' : 'dash-action-secondary'
+                            }`}
                         >
                           {STOCK_INFO[sym].nameKr}
                         </button>
@@ -860,59 +860,38 @@ const GameOverlay = () => {
               );
             })()}
 
-            {/* MINIGAME */}
+            {/* MINIGAME (Legacy) */}
             {activeModal.type === 'MINIGAME' && (() => {
               const salary = activeModal.salary;
               const secret = minigameSecret ?? 1;
               const guessed = minigameGuess;
               return (
                 <>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black text-white">🎮 미니게임</h2>
-                      <p className="mt-1 text-sm text-white/70">숫자 맞추기! 1~6 중 하나를 선택하세요.</p>
-                    </div>
-                    <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
-                      ✕
-                    </button>
-                  </div>
-
-                  <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                    <p className="text-sm text-white/60">성공 보상</p>
-                    <p className="mt-1 text-lg font-black text-white">{formatKRWKo(salary)}</p>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-6 gap-2">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className={`dash-action w-full p-0 text-lg font-black ${
-                          guessed === i + 1 ? 'dash-action-primary' : 'dash-action-secondary'
-                        }`}
-                        onClick={() => setMinigameGuess(i + 1)}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-6 flex gap-3">
-                    <button
-                      type="button"
-                      className="dash-action dash-action-success flex-1"
-                      disabled={!minigameGuess}
-                      onClick={() => {
-                        const guess = minigameGuess ?? 1;
-                        completeMinigame(guess === secret);
-                      }}
-                    >
-                      선택 완료
-                    </button>
-                  </div>
+                  {/* ... Legacy Number Guessing Game if needed, or remove. 
+                      Task says "Initial Survival" triggers when landing.
+                      Let's replace or add new type.
+                      Plan said: { type: 'INITIAL_GAME' } mod.
+                   */}
+                  {/* ... keeping legacy just in case, but handling INITIAL_GAME below */}
                 </>
               );
             })()}
+
+            {/* [Initial Survival] 미니게임 렌더링 블록 시작 */}
+            {activeModal.type === 'INITIAL_GAME' && (
+              <>
+                <div className="flex items-start justify-end w-full mb-4">
+                  <button type="button" className="ui-icon-btn bg-black/20 hover:bg-black/40" onClick={closeModal} aria-label="닫기">
+                    ✕
+                  </button>
+                </div>
+                <div className="w-full relative min-h-[400px]">
+                  <InitialSurvival />
+                </div>
+              </>
+            )}
+            {/* [Initial Survival] 미니게임 렌더링 블록 끝 */}
+
 
             {/* GOLDEN KEY */}
             {activeModal.type === 'GOLDEN_KEY' && (

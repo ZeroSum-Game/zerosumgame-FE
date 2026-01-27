@@ -203,6 +203,7 @@ SingleDice.displayName = 'SingleDice';
 const Dice = () => {
   const setDiceValues = useGameStore((state) => state.setDiceValues);
   const rollTrigger = useGameStore((state) => state.rollTrigger);
+  const rollingUserId = useGameStore((state) => state.rollingUserId);
 
   const dice1Ref = useRef<{ throwDice: () => void }>(null);
   const dice2Ref = useRef<{ throwDice: () => void }>(null);
@@ -219,7 +220,10 @@ const Dice = () => {
   const handleStop = (index: 0 | 1, val: number) => {
     results.current[index] = val;
     if (results.current[0] !== null && results.current[1] !== null) {
-      setDiceValues([results.current[0], results.current[1]]);
+      // keep server dice as source of truth in multiplayer
+      if (!rollingUserId) {
+        setDiceValues([results.current[0], results.current[1]]);
+      }
     }
   };
 

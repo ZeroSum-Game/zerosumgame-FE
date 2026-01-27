@@ -6,7 +6,7 @@ import { formatKRW, formatKRWKoShort } from '../../utils/formatKRW';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
 import { useGameSocketContext } from '../pages/GamePage';
 
-const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'TESLA', 'LOCKHEED', 'BITCOIN', 'GOLD'];
+const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'];
 
 const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
   const mult = landType === 'LANDMARK' ? 1.8 : 1.0;

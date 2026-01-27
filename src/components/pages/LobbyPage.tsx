@@ -35,8 +35,8 @@ type OrderPickingState = {
   isPickingOrder: boolean;
   availableCards: number[];
   pickedCards: number[];
-  myPickedCard: number | null;
   revealedCards: Record<number, number>;
+  myPickedCard: number | null;
   orderResults: OrderPickResult[] | null;
 };
 
@@ -74,8 +74,8 @@ const LobbyPage = () => {
     isPickingOrder: false,
     availableCards: [],
     pickedCards: [],
-    myPickedCard: null,
     revealedCards: {},
+    myPickedCard: null,
     orderResults: null,
   });
 
@@ -90,6 +90,11 @@ const LobbyPage = () => {
   lobbyRef.current = lobby;
   orderPickingRef.current = orderPicking;
 
+  // [Fix] Sync lobby state to ref
+  useEffect(() => {
+    lobbyRef.current = lobby;
+  }, [lobby]);
+
   const myLobbyPlayer = useMemo(() => {
     if (!myUserId || !lobby) return null;
     return lobby.players.find((p) => p.userId === myUserId) ?? null;
@@ -98,6 +103,41 @@ const LobbyPage = () => {
   const isHost = !!myUserId && !!lobby?.hostUserId && lobby.hostUserId === myUserId;
 
   const canStartGame = !!lobby && lobby.players.length >= 2 && lobby.allReady && isHost;
+
+  const roomStatusLabel =
+    roomStatus === 'WAITING' ? '대기중' : roomStatus === 'PLAYING' ? '게임중' : roomStatus;
+
+  const translateError = (message?: string | null) => {
+    if (!message) return null;
+    const normalized = String(message).trim();
+    switch (normalized) {
+      case 'At least 2 players are required':
+      case 'At least 2 players required':
+        return '최소 2명의 플레이어가 필요합니다.';
+      case 'All players must be ready':
+        return '모든 플레이어가 준비해야 합니다.';
+      case 'All players must select a character':
+        return '모든 플레이어가 캐릭터를 선택해야 합니다.';
+      case 'Only the host can start':
+        return '방장만 시작할 수 있어요.';
+      case 'Failed to start game':
+        return '게임 시작에 실패했어요.';
+      case 'Failed to join room':
+        return '방 참가에 실패했어요.';
+      case 'Invalid room':
+        return '잘못된 방 정보예요.';
+      case 'Room not joined':
+        return '방에 참가되어 있지 않습니다.';
+      case 'Unauthorized':
+        return '로그인 정보가 만료되었어요. 다시 로그인해주세요.';
+      case 'Order picking not active':
+        return '순서 뽑기가 진행 중이 아닙니다.';
+      case 'Invalid card':
+        return '유효하지 않은 카드입니다.';
+      default:
+        return normalized;
+    }
+  };
 
   const isCharacterTaken = (character: CharacterType) => {
     if (!lobby) return false;
@@ -112,7 +152,7 @@ const LobbyPage = () => {
     const mapLobby = (payload: any): LobbyState => {
       const players: LobbyPlayer[] = (payload?.players ?? []).map((p: any) => ({
         userId: Number(p.userId),
-        nickname: String(p.nickname ?? `Player${p.userId}`),
+        nickname: String(p.nickname ?? `플레이어${p.userId}`),
         playerId: Number(p.playerId),
         character: fromBackendCharacter(p.character),
         ready: Boolean(p.ready),
@@ -126,19 +166,30 @@ const LobbyPage = () => {
 
     const handlers = {
       connect: () => setConnecting(false),
-      connectError: () => {
+      connectError: (err?: any) => {
         setConnecting(false);
-        setError("서버 연결에 실패했어요! (socket)");
+        const message = translateError(err?.message) || '서버 연결에 실패했어요! (socket)';
+        setError(message);
+        if (err?.message === 'Unauthorized') {
+          apiLogout();
+        }
       },
       joinSuccess: (payload: any) => {
         if (!alive) return;
+        if (!me?.userId && payload?.player?.userId) {
+          setMe({ userId: Number(payload.player.userId), playerId: Number(payload.player.id ?? payload.player.playerId ?? 0) });
+        }
         setConnecting(false);
         setRoomStatus(String(payload?.roomStatus ?? 'WAITING'));
         setLobby(mapLobby(payload?.lobby));
       },
       joinError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || "방 참가에 실패했어요!");
+        const message = translateError(payload?.message) || '방 참가에 실패했어요!';
+        setError(message);
+        if (payload?.message === 'Unauthorized') {
+          apiLogout();
+        }
       },
       lobbyUpdate: (payload: any) => {
         if (!alive) return;
@@ -160,28 +211,32 @@ const LobbyPage = () => {
           };
         });
       },
-      readyUpdate: (payload: any) => {
+      readyUpdate: (payload: any) => { // [Fix] Add readyUpdate handler
         if (!alive) return;
-        const userId = Number(payload?.userId);
-        const ready = Boolean(payload?.ready);
         setLobby((prev) => {
           if (!prev) return prev;
-          const players = prev.players.map((p) => (p.userId === userId ? { ...p, ready } : p));
-          const allReady = players.length >= 2 && players.every((p) => p.ready);
+          const userId = Number(payload?.userId);
+          const ready = Boolean(payload?.ready);
+          // Also update allReady? usually payload has it or we wait for lobbyUpdate.
+          // Since we can't fully know allReady status just from one player update without checking others,
+          // we'll update the player and assume lobbyUpdate will follow if global state changes, 
+          // OR we check if everyone is ready.
+          const updatedPlayers = prev.players.map(p => p.userId === userId ? { ...p, ready } : p);
+          const allReady = updatedPlayers.length >= 2 && updatedPlayers.every(p => p.ready);
           return {
             ...prev,
-            players,
-            allReady,
+            players: updatedPlayers,
+            allReady // Optimistic update
           };
         });
       },
       readyError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || '준비 상태 업데이트에 실패했어요!');
+        setError(translateError(payload?.message) || '준비 상태 업데이트에 실패했어요!');
       },
       startError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || '게임 시작에 실패했어요!');
+        setError(translateError(payload?.message) || '게임 시작에 실패했어요!');
       },
       characterUpdate: (payload: any) => {
         if (!alive) return;
@@ -196,14 +251,15 @@ const LobbyPage = () => {
         });
       },
       orderPickingStart: (payload: any) => {
+
         if (!alive) return;
         console.log('[Lobby] order_picking_start:', payload);
         setOrderPicking({
           isPickingOrder: true,
           availableCards: payload.availableCards || [],
           pickedCards: [],
-          myPickedCard: null,
           revealedCards: {},
+          myPickedCard: null,
           orderResults: null,
         });
       },
@@ -217,10 +273,11 @@ const LobbyPage = () => {
         setOrderPicking((prev) => ({
           ...prev,
           pickedCards: payload.pickedCards || [],
-          revealedCards: Number.isFinite(cardId) && Number.isFinite(cardNumber)
-            ? { ...prev.revealedCards, [cardId]: cardNumber }
-            : prev.revealedCards,
-          myPickedCard: pickedUserId === currentMyUserId ? cardId : prev.myPickedCard,
+          revealedCards:
+            Number.isFinite(cardId) && Number.isFinite(cardNumber)
+              ? { ...prev.revealedCards, [cardId]: cardNumber }
+              : prev.revealedCards,
+          myPickedCard: pickedUserId === currentMyUserId && Number.isFinite(cardId) ? cardId : prev.myPickedCard,
         }));
       },
       orderPickingComplete: (payload: any) => {
@@ -233,7 +290,7 @@ const LobbyPage = () => {
       },
       pickError: (payload: any) => {
         if (!alive) return;
-        setError(payload?.message || '카드 선택에 실패했어요!');
+        setError(translateError(payload?.message) || '카드 선택에 실패했어요!');
       },
       gameStart: (payload: any) => {
         if (!alive) return;
@@ -271,7 +328,7 @@ const LobbyPage = () => {
             return {
               id: Number(p?.playerId ?? p?.id ?? idx + 1),
               userId: Number(p?.userId ?? 0),
-              name: String(p?.nickname ?? `Player ${p?.userId ?? idx + 1}`),
+              name: String(p?.nickname ?? `플레이어 ${p?.userId ?? idx + 1}`),
               avatar: character ? CHARACTER_INFO[character].avatar : '/assets/characters/default.png',
               character,
               position: typeof p?.location === 'number' ? p.location : 0,
@@ -369,7 +426,7 @@ const LobbyPage = () => {
           socket.emit('join_room', 1);
         } catch (e: any) {
           setConnecting(false);
-          setError(e?.message || "서버 연결에 실패했어요! (socket)");
+          setError(translateError(e?.message) || '서버 연결에 실패했어요! (socket)');
         }
       };
 
@@ -421,18 +478,16 @@ const LobbyPage = () => {
             <h1 className="mb-2 text-3xl font-black text-white">순서 뽑기</h1>
             <p className="mb-8 text-white/70">
               {orderPicking.orderResults
-                ? "순서가 결정되었습니다!"
+                ? '순서가 결정되었습니다!'
                 : orderPicking.myPickedCard
-                  ? "당신이 선택한 카드입니다."
-                  : "카드를 선택하여 순서를 정해주세요."}
+                  ? '당신이 선택한 카드입니다.'
+                  : '카드를 선택하여 순서를 정해주세요.'}
             </p>
 
-            {/* 순서 결과 표시 */}
+            {/* 순서 결과 */}
             {orderPicking.orderResults ? (
               <div className="space-y-4">
-                <div className="text-lg font-bold text-amber-300">
-                  게임 순서
-                </div>
+                <div className="text-lg font-bold text-amber-300">순서 결과</div>
                 <div className="flex flex-wrap justify-center gap-4">
                   {[...orderPicking.orderResults]
                     .sort((a, b) => a.cardNumber - b.cardNumber)
@@ -441,7 +496,7 @@ const LobbyPage = () => {
                     const character = player?.character;
                     const avatar = character
                       ? CHARACTER_INFO[character].avatar
-                      : "/assets/characters/default.png";
+                      : '/assets/characters/default.png';
                     return (
                       <div
                         key={result.userId}
@@ -450,17 +505,25 @@ const LobbyPage = () => {
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20 text-xl font-black text-amber-300">
                           {result.cardNumber || index + 1}
                         </div>
-                        <img src={avatar} alt={result.nickname} className="h-12 w-12 rounded-full object-cover" />
-                        <div className="w-full truncate text-sm font-bold text-white">{result.nickname}</div>
-                        <div className="text-xs text-white/60">카드: {result.cardNumber}</div>
-                      </div>
+                        <img
+                          src={avatar}
+                          alt={result.nickname}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                        <div className="w-full truncate text-sm font-bold text-white">
+                          {result.nickname}
+                        </div>
+                        <div className="text-xs text-white/60">
+                          카드 번호: {result.cardNumber}
+                        </div>
+                      </div >
                     );
                   })}
-                </div>
+                </div >
                 <div className="mt-6 text-white/60">
                   게임을 시작합니다...
                 </div>
-              </div>
+              </div >
             ) : (
               <div className="flex flex-wrap justify-center gap-4">
                 {orderPicking.availableCards.map((cardId) => {
@@ -475,15 +538,14 @@ const LobbyPage = () => {
                       type="button"
                       onClick={() => handlePickCard(cardId)}
                       disabled={!canPick}
-                      className={`relative h-32 w-24 rounded-xl border-2 text-4xl font-black transition-all ${
-                        isMyPick
-                          ? "border-emerald-400 bg-emerald-500/20 text-emerald-300 ring-4 ring-emerald-400/30"
-                          : isPicked
-                            ? "cursor-not-allowed border-white/20 bg-white/[0.02] text-white/30"
-                            : canPick
-                              ? "border-white/30 bg-white/[0.06] text-white hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-300"
-                              : "cursor-not-allowed border-white/10 bg-white/[0.02] text-white/50"
-                      }`}
+                      className={`relative h-32 w-24 rounded-xl border-2 text-4xl font-black transition-all ${isMyPick
+                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 ring-4 ring-emerald-400/30'
+                        : isPicked
+                          ? 'cursor-not-allowed border-white/20 bg-white/[0.02] text-white/30'
+                          : canPick
+                            ? 'border-white/30 bg-white/[0.06] text-white hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-300'
+                            : 'cursor-not-allowed border-white/10 bg-white/[0.02] text-white/50'
+                        }`}
                     >
                       {isPicked && !isMyPick ? (
                         <span className="text-2xl">✓</span>
@@ -500,7 +562,7 @@ const LobbyPage = () => {
                     </button>
                   );
                 })}
-              </div>
+              </div >
             )}
 
             {/* Pick progress */}
@@ -531,7 +593,7 @@ const LobbyPage = () => {
         <div className="mb-8 text-center">
           <h1 className="mb-2 text-4xl font-black text-white">캐릭터 선택</h1>
           <p className="text-white/70">
-            플레이어: {lobby?.players.length ?? 0} / {maxPlayers} · {roomStatus}
+            플레이어: {lobby?.players.length ?? 0} / {maxPlayers}명 · {roomStatusLabel}
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <button type="button" className="ui-btn ui-btn-secondary" onClick={() => void apiLogout()}>
@@ -552,7 +614,11 @@ const LobbyPage = () => {
                 const taken = isCharacterTaken(char);
                 const isMyCharacter = myLobbyPlayer?.character === char;
                 const amIReady = myLobbyPlayer?.ready ?? false;
-                const canPick = !connecting && !!myUserId && !taken && roomStatus === 'WAITING' && !amIReady;
+                const isCancelAction = isHost && isMyCharacter && roomStatus === 'WAITING';
+                const isJoined = !!myLobbyPlayer && !connecting;
+                // allow character selection immediately after join success
+                // [Fix] Host can always pick/switch/cancel (ignore ready lock)
+                const canPick = isJoined && !taken && roomStatus === 'WAITING' && (!amIReady || isHost);
 
                 return (
                   <button
@@ -561,22 +627,42 @@ const LobbyPage = () => {
                     onClick={() => {
                       if (!canPick) return;
                       setError(null);
+                      const cancelSelection = isCancelAction;
                       void (async () => {
                         try {
-                          await apiSetCharacter(toBackendCharacter(char));
+                          const result = await apiSetCharacter(cancelSelection ? null : toBackendCharacter(char));
+                          setLobby((prev) => {
+                            if (!prev || !myUserId) return prev;
+                            return {
+                              ...prev,
+                              players: prev.players.map((p) =>
+                                p.userId === myUserId
+                                  ? {
+                                    ...p,
+                                    character: fromBackendCharacter(result.character),
+                                    ready: cancelSelection ? false : isHost ? true : false,
+                                  }
+                                  : p
+                              ),
+                            };
+                          });
+                          const socket = socketRef.current;
+                          if (socket) {
+                            const nextReady = cancelSelection ? false : isHost ? true : (myLobbyPlayer?.ready ?? false);
+                            socket.emit('set_ready', { ready: nextReady });
+                          }
                         } catch (e: any) {
-                          setError(e?.message || '캐릭터 선택에 실패했습니다.');
+                          setError(translateError(e?.message) || '캐릭터 선택에 실패했습니다.');
                         }
                       })();
                     }}
                     disabled={!canPick}
-                    className={`relative overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-60 ${
-                      isMyCharacter
-                        ? 'border-sky-400/40 bg-sky-500/[0.15] ring-2 ring-sky-400/30'
-                        : taken
+                    className={`relative overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-60 ${isMyCharacter
+                      ? 'border-sky-400/40 bg-sky-500/[0.15] ring-2 ring-sky-400/30'
+                      : taken
                         ? 'border-white/15 bg-white/[0.03]'
                         : 'border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]'
-                    }`}
+                      }`}
                   >
                     {/* Character emoji */}
                     <div
@@ -593,7 +679,7 @@ const LobbyPage = () => {
                     <h3 className="text-center text-lg font-bold text-white">{info.name}</h3>
                     <p className="mt-1 text-center text-xs text-white/70">{info.abilityShort}</p>
 
-                    {/* Taken badge */}
+                    {/* 상태 배지 */}
                     {isMyCharacter ? (
                       <div className="ui-badge mt-2 w-full justify-center border-sky-400/30 bg-sky-500/[0.2] text-sky-100 font-bold">
                         내 캐릭터
@@ -624,10 +710,10 @@ const LobbyPage = () => {
                 <div>
                   <h2 className="text-xl font-bold text-white">플레이어</h2>
                   <p className="mt-1 text-sm text-white/60">
-                    {connecting ? '서버 연결 중...' : '방에 접속한 유저가 보여요.'}
+                    {connecting ? '서버에 연결 중...' : '방에 있는 플레이어'}
                   </p>
                 </div>
-                {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && (
+                {myLobbyPlayer && myLobbyPlayer.character && roomStatus === 'WAITING' && !isHost && (
                   <button
                     type="button"
                     className={`ui-btn ${myLobbyPlayer.ready ? 'ui-btn-secondary' : 'ui-btn-success'}`}
@@ -655,9 +741,8 @@ const LobbyPage = () => {
                   return (
                     <div
                       key={p.userId}
-                      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${
-                        isMe ? 'border-sky-400/30 bg-sky-500/[0.08]' : 'border-white/10 bg-white/[0.04]'
-                      }`}
+                      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${isMe ? 'border-sky-400/30 bg-sky-500/[0.08]' : 'border-white/10 bg-white/[0.04]'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`h-10 w-10 rounded-full border border-white/10 p-[2px] ${bg}`}>
@@ -671,7 +756,7 @@ const LobbyPage = () => {
                           <div className="flex items-center gap-2">
                             <div className="truncate text-sm font-black text-white">{p.nickname}</div>
                             {isMe && <span className="ui-badge border-sky-400/20 bg-sky-500/[0.10] text-sky-100">나</span>}
-                            {isHostUser && <span className="ui-badge ui-badge-warn">호스트</span>}
+                            {isHostUser && <span className="ui-badge ui-badge-warn">방장</span>}
                             {!isHostUser && p.ready && <span className="ui-badge ui-badge-success">준비</span>}
                           </div>
                           <div className="text-xs text-white/60">{charName}</div>
@@ -691,9 +776,8 @@ const LobbyPage = () => {
               type="button"
               onClick={() => socketRef.current?.emit('start_game')}
               disabled={!canStartGame}
-              className={`ui-btn w-full rounded-2xl py-4 text-xl font-black transition ${
-                canStartGame ? 'ui-btn-cta' : 'cursor-not-allowed border border-white/10 bg-white/[0.06] text-white/40'
-              }`}
+              className={`ui-btn w-full rounded-2xl py-4 text-xl font-black transition ${canStartGame ? 'ui-btn-cta' : 'cursor-not-allowed border border-white/10 bg-white/[0.06] text-white/40'
+                }`}
             >
               {!lobby || lobby.players.length < 2
                 ? '최소 2명 필요'
