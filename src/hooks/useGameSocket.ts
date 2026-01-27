@@ -323,7 +323,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
   useEffect(() => {
     if (!isAuthenticated()) {
-      store.setCurrentPage('login');
+      storeRef.current.setCurrentPage('login');
       return;
     }
 
@@ -966,7 +966,7 @@ export const useGameSocket = (roomId: number = 1) => {
             },
           });
           appendEventLog('SYSTEM', '게임 종료', `${data.maxTurn ?? ''}턴이 종료되었습니다.`);
-          store.setCurrentPage('result');
+          storeRef.current.setCurrentPage('result');
         });
 
         socket.on('dice_roll_cancelled', (data: any) => {
@@ -1013,7 +1013,7 @@ export const useGameSocket = (roomId: number = 1) => {
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [roomId, clearRollTimeout, clearMoveTimers, scheduleRollTimeout, appendEventLog, hydratePlayersAssets, parseWar, resolveTurnUserId, store, syncMap, syncMarket]);
+  }, [roomId, clearRollTimeout, clearMoveTimers, scheduleRollTimeout, appendEventLog, hydratePlayersAssets, parseWar, resolveTurnUserId, syncMap, syncMarket]);
 
   const rollDice = useCallback(() => {
     const socket = socketRef.current;

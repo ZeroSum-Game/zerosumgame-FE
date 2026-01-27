@@ -13,7 +13,20 @@ export default defineConfig(({ mode }) => {
         // Keep Host as Vite origin so Google OAuth callback stays on the FE origin in dev.
         '/api': { target: backend, changeOrigin: false },
         '/auth': { target: backend, changeOrigin: false },
-        '/socket.io': { target: backend, changeOrigin: false, ws: true },
+        '/socket.io': {
+          target: backend,
+          changeOrigin: false,
+          ws: true,
+          configure: (proxy) => {
+            proxy.on('error', (err) => {
+              // 백엔드 미실행 시 발생하는 프록시 오류 무시
+              if (err.message.includes('ECONNRESET') || err.message.includes('EPIPE') || err.message.includes('ECONNREFUSED')) {
+                return;
+              }
+              console.error('[proxy error]', err.message);
+            });
+          },
+        },
       },
     },
   };
