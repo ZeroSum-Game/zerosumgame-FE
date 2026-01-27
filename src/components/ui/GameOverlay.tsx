@@ -19,6 +19,7 @@ import { formatKRWKo } from '../../utils/formatKRW';
 import { apiGetMap, apiGetWarRate, apiPurchaseLand, apiSpaceMove, apiTradeStock, apiWarLose, apiWorldCup } from '../../services/api';
 import { toBackendStockSymbol } from '../../utils/stockMapping';
 import { applyWarMultiplier } from '../../utils/warMultiplier';
+import { useGameSocketContext } from '../pages/GamePage';
 
 const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'];
 const WAR_FIGHT_DURATION_MS = 2600;
@@ -29,9 +30,8 @@ const getBattleAvatar = (character: string | null | undefined, fallback: string)
   return fallback || '/assets/characters/default.png';
 };
 
-const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
-  const mult = landType === 'LANDMARK' ? 1.8 : 1.0;
-  return Math.round(price * mult);
+const computeLandValue = (_tileId: number, _landType: 'LAND' | 'LANDMARK', price: number) => {
+  return Math.round(price);
 };
 
 type PriceChange = { prev: number; current: number; delta: number; pct: number };
@@ -53,9 +53,14 @@ const GameOverlay = () => {
   const isRolling = useGameStore((state) => state.isRolling);
 
   const setTradeSymbol = useGameStore((state) => state.setTradeSymbol);
+  const sellAssetForCash = useGameStore((state) => state.sellAssetForCash);
+  const completeSellAndPay = useGameStore((state) => state.completeSellAndPay);
+
+  const { selectWarSpoils, startWarFight } = useGameSocketContext();
 
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [selectedSpoilsLand, setSelectedSpoilsLand] = useState<number | null>(null);
   const fightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshMap = async () => {
@@ -98,31 +103,10 @@ const GameOverlay = () => {
     }
   };
 
-  const buildLandmark = async () => {
-    if (!activeModal || activeModal.type !== 'LAND_UPGRADE') return;
+  const sellLand = async (tileId: number) => {
     setApiLoading(true);
     setApiError(null);
     try {
-      const tileId = currentPlayer?.position ?? activeModal.tileId;
-      const result = await apiPurchaseLand('LANDMARK', tileId);
-      useGameStore.setState((state) => ({
-        players: state.players.map((p) => (p.id === result.playerId ? { ...p, cash: Number(result.cash) } : p)),
-      }));
-      await refreshMap();
-      closeModal();
-    } catch (e: any) {
-      setApiError(e.message || '랜드마크 건설 실패');
-    } finally {
-      setApiLoading(false);
-    }
-  };
-
-  const sellLand = async () => {
-    if (!activeModal || activeModal.type !== 'LAND_UPGRADE') return;
-    setApiLoading(true);
-    setApiError(null);
-    try {
-      const tileId = currentPlayer?.position ?? activeModal.tileId;
       const result = await apiPurchaseLand('SELL', tileId);
       useGameStore.setState((state) => ({
         players: state.players.map((p) => (p.id === result.playerId ? { ...p, cash: Number(result.cash) } : p)),
@@ -256,19 +240,7 @@ const GameOverlay = () => {
     setApiLoading(true);
     setApiError(null);
     try {
-      const rate = await apiGetWarRate(opponentUserId);
-      if (!rate) throw new Error('승률 정보를 불러올 수 없어요.');
-
-      const roll = Math.random() * 100;
-      const iWin = roll < rate.winRate;
-      const myUserId = currentPlayer.userId;
-      const loserUserId = iWin ? opponentUserId : myUserId;
-
-      if (loserUserId) {
-        await apiWarLose(loserUserId);
-        await refreshMap();
-      }
-
+      // 전쟁 진행 중 애니메이션 표시
       const opponent = players.find((p) => p.userId === opponentUserId) ?? null;
       const attackerAvatar = getBattleAvatar(currentPlayer.character, currentPlayer.avatar);
       const defenderAvatar = getBattleAvatar(opponent?.character ?? null, opponent?.avatar || '/assets/characters/default.png');
@@ -282,13 +254,11 @@ const GameOverlay = () => {
           defenderAvatar,
           durationMs: WAR_FIGHT_DURATION_MS,
         },
-        queuedModal: {
-          type: 'WAR_RESULT',
-          title: iWin ? '승리!' : '패배...',
-          description: `${currentPlayer.name} vs ${opponentName} · 승률 ${rate.winRate.toFixed(1)}%`,
-        },
         phase: 'MODAL',
       });
+
+      // 백엔드에 전쟁 시작 요청 - 결과는 war_fight_result 소켓 이벤트로 수신
+      startWarFight(opponentUserId);
     } catch (e: any) {
       setApiError(e?.message || '전쟁 처리에 실패했어요.');
     } finally {
@@ -446,7 +416,7 @@ const GameOverlay = () => {
           <div
             role="dialog"
             aria-modal="true"
-            className={`ui-modal${activeModal.type === 'SPACE_TRAVEL' ? ' ui-modal-wide' : ''}${activeModal.type === 'WAR_FIGHT' ? ' ui-modal-war' : ''}`}
+            className={`ui-modal${activeModal.type === 'SPACE_TRAVEL' ? ' ui-modal-wide ui-modal-space' : ''}${activeModal.type === 'WAR_FIGHT' ? ' ui-modal-war' : ''}`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* LAND BUY */}
@@ -490,57 +460,6 @@ const GameOverlay = () => {
                     </button>
                     <button onClick={closeModal} disabled={apiLoading} className="dash-action dash-action-secondary flex-1 disabled:opacity-50">
                       취소
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* LAND UPGRADE */}
-            {activeModal.type === 'LAND_UPGRADE' && (() => {
-              const tileId = activeModal.tileId;
-              const space = BOARD_DATA[tileId];
-              const basePrice = landPrices[tileId] ?? space?.price ?? 0;
-              const ownedPrice = applyWarMultiplier(basePrice, tileId, true, war);
-              const cost = Math.round((ownedPrice * 2) / 5);
-              return (
-                <>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black text-white">🏙️ 랜드마크 건설</h2>
-                      <p className="mt-1 text-2xl font-black text-white">{space?.name ?? '—'}</p>
-                    </div>
-                    <button type="button" className="ui-icon-btn" onClick={closeModal} aria-label="닫기">
-                      ✕
-                    </button>
-                  </div>
-                  <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                    <p className="text-sm text-white/60">건설 비용</p>
-                    <p className="mt-1 text-lg font-black text-white">{formatKRWKo(cost)}</p>
-                  </div>
-                  {apiError && (
-                    <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/[0.10] p-3 text-sm text-red-100">
-                      {apiError}
-                    </div>
-                  )}
-
-                  <div className="mt-6 flex gap-3">
-                    <button
-                      onClick={() => void buildLandmark()}
-                      disabled={apiLoading}
-                      className="dash-action dash-action-primary flex-1 disabled:opacity-50"
-                    >
-                      {apiLoading ? '처리 중...' : '건설하기'}
-                    </button>
-                    <button
-                      onClick={() => void sellLand()}
-                      disabled={apiLoading}
-                      className="dash-action dash-action-danger flex-1 disabled:opacity-50"
-                    >
-                      매각
-                    </button>
-                    <button onClick={closeModal} disabled={apiLoading} className="dash-action dash-action-secondary flex-1 disabled:opacity-50">
-                      닫기
                     </button>
                   </div>
                 </>
@@ -603,7 +522,7 @@ const GameOverlay = () => {
                             className="dash-action dash-action-secondary w-full justify-between px-4 py-3 text-left font-black disabled:opacity-50"
                           >
                             <span className="truncate">{label}</span>
-                            <span className="text-xs text-white/60">{land?.type === 'LANDMARK' ? '랜드마크' : '토지'}</span>
+                            <span className="text-xs text-white/60">토지</span>
                           </button>
                         );
                       })}
@@ -649,7 +568,7 @@ const GameOverlay = () => {
                         선택한 위치로 다음 턴 시작 시 이동합니다.
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                      <div className="grid grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 space-travel-grid">
                         {destinations.map((space) => (
                           <button
                             key={space.id}
@@ -975,6 +894,75 @@ const GameOverlay = () => {
               </>
             )}
 
+            {/* ASSET SELL - 파산 위기 시 자산 매각 */}
+            {activeModal.type === 'ASSET_SELL' && (() => {
+              const needed = activeModal.amountNeeded;
+              const playerCash = currentPlayer?.cash ?? 0;
+              const shortage = Math.max(0, needed - playerCash);
+              const holdings = currentPlayer?.stockHoldings ?? {};
+
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">💰 자산 매각</h2>
+                      <p className="mt-1 text-sm text-white/70">{activeModal.reason} 지불을 위해 자산을 매각하세요.</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-white/60">필요 금액</span>
+                      <span className="font-bold text-white">{formatKRWKo(needed)}</span>
+                    </div>
+                    <div className="mt-2 flex justify-between text-sm">
+                      <span className="text-white/60">보유 현금</span>
+                      <span className={playerCash >= needed ? 'text-green-400' : 'text-red-400'}>{formatKRWKo(playerCash)}</span>
+                    </div>
+                    {shortage > 0 && (
+                      <div className="mt-2 flex justify-between text-sm">
+                        <span className="text-white/60">부족 금액</span>
+                        <span className="text-red-400">-{formatKRWKo(shortage)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-4 max-h-[200px] space-y-2 overflow-y-auto">
+                    {STOCK_SYMBOLS.map((symbol) => {
+                      const qty = holdings[symbol] ?? 0;
+                      if (qty <= 0) return null;
+                      const price = assetPrices[symbol];
+                      return (
+                        <div key={symbol} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                          <div>
+                            <div className="font-bold text-white">{STOCK_INFO[symbol].nameKr}</div>
+                            <div className="text-xs text-white/60">{qty}개 보유 · 개당 {formatKRWKo(price)}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => sellAssetForCash(symbol, 1)}
+                            className="rounded-lg bg-red-500/20 px-3 py-1.5 text-sm font-bold text-red-300 hover:bg-red-500/30"
+                          >
+                            1개 매도 (+{formatKRWKo(price)})
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {STOCK_SYMBOLS.every((s) => (holdings[s] ?? 0) <= 0) && (
+                      <div className="py-4 text-center text-sm text-white/50">매각할 자산이 없습니다.</div>
+                    )}
+                  </div>
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      onClick={completeSellAndPay}
+                      disabled={playerCash < needed}
+                      className={`dash-action flex-1 ${playerCash >= needed ? 'dash-action-primary' : 'cursor-not-allowed bg-white/10 text-white/40'}`}
+                    >
+                      {playerCash >= needed ? `${activeModal.reason} 지불` : `${formatKRWKo(shortage)} 부족`}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
             {/* WAR SELECT */}
             {activeModal.type === 'WAR_SELECT' && (
               <>
@@ -1020,6 +1008,90 @@ const GameOverlay = () => {
                 </div>
               </>
             )}
+
+            {/* WAR SPOILS - 전쟁 전리품 선택 */}
+            {activeModal.type === 'WAR_SPOILS' && (() => {
+              const { winnerId, loserId, winnerName, loserName, loserLands, cashPenalty } = activeModal;
+              const spoilsLandOptions = loserLands.map((landId: number) => ({
+                id: landId,
+                name: BOARD_DATA[landId]?.name ?? `땅 ${landId}`,
+                price: landPrices[landId] ?? BOARD_DATA[landId]?.price ?? 0,
+                type: lands[landId]?.type ?? 'LAND',
+              }));
+
+              const handleSelectLand = (landId: number) => {
+                setSelectedSpoilsLand(landId);
+              };
+
+              const handleConfirmSpoils = () => {
+                if (selectedSpoilsLand !== null) {
+                  selectWarSpoils(winnerId, loserId, selectedSpoilsLand);
+                  setSelectedSpoilsLand(null);
+                  closeModal();
+                }
+              };
+
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">⚔️ 전쟁 승리!</h2>
+                      <p className="mt-2 text-sm text-white/70">
+                        {winnerName}이(가) {loserName}에게 승리했습니다!
+                      </p>
+                      <p className="mt-1 text-sm text-amber-300">
+                        {loserName}의 영토 중 하나를 선택하여 획득하세요.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 max-h-[300px] overflow-y-auto rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                    <div className="space-y-2">
+                      {spoilsLandOptions.map((land) => (
+                        <button
+                          key={land.id}
+                          type="button"
+                          onClick={() => handleSelectLand(land.id)}
+                          className={`w-full rounded-lg border p-3 text-left transition ${
+                            selectedSpoilsLand === land.id
+                              ? 'border-amber-400 bg-amber-500/20'
+                              : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-bold text-white">{land.name}</div>
+                              <div className="text-xs text-white/60">
+                                토지 · 가치 {formatKRWKo(land.price)}
+                              </div>
+                            </div>
+                            {selectedSpoilsLand === land.id && (
+                              <span className="rounded-full bg-amber-500 px-2 py-1 text-xs font-bold text-black">
+                                선택됨
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      onClick={handleConfirmSpoils}
+                      disabled={selectedSpoilsLand === null}
+                      className={`dash-action flex-1 ${
+                        selectedSpoilsLand !== null
+                          ? 'dash-action-primary'
+                          : 'cursor-not-allowed bg-white/10 text-white/40'
+                      }`}
+                    >
+                      영토 획득
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* WAR RESULT */}
             {activeModal.type === 'WAR_RESULT' && (
