@@ -625,6 +625,9 @@ const GameOverlay = () => {
                     <div className={`rounded-xl border p-4 ${tollAlreadyPaid ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-white/10 bg-white/[0.04]'}`}>
                       <p className="text-sm text-white/60">{tollAlreadyPaid ? '지불한 통행료' : '통행료'}</p>
                       <p className="mt-1 text-lg font-black text-white">{formatKRWKo(activeModal.toll)}</p>
+                      {owner?.character === 'TRUMP' && (
+                        <p className="mt-1 text-xs text-amber-300">🏛️ 트럼프 특성: 통행료 +10% 적용됨</p>
+                      )}
                       {tollAlreadyPaid && (
                         <p className="mt-1 text-xs text-emerald-300">✓ 자동으로 지불되었습니다</p>
                       )}
@@ -970,7 +973,10 @@ const GameOverlay = () => {
                   <div>
                     <h2 className="text-xl font-black text-white">⚔️ 전쟁 선포</h2>
                     <p className="mt-1 text-sm text-white/70">공격 대상을 선택하세요.</p>
-                    {activeModal.byCard && <p className="mt-1 text-xs text-white/70">황금열쇠 전쟁: 승률 +5%</p>}
+                    {activeModal.byCard && <p className="mt-1 text-xs text-amber-300">황금열쇠 전쟁: 승률 +5%</p>}
+                    {currentPlayer?.character === 'PUTIN' && (
+                      <p className="mt-1 text-xs text-blue-300">🇷🇺 푸틴 특성: 전쟁 승률 +10%</p>
+                    )}
                   </div>
                 </div>
                 {apiError && (
@@ -997,7 +1003,9 @@ const GameOverlay = () => {
                           />
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-black text-white">{p.name}</span>
-                            <span className="mt-0.5 block text-xs text-white/60">공격 대상</span>
+                            <span className="mt-0.5 block text-xs text-white/60">
+                              {p.character === 'PUTIN' ? '⚠️ 푸틴 (방어 시 승률 +10%)' : '공격 대상'}
+                            </span>
                           </span>
                         </span>
                         <span className="shrink-0 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-200 transition group-hover:-translate-y-0.5 group-hover:bg-amber-500/20">

@@ -337,7 +337,7 @@ const LobbyPage = () => {
               isReady: true,
               isBankrupt: false,
               stockHoldings: holdings,
-              tollRateMultiplier: character === 'TRUMP' ? 1.05 : 1.0,
+              tollRateMultiplier: character === 'TRUMP' ? 1.10 : 1.0,
               warWinChanceBonus: character === 'PUTIN' ? 0.1 : 0,
             };
           });
