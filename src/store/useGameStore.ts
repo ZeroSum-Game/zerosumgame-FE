@@ -9,7 +9,6 @@ export const GAME_RULES = {
   MAX_ROUNDS: 20,
   TAX_RATE: 0.15,
   TAKEOVER_MULTIPLIER: 1.5,
-  LANDMARK_COST_MULTIPLIER: 0.4,
   STOCK_PRICE_CHANGE_MIN: -0.1,
   STOCK_PRICE_CHANGE_MAX: 0.15,
   CRYPTO_PRICE_CHANGE_MIN: -0.12,
@@ -17,6 +16,8 @@ export const GAME_RULES = {
   DIVIDEND_MIN: 0.02,
   DIVIDEND_MAX: 0.05,
   MOVE_STEP_MS: 230,
+  LAND_INFLATION_MIN: 0.0075,
+  LAND_INFLATION_MAX: 0.02,
 } as const;
 
 export type CharacterType = 'ELON' | 'SAMSUNG' | 'TRUMP' | 'PUTIN';
@@ -147,7 +148,6 @@ export type EventLogEntry = {
 
 export type ModalState =
   | { type: 'LAND_BUY'; tileId: number }
-  | { type: 'LAND_UPGRADE'; tileId: number }
   | { type: 'LAND_VISIT'; tileId: number; ownerId: number; toll: number; takeoverPrice?: number }
   | { type: 'LAND_TAKEOVER_RESPONSE'; tileId: number; buyerId: number; ownerId: number; price: number; toll: number }
   | { type: 'ASSET_TRADE'; allowedSymbols: StockSymbol[]; symbol: StockSymbol }
@@ -158,8 +158,10 @@ export type ModalState =
   | { type: 'WAR_SELECT'; byCard: boolean }
   | { type: 'WAR_FIGHT'; attackerName: string; attackerAvatar: string; defenderName: string; defenderAvatar: string; durationMs?: number }
   | { type: 'WAR_RESULT'; title: string; description: string }
+  | { type: 'WAR_SPOILS'; winnerId: number; loserId: number; winnerName: string; loserName: string; loserLands: number[]; cashPenalty: number }
   | { type: 'TAX'; due: number; paid?: number; beforeCash?: number; afterCash?: number; autoSales?: Array<{ asset: string; qty: number; price: number }>; isBankrupt?: boolean }
   | { type: 'INFO'; title: string; description: string; imageSrc?: string; imageAlt?: string }
+  | { type: 'ASSET_SELL'; amountNeeded: number; reason: string; onComplete: 'PAY_TOLL' | 'PAY_TAX'; tollData?: { ownerId: number; toll: number } }
   | { type: 'BUY_ASSET' }
   | { type: 'WAR_CHOICE' }
   | { type: 'WORLDCUP_HOST'; nodeIdx: number }
@@ -250,13 +252,14 @@ type GameState = {
   endTurn: () => void;
 
   buyLand: () => void;
-  buildLandmark: () => void;
   payTollOrPropose: (action: 'PAY' | 'PROPOSE') => void;
   respondTakeover: (accept: boolean) => void;
 
   setTradeSymbol: (symbol: StockSymbol) => void;
   buyAsset: (quantity: number) => void;
   sellAsset: (quantity: number) => void;
+  sellAssetForCash: (symbol: StockSymbol, quantity: number) => void;
+  completeSellAndPay: () => void;
 
   completeMinigame: (success: boolean) => void;
   confirmTax: () => void;
@@ -320,10 +323,9 @@ const hasContinentMonopoly = (lands: Record<number, LandState>, ownerId: number,
   return required.every((tileId) => lands[tileId]?.ownerId === ownerId);
 };
 
-const computeLandValue = (tileId: number, land: LandState, landPrices: Record<number, number>) => {
+const computeLandValue = (tileId: number, _land: LandState, landPrices: Record<number, number>) => {
   const base = landPrices[tileId] ?? BOARD_DATA[tileId]?.price ?? 0;
-  const mult = land.type === 'LANDMARK' ? 1.8 : 1.0;
-  return Math.round(base * mult);
+  return Math.round(base);
 };
 
 const computeToll = (
@@ -334,7 +336,7 @@ const computeToll = (
   ownerTollMultiplier: number
 ) => {
   const base = landPrices[tileId] ?? BOARD_DATA[tileId]?.price ?? 0;
-  const stageRate = land.type === 'LANDMARK' ? 0.35 : 0.18;
+  const stageRate = 0.18; // 고정 통행료 비율
   const continent = BOARD_DATA[tileId]?.continent;
   const monopolyBonus = continent && hasContinentMonopoly(lands, land.ownerId, continent) ? 1.5 : 1.0;
   return Math.round(base * stageRate * monopolyBonus * ownerTollMultiplier);
@@ -936,21 +938,27 @@ const useGameStore = create<GameState>((set, get) => {
       }
 
       if (land.ownerId === currentPlayer.id) {
-        if (land.type === 'LAND') {
-          set({ phase: 'MODAL', activeModal: { type: 'LAND_UPGRADE', tileId } });
-        } else {
-          pushLog('LAND', '랜드마크', `${space.name} (랜드마크)`);
-        }
+        // 본인 땅에 도착하면 땅값만큼 현금 지급
+        const landPrice = state.landPrices[tileId] ?? space.price ?? 0;
+        set((s) => ({
+          players: s.players.map((p, idx) =>
+            idx === s.currentPlayerIndex ? { ...p, cash: p.cash + landPrice } : p
+          ),
+          activeModal: {
+            type: 'INFO',
+            title: '임대 수익',
+            description: `${space.name}에서 ${formatMoney(landPrice)}의 임대 수익을 얻었습니다!`,
+          },
+          phase: 'MODAL',
+        }));
+        pushLog('LAND', '임대 수익', `${currentPlayer.name} ${space.name}에서 ${formatMoney(landPrice)} 수령`);
         return;
       }
 
       const owner = state.players.find((p) => p.id === land.ownerId);
       const toll = computeToll(tileId, land, state.landPrices, state.lands, owner?.tollRateMultiplier ?? 1);
       const takeoverMultiplier = state.takeoverMultipliers[tileId] ?? GAME_RULES.TAKEOVER_MULTIPLIER;
-      const takeoverPrice =
-        land.type === 'LANDMARK'
-          ? undefined
-          : Math.round((state.landPrices[tileId] ?? space.price ?? 0) * takeoverMultiplier);
+      const takeoverPrice = Math.round((state.landPrices[tileId] ?? space.price ?? 0) * takeoverMultiplier);
 
       set({
         phase: 'MODAL',
@@ -963,6 +971,17 @@ const useGameStore = create<GameState>((set, get) => {
   };
 
   const applyRoundEconomy = () => {
+    const foundation = get();
+    const nextLandPrices = { ...foundation.landPrices };
+    const landInflationPcts: number[] = [];
+    Object.keys(nextLandPrices).forEach((key) => {
+      const tileId = Number(key);
+      const before = foundation.landPrices[tileId] ?? BOARD_DATA[tileId]?.price ?? 0;
+      const pct = randBetween(GAME_RULES.LAND_INFLATION_MIN, GAME_RULES.LAND_INFLATION_MAX);
+      nextLandPrices[tileId] = Math.max(1, Math.round(before * (1 + pct)));
+      landInflationPcts.push(pct);
+    });
+
     set((state) => {
       const nextPrices = { ...state.assetPrices };
       const changes: string[] = [];
@@ -1004,11 +1023,14 @@ const useGameStore = create<GameState>((set, get) => {
       EQUITY_SYMBOLS.forEach((symbol) => {
         if (nextOverrides[symbol] != null) delete nextOverrides[symbol];
       });
-      return { assetPrices: nextPrices, players, dividendOverrides: nextOverrides };
+      return { assetPrices: nextPrices, players, dividendOverrides: nextOverrides, landPrices: nextLandPrices };
     });
 
     const state = get();
+    const avgLandPct =
+      landInflationPcts.length > 0 ? (landInflationPcts.reduce((sum, pct) => sum + pct, 0) / landInflationPcts.length) * 100 : 0;
     pushLog('MARKET', `시장 변동 (턴 ${state.round}/${state.maxRounds})`, '주가/자산 가격이 변동했습니다.');
+    pushLog('LAND', '토지 인플레이션', `국가 토지가 평균 ${avgLandPct.toFixed(2)}% 상승했습니다.`);
     pushLog('DIVIDEND', '배당금 지급', '보유 주식에 따라 배당금이 지급되었습니다.');
   };
 
@@ -1469,34 +1491,6 @@ const useGameStore = create<GameState>((set, get) => {
       checkGameEnd();
     },
 
-    buildLandmark: () => {
-      const state = get();
-      if (state.phase !== 'MODAL') return;
-      const modal = state.activeModal;
-      if (!modal || modal.type !== 'LAND_UPGRADE') return;
-
-      const player = state.players[state.currentPlayerIndex];
-      if (!player || player.isBankrupt) return;
-      const tileId = modal.tileId;
-      const land = state.lands[tileId];
-      if (!land || land.ownerId !== player.id || land.type !== 'LAND') return;
-
-      const cost = Math.round((state.landPrices[tileId] ?? BOARD_DATA[tileId]?.price ?? 0) * GAME_RULES.LANDMARK_COST_MULTIPLIER);
-      if (player.cash < cost) {
-        set({ activeModal: { type: 'INFO', title: '잔액 부족', description: '랜드마크 건설 비용이 부족합니다.' }, phase: 'MODAL' });
-        return;
-      }
-
-      set((s) => ({
-        players: s.players.map((p, idx) => (idx === s.currentPlayerIndex ? { ...p, cash: p.cash - cost } : p)),
-        lands: { ...s.lands, [tileId]: { ...s.lands[tileId], type: 'LANDMARK' } },
-        activeModal: null,
-        phase: 'IDLE',
-      }));
-      pushLog('LAND', '랜드마크', `${player.name} ${BOARD_DATA[tileId]?.name ?? '땅'} 랜드마크 건설 (${formatMoney(cost)})`);
-      checkGameEnd();
-    },
-
     payTollOrPropose: (action) => {
       const state = get();
       if (state.phase !== 'MODAL') return;
@@ -1506,6 +1500,26 @@ const useGameStore = create<GameState>((set, get) => {
       if (!player || player.isBankrupt) return;
 
       if (action === 'PAY' || !modal.takeoverPrice) {
+        // 현금이 부족하면 자산 매각 모달 표시
+        if (player.cash < modal.toll) {
+          const totalAssets = computeNetWorth(player, state.assetPrices, state.landPrices, state.lands);
+          if (totalAssets < modal.toll) {
+            // 총 자산도 부족하면 파산 처리
+            transferCash(player.id, modal.ownerId, modal.toll, '통행료');
+            return;
+          }
+          set({
+            activeModal: {
+              type: 'ASSET_SELL',
+              amountNeeded: modal.toll,
+              reason: '통행료',
+              onComplete: 'PAY_TOLL',
+              tollData: { ownerId: modal.ownerId, toll: modal.toll },
+            },
+            phase: 'MODAL',
+          });
+          return;
+        }
         transferCash(player.id, modal.ownerId, modal.toll, '통행료');
         pushLog('LAND', '통행료', `${player.name} → ${getPlayerById(state.players, modal.ownerId)?.name ?? '플레이어'} ${formatMoney(modal.toll)}`);
         set({ activeModal: null, phase: 'IDLE' });
@@ -1636,6 +1650,57 @@ const useGameStore = create<GameState>((set, get) => {
       pushLog('MARKET', '매도', `${player.name} ${STOCK_INFO[modal.symbol].nameKr} ${qty}개 매도 (${formatMoney(total)})`);
     },
 
+    // 파산 위기 시 자산 매각
+    sellAssetForCash: (symbol, quantity) => {
+      const state = get();
+      if (state.phase !== 'MODAL') return;
+      const modal = state.activeModal;
+      if (!modal || modal.type !== 'ASSET_SELL') return;
+      const player = state.players[state.currentPlayerIndex];
+      if (!player || player.isBankrupt) return;
+
+      const qty = Math.max(1, Math.floor(quantity));
+      const holding = player.stockHoldings[symbol] ?? 0;
+      if (holding < qty) return;
+
+      const price = state.assetPrices[symbol];
+      const total = price * qty;
+      set((s) => ({
+        players: s.players.map((p, idx) =>
+          idx === s.currentPlayerIndex
+            ? {
+              ...p,
+              cash: p.cash + total,
+              stockHoldings: { ...p.stockHoldings, [symbol]: holding - qty },
+            }
+            : p
+        ),
+      }));
+      pushLog('MARKET', '긴급 매도', `${player.name} ${STOCK_INFO[symbol].nameKr} ${qty}개 매도 (${formatMoney(total)})`);
+    },
+
+    // 자산 매각 후 결제 완료
+    completeSellAndPay: () => {
+      const state = get();
+      if (state.phase !== 'MODAL') return;
+      const modal = state.activeModal;
+      if (!modal || modal.type !== 'ASSET_SELL') return;
+      const player = state.players[state.currentPlayerIndex];
+      if (!player || player.isBankrupt) return;
+
+      if (player.cash < modal.amountNeeded) {
+        set({ activeModal: { type: 'INFO', title: '현금 부족', description: `아직 ${formatMoney(modal.amountNeeded - player.cash)}이 부족합니다.` }, phase: 'MODAL' });
+        return;
+      }
+
+      if (modal.onComplete === 'PAY_TOLL' && modal.tollData) {
+        transferCash(player.id, modal.tollData.ownerId, modal.tollData.toll, '통행료');
+        pushLog('LAND', '통행료', `${player.name} → ${getPlayerById(state.players, modal.tollData.ownerId)?.name ?? '플레이어'} ${formatMoney(modal.tollData.toll)}`);
+        set({ activeModal: null, phase: 'IDLE' });
+        checkGameEnd();
+      }
+    },
+
     completeMinigame: (success) => {
       const state = get();
       const modal = state.activeModal;
@@ -1733,7 +1798,7 @@ const useGameStore = create<GameState>((set, get) => {
         transferCash(defender.id, attacker.id, loot, '전쟁 전리품');
 
         const defenderLands = Object.entries(state.lands)
-          .filter(([, land]) => land.ownerId === defender.id && land.type !== 'LANDMARK')
+          .filter(([, land]) => land.ownerId === defender.id)
           .map(([tileId]) => Number(tileId))
           .sort((a, b) => (state.landPrices[b] ?? 0) - (state.landPrices[a] ?? 0));
 

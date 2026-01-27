@@ -8,9 +8,8 @@ import { useGameSocketContext } from '../pages/GamePage';
 
 const STOCK_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN', 'GOLD'];
 
-const computeLandValue = (tileId: number, landType: 'LAND' | 'LANDMARK', price: number) => {
-  const mult = landType === 'LANDMARK' ? 1.8 : 1.0;
-  return Math.round(price * mult);
+const computeLandValue = (_tileId: number, _landType: 'LAND' | 'LANDMARK', price: number) => {
+  return Math.round(price);
 };
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -216,7 +215,7 @@ const PlayerAssets = () => {
                 <div key={tileId} className="dash-mini-row">
                   <div className="min-w-0">
                     <div className="dash-mini-title truncate">{space?.name ?? `Tile ${tileId}`}</div>
-                    <div className="dash-mini-sub">{land.type === 'LANDMARK' ? '랜드마크' : '토지'}</div>
+                    <div className="dash-mini-sub">토지</div>
                   </div>
                   <div className="dash-mini-right">
                     <div className="dash-mini-value">{formatKRW(est)}</div>
