@@ -95,6 +95,8 @@ export type GameSocketContextValue = GameSocketState & {
   endTurn: () => void;
   isMyTurn: () => boolean;
   pickOrderCard: (cardNumber: number) => void;
+  selectWarSpoils: (winnerId: number, loserId: number, landId: number | null) => void;
+  startWarFight: (opponentUserId: number) => void;
 };
 
 export const useGameSocket = (roomId: number = 1) => {
@@ -345,10 +347,10 @@ export const useGameSocket = (roomId: number = 1) => {
             'connect', 'connect_error', 'disconnect', 'join_error', 'join_success',
             'game_start', 'dice_rolling_started', 'dice_rolled', 'playerMove',
             'market_update', 'drawCard', 'draw_error', 'asset_update', 'turn_update',
-            'war_state', 'war_start', 'war_end', 'worldcup', 'landmark_destroyed',
+            'war_state', 'war_start', 'war_end', 'war_fight_result', 'worldcup',
             'game_end', 'roll_error', 'turn_error', 'dice_roll_cancelled',
             'order_picking_start', 'order_card_picked', 'order_picking_complete',
-            'minigame_start', 'pick_error',
+            'minigame_start', 'pick_error', 'war_spoils_result',
           ];
           events.forEach((event) => socket.off(event));
         };
@@ -672,11 +674,22 @@ export const useGameSocket = (roomId: number = 1) => {
                 return;
               }
               if (land.ownerId === me.id) {
-                useGameStore.setState({
-                  activeModal: { type: 'LAND_UPGRADE', tileId: newLocation },
+                // 본인 땅에 도착하면 땅값만큼 현금 지급
+                const landPrice = snap.landPrices[newLocation] ?? BOARD_DATA[newLocation]?.price ?? 0;
+                const spaceName = BOARD_DATA[newLocation]?.name ?? '땅';
+                useGameStore.setState((s) => ({
+                  players: s.players.map((p) =>
+                    p.id === me.id ? { ...p, cash: p.cash + landPrice } : p
+                  ),
+                  activeModal: {
+                    type: 'INFO',
+                    title: '임대 수익',
+                    description: `${spaceName}에서 ${Math.round(landPrice / 10000)}만원의 임대 수익을 얻었습니다!`,
+                  },
                   phase: 'MODAL',
                   modalData: null,
-                });
+                }));
+                appendEventLog('LAND', '임대 수익', `${me.name} ${spaceName}에서 ${Math.round(landPrice / 10000)}만원 수령`);
                 return;
               }
 
@@ -689,10 +702,9 @@ export const useGameSocket = (roomId: number = 1) => {
                 ? toNumber(tollPaid.amount, 0)
                 : applyWarMultiplier(Math.round(baseToll * trumpBonus), newLocation, true, snap.war);
 
-              const isLandmark = tollPaid ? Boolean(tollPaid.isLandmark) : land.type === 'LANDMARK';
               const basePrice = snap.landPrices[newLocation] ?? 0;
               const ownedPrice = applyWarMultiplier(basePrice, newLocation, true, snap.war);
-              const takeoverPrice = !isLandmark ? Math.round(ownedPrice * 1.5) : undefined;
+              const takeoverPrice = Math.round(ownedPrice * 1.5);
 
               const currentCash = me.cash;
               const beforeCash = tollPaid ? currentCash + toNumber(tollPaid.amount, 0) : currentCash;
@@ -934,6 +946,102 @@ export const useGameSocket = (roomId: number = 1) => {
           appendEventLog('WAR', '전쟁 종료', '전쟁이 종료되었습니다.');
         });
 
+        // 전쟁 결과 처리 - 승자가 패자로부터 땅 또는 현금을 받음
+        socket.on('war_fight_result', (data: any) => {
+          console.log('[GameSocket] war_fight_result:', data);
+          const winnerId = toInt(data?.winnerId);
+          const loserId = toInt(data?.loserId);
+          const winnerUserId = toInt(data?.winnerUserId);
+          const loserUserId = toInt(data?.loserUserId);
+          const loserLands = Array.isArray(data?.loserLands) ? data.loserLands.map((id: any) => toInt(id)) : [];
+          const cashPenalty = toNumber(data?.cashPenalty, 1000000);
+          const attackerWins = Boolean(data?.attackerWins);
+          const winRate = toNumber(data?.winRate, 50);
+
+          const snap = useGameStore.getState();
+          const winner = snap.players.find((p) => p.id === winnerId || p.userId === winnerUserId);
+          const loser = snap.players.find((p) => p.id === loserId || p.userId === loserUserId);
+
+          if (!winner || !loser) {
+            console.warn('[GameSocket] war_fight_result: winner or loser not found');
+            return;
+          }
+
+          const winnerName = winner.name;
+          const loserName = loser.name;
+          const myUserId = myUserIdRef.current;
+          const isMyWin = myUserId === winnerUserId;
+
+          // WAR_FIGHT 애니메이션 후 표시할 모달을 queuedModal에 설정
+          if (loserLands.length === 0) {
+            // 패자가 땅이 없으면 현금 전달 후 결과 표시
+            useGameStore.setState((s) => ({
+              players: s.players.map((p) => {
+                if (p.id === winner.id || p.userId === winnerUserId) {
+                  return { ...p, cash: p.cash + cashPenalty };
+                }
+                if (p.id === loser.id || p.userId === loserUserId) {
+                  return { ...p, cash: Math.max(0, p.cash - cashPenalty) };
+                }
+                return p;
+              }),
+              queuedModal: {
+                type: 'WAR_RESULT',
+                title: isMyWin ? '전쟁 승리!' : '전쟁 패배...',
+                description: isMyWin
+                  ? `${loserName}에게서 ${(cashPenalty / 10000).toFixed(0)}만원을 획득했습니다! (승률 ${winRate.toFixed(1)}%)`
+                  : `${winnerName}에게 ${(cashPenalty / 10000).toFixed(0)}만원을 빼앗겼습니다. (승률 ${(100 - winRate).toFixed(1)}%)`,
+              },
+            }));
+            appendEventLog('WAR', '전쟁 배상금', `${winnerName}이(가) ${loserName}에게서 ${(cashPenalty / 10000).toFixed(0)}만원 획득`);
+          } else {
+            // 패자가 땅이 있으면 승자가 선택할 수 있도록 WAR_SPOILS 모달 표시
+            useGameStore.setState({
+              queuedModal: {
+                type: 'WAR_SPOILS',
+                winnerId: winner.id,
+                loserId: loser.id,
+                winnerName,
+                loserName,
+                loserLands,
+                cashPenalty,
+              },
+            });
+            appendEventLog('WAR', '전쟁 승리', `${winnerName}이(가) ${loserName}에게 승리! 전리품을 선택합니다.`);
+          }
+        });
+
+        // 전리품 선택 결과 처리
+        socket.on('war_spoils_result', (data: any) => {
+          console.log('[GameSocket] war_spoils_result:', data);
+          const { winnerId, loserId, landId, landName } = data;
+          const winnerIdNum = toInt(winnerId);
+          const loserIdNum = toInt(loserId);
+          const landIdNum = toInt(landId);
+
+          const snap = useGameStore.getState();
+          const winner = snap.players.find((p) => p.id === winnerIdNum || p.userId === winnerIdNum);
+          const loser = snap.players.find((p) => p.id === loserIdNum || p.userId === loserIdNum);
+
+          if (winner && loser) {
+            // 땅 소유권 이전
+            useGameStore.setState((s) => ({
+              lands: {
+                ...s.lands,
+                [landIdNum]: { ...s.lands[landIdNum], ownerId: winner.id },
+              },
+              activeModal: {
+                type: 'WAR_RESULT',
+                title: '영토 획득!',
+                description: `${winner.name}이(가) ${loser.name}에게서 ${landName || BOARD_DATA[landIdNum]?.name || '땅'}을(를) 획득했습니다!`,
+              },
+              phase: 'MODAL',
+            }));
+            appendEventLog('WAR', '영토 획득', `${winner.name}이(가) ${loser.name}에게서 ${landName || BOARD_DATA[landIdNum]?.name || '땅'} 획득`);
+          }
+          void syncMap();
+        });
+
         socket.on('worldcup', (data: any) => {
           console.log('[GameSocket] worldcup:', data);
           const nodeIdx = toInt(data?.nodeIdx);
@@ -945,16 +1053,6 @@ export const useGameSocket = (roomId: number = 1) => {
             phase: 'MODAL',
           }));
           appendEventLog('TURN', '월드컵 개최', `모든 플레이어가 ${name}로 이동했습니다.`);
-          void syncMap();
-        });
-
-        socket.on('landmark_destroyed', () => {
-          console.log('[GameSocket] landmark_destroyed');
-          useGameStore.setState({
-            activeModal: { type: 'INFO', title: '랜드마크 파괴', description: '전쟁의 여파로 랜드마크가 파괴되었습니다.' },
-            phase: 'MODAL',
-          });
-          appendEventLog('LAND', '랜드마크 파괴', '전쟁의 여파로 랜드마크가 파괴되었습니다.');
           void syncMap();
         });
 
@@ -1074,6 +1172,26 @@ export const useGameSocket = (roomId: number = 1) => {
     socketRef.current.emit('pick_order_card', cardNumber);
   }, []);
 
+  // 전쟁 전리품 선택 (땅 ID 또는 null이면 현금)
+  const selectWarSpoils = useCallback((winnerId: number, loserId: number, landId: number | null) => {
+    if (!socketRef.current) {
+      console.warn('[GameSocket] selectWarSpoils: socket not connected');
+      return;
+    }
+    console.log('[GameSocket] selectWarSpoils:', { winnerId, loserId, landId });
+    socketRef.current.emit('select_war_spoils', { winnerId, loserId, landId });
+  }, []);
+
+  // 전쟁 시작 (상대방 userId 전달)
+  const startWarFight = useCallback((opponentUserId: number) => {
+    if (!socketRef.current) {
+      console.warn('[GameSocket] startWarFight: socket not connected');
+      return;
+    }
+    console.log('[GameSocket] startWarFight:', { opponentUserId });
+    socketRef.current.emit('start_war_fight', { opponentUserId });
+  }, []);
+
   return {
     socket: socketRef.current,
     ...state,
@@ -1081,6 +1199,8 @@ export const useGameSocket = (roomId: number = 1) => {
     endTurn,
     isMyTurn,
     pickOrderCard,
+    selectWarSpoils,
+    startWarFight,
   };
 };
 

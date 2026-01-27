@@ -179,6 +179,17 @@
     padding: 2.5rem;
   }
 
+  .ui-modal-space {
+    width: min(100vw, 70rem);
+    max-height: 95vh;
+    padding: 3rem 3rem 2.5rem;
+  }
+
+  .space-travel-grid {
+    max-height: 380px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
   .war-fight-avatar {
     @apply flex h-52 w-52 items-center justify-center rounded-full border border-white/20 bg-black/30;
     box-shadow: 0 0 40px rgba(255, 255, 255, 0.25);
