@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import useGameStore from '../../store/useGameStore';
+import useGameStore, { GAME_RULES } from '../../store/useGameStore';
 import { useGameSocketContext } from '../pages/GamePage';
 import { apiGrantMinigameReward } from '../../services/api';
+import { formatKRWKo } from '../../utils/formatKRW';
 
 type MinigamePhase = 'INTRO' | 'GAME' | 'RESULT';
 
@@ -21,7 +22,7 @@ type RankingRow = {
 };
 
 const InitialSurvival = () => {
-  const { closeModal } = useGameStore();
+  const { closeModal, appendEventLog } = useGameStore();
   const { socket, myUserId } = useGameSocketContext();
   const [phase, setPhase] = useState<MinigamePhase>('INTRO');
   const [players, setPlayers] = useState<MinigamePlayer[]>([]);
@@ -95,17 +96,25 @@ const InitialSurvival = () => {
   }, [socket, socket?.connected]);
 
   useEffect(() => {
-    if (phase === 'RESULT' && !rewardSentRef.current && winnerUserId) {
-      rewardSentRef.current = true;
-      void (async () => {
-        try {
-          await apiGrantMinigameReward(winnerUserId);
-        } catch (e: any) {
-          setErrorMessage(e?.message ?? '보상 지급에 실패했습니다.');
+    if (phase !== 'RESULT' || rewardSentRef.current || !winnerUserId) return;
+    rewardSentRef.current = true;
+    void (async () => {
+      try {
+        const result = await apiGrantMinigameReward(winnerUserId);
+        const rewardValue = Math.max(0, Number(result?.reward ?? GAME_RULES.START_SALARY));
+        if (rewardValue > 0 && winnerUserId === myUserId) {
+          useGameStore.setState((state) => ({
+            players: state.players.map((player) =>
+              player.userId === winnerUserId ? { ...player, cash: player.cash + rewardValue } : player
+            ),
+          }));
+          appendEventLog('MINIGAME', '미니게임 보상', `${formatKRWKo(rewardValue)} 지급`);
         }
-      })();
-    }
-  }, [phase, winnerUserId]);
+      } catch (e: any) {
+        setErrorMessage(e?.message ?? '보상 지급에 실패했습니다.');
+      }
+    })();
+  }, [phase, winnerUserId, myUserId, appendEventLog]);
 
   useEffect(() => {
     if (phase === 'RESULT' && resultLeft <= 0) {

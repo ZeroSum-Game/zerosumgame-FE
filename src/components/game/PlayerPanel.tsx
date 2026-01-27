@@ -95,6 +95,8 @@ const PlayerSummary = () => {
     });
   }, [assetPrices, currentPlayer, landPrices, lands]);
 
+  const computedTotal = totals?.total ?? currentPlayer?.totalAsset ?? currentPlayer?.cash ?? 0;
+
   return (
     <div className="dash-section">
       <div className="dash-section-header">
@@ -135,11 +137,8 @@ const PlayerSummary = () => {
         </div>
         <div className="dash-metric">
           <div className="dash-metric-label">총자산</div>
-          <div
-            className="dash-metric-value"
-            title={formatKRW(currentPlayer?.totalAsset ?? totals?.total ?? currentPlayer?.cash ?? 0)}
-          >
-            {formatKRWKoShort(currentPlayer?.totalAsset ?? totals?.total ?? currentPlayer?.cash ?? 0)}
+          <div className="dash-metric-value" title={formatKRW(computedTotal)}>
+            {formatKRWKoShort(computedTotal)}
           </div>
         </div>
       </div>
@@ -265,7 +264,7 @@ const PlayerRoster = () => {
         isBankrupt: p.isBankrupt,
         isActive: p.id === currentPlayer?.id,
         cash: p.cash,
-        total: p.totalAsset ?? totals.total,
+        total: totals.total,
         positionName: posName,
       };
     });

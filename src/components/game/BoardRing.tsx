@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
-import useGameStore, { CHARACTER_INFO, STOCK_INFO, TILE_TO_STOCK, type StockSymbol } from '../../store/useGameStore';
-import { CHARACTER_THEME } from '../../utils/characterTheme';
+import useGameStore, { CHARACTER_INFO, STOCK_INFO, TILE_TO_STOCK, type Player, type StockSymbol } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
 import { getPlayerSlotColor } from '../../utils/playerSlotColors';
 import { getRegionForBoardSpace } from '../../utils/regionCues';
@@ -19,6 +18,9 @@ const TILE_LABEL: Partial<Record<number, string>> = {
   7: '한국', // 대한민국
   27: '아르헨', // 아르헨티나
 };
+
+const getPlayerColor = (player: Player, index: number) =>
+  player.character ? CHARACTER_INFO[player.character].color : getPlayerSlotColor(index);
 
 const getGridPosition = (tileId: number) => {
   // 9x9 ring
@@ -54,7 +56,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
     const map = new Map<number, string[]>();
     players.forEach((p, index) => {
       const arr = map.get(p.position) ?? [];
-      arr.push(getPlayerSlotColor(index));
+      arr.push(getPlayerColor(p, index));
       map.set(p.position, arr);
     });
     return map;
@@ -88,7 +90,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
               <CharacterPiece
                 name={p.name}
                 avatar={p.character ? CHARACTER_INFO[p.character].avatar : (p.avatar || '/assets/characters/default.png')}
-                color={getPlayerSlotColor(index)}
+                color={getPlayerColor(p, index)}
                 isMe={false}
               />
             </div>
@@ -104,24 +106,6 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
           const isSelected = selectedAssetId === space.id;
           const symbol = space.type === 'STOCK' ? TILE_TO_STOCK[space.id] : undefined;
           const occupantColors = occupantColorsByTile.get(space.id) ?? [];
-          const occupantAvatars = players
-            .filter(p => !p.isBankrupt && p.position === space.id)
-            .map(p => {
-              const src = p.character
-                ? CHARACTER_INFO[p.character].avatar
-                : (p.avatar || '/assets/characters/default.png');
-
-              const ringClass = p.character
-                ? CHARACTER_THEME[p.character].ringClass
-                : 'ring-white/25';
-
-              return {
-                id: p.id,
-                name: p.name,
-                src,
-                ringClass,
-              };
-            });
           const region = getRegionForBoardSpace(space, { stockSymbol: symbol });
           const landInfo = space.type === 'COUNTRY' ? lands[space.id] : undefined;
           const landOwner = landInfo ? players.find((p) => p.id === landInfo.ownerId) ?? null : null;
@@ -129,9 +113,8 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
           // [Merge Note] 2026-01-27: Added logic to determine land owner color
           const land = lands[space.id];
           let ownerColor: string | undefined;
-          if (land?.ownerId) {
-            const ownerIndex = players.findIndex(p => p.id === land.ownerId);
-            if (ownerIndex >= 0) ownerColor = getPlayerSlotColor(ownerIndex);
+          if (landOwner) {
+            ownerColor = getPlayerColor(landOwner, landOwnerIndex >= 0 ? landOwnerIndex : 0);
           }
 
           let specialType: string | undefined = undefined;
@@ -139,8 +122,6 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
             specialType = space.type;
             if (space.type === 'ISLAND') {
               if (space.name === '전쟁') specialType = 'WAR';
-              else if (space.name === '올림픽') specialType = 'OLYMPICS'; // Or just generic ISLAND/EVENT
-              else if (space.name === '월드컵') specialType = 'WORLDCUP';
             }
           }
 
@@ -183,34 +164,6 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
                   specialType={specialType}
                 />
 
-                {occupantAvatars.length > 0 && (
-                  <div
-                    className={`board-piece-stack${
-                      occupantAvatars.length >= 4
-                        ? ' board-piece-stack-compact board-piece-stack-compact-4'
-                        : occupantAvatars.length >= 3
-                          ? ' board-piece-stack-compact board-piece-stack-compact-3'
-                          : ''
-                    }`}
-                    aria-hidden="true"
-                  >
-                    {occupantAvatars.slice(0, 4).map((o) => (
-                      <img
-                        key={o.id}
-                        src={o.src}
-                        alt={o.name}
-                        className={`board-piece-img ring-2 ${o.ringClass}${
-                          occupantAvatars.length >= 4
-                            ? ' board-piece-img-compact board-piece-img-compact-4'
-                            : occupantAvatars.length >= 3
-                              ? ' board-piece-img-compact board-piece-img-compact-3'
-                              : ''
-                        }`}
-                        draggable={false}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           );
@@ -223,5 +176,3 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
 };
 
 export default BoardRing;
-
-

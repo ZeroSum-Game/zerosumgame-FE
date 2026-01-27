@@ -20,14 +20,14 @@ const CharacterPiece: FC<Props> = ({ name, avatar, color, isMe }) => {
             >
                 {/* Border / Halo */}
                 <div
-                    className="absolute inset-0 rounded-full border-2"
-                    style={{ borderColor: color, opacity: 0.8 }}
+                    className="absolute inset-0 rounded-full"
+                    style={{ border: `1px solid ${color}`, opacity: 0.9 }}
                 />
 
                 {/* Avatar Image */}
                 <div
-                    className="relative h-12 w-12 overflow-hidden rounded-full border-4 bg-gray-900"
-                    style={{ borderColor: 'white' }}
+                    className="relative h-12 w-12 overflow-hidden rounded-full bg-gray-900"
+                    style={{ border: `1px solid ${color}` }}
                 >
                     <img src={avatar} alt={name} className="h-full w-full object-cover" />
                 </div>

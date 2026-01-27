@@ -5,6 +5,7 @@ import { fromBackendCharacter } from '../utils/characterMapping';
 import useGameStore, {
   CHARACTER_INFO,
   GAME_RULES,
+  START_TILE_TRADE_SYMBOLS,
   TILE_TO_STOCK,
   type CharacterType,
   type EventLogType,
@@ -650,7 +651,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
             if (space.type === 'START') {
               useGameStore.setState({
-                activeModal: { type: 'ASSET_TRADE', allowedSymbols: ['GOLD', 'BITCOIN'], symbol: 'GOLD' },
+                activeModal: { type: 'ASSET_TRADE', allowedSymbols: START_TILE_TRADE_SYMBOLS, symbol: 'GOLD' },
                 phase: 'MODAL',
                 modalData: null,
               });
@@ -704,7 +705,7 @@ export const useGameSocket = (roomId: number = 1) => {
             if (space.type === 'STOCK') {
               const symbol = TILE_TO_STOCK[newLocation];
               if (!symbol) return;
-              const allowed = symbol === 'GOLD' || symbol === 'BITCOIN' ? (['GOLD', 'BITCOIN'] as StockSymbol[]) : [symbol];
+              const allowed = [symbol];
               useGameStore.setState({
                 activeModal: { type: 'ASSET_TRADE', allowedSymbols: allowed, symbol },
                 phase: 'MODAL',

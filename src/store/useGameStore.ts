@@ -44,6 +44,8 @@ export const TILE_TO_STOCK: Record<number, StockSymbol> = {
   25: 'BITCOIN',
 };
 
+export const START_TILE_TRADE_SYMBOLS: StockSymbol[] = ['GOLD', 'BITCOIN', 'SAMSUNG', 'TESLA', 'LOCKHEED'];
+
 export const CHARACTER_INFO: Record<
   CharacterType,
   { name: string; color: string; avatar: string; abilityShort: string; abilityDetail: string }
@@ -784,7 +786,7 @@ const useGameStore = create<GameState>((set, get) => {
       pushLog('TURN', '시작', `${currentPlayer.name} 시작 칸 도착`);
       set({
         phase: 'MODAL',
-        activeModal: { type: 'ASSET_TRADE', allowedSymbols: ['GOLD', 'BITCOIN'] as StockSymbol[], symbol: 'GOLD' },
+        activeModal: { type: 'ASSET_TRADE', allowedSymbols: START_TILE_TRADE_SYMBOLS, symbol: 'GOLD' },
       });
       return;
     }
@@ -792,10 +794,7 @@ const useGameStore = create<GameState>((set, get) => {
     if (space.type === 'STOCK') {
       const symbol = TILE_TO_STOCK[tileId];
       if (symbol) {
-        const allowed: StockSymbol[] =
-          symbol === 'GOLD' || symbol === 'BITCOIN'
-            ? (['GOLD', 'BITCOIN'] as StockSymbol[])
-            : [symbol];
+        const allowed: StockSymbol[] = [symbol];
         pushLog('MARKET', '거래소', `${space.name} 도착 - 거래 가능`);
         set({ phase: 'MODAL', activeModal: { type: 'ASSET_TRADE', allowedSymbols: allowed, symbol } });
         return;

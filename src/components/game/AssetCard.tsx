@@ -155,9 +155,10 @@ const AssetCard = ({
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
     );
-    if (name === '올림픽') return (
-      <svg className="h-8 w-8 text-orange-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+    if (name === '월드컵') return (
+      <svg className="h-8 w-8 text-amber-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l2 3h5l-1 4.5 2 2.5-4 1.5L14 19h-4l1.5-5.5-4-1.5 2-2.5L5 6h5l2-3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 19c-1.5 0-3 1-3 2h16c0-1-1.5-2-3-2h-10z" />
       </svg>
     );
     if (name === '전쟁') return (
@@ -213,4 +214,3 @@ const AssetCard = ({
 };
 
 export default AssetCard;
-

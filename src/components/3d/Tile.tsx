@@ -49,7 +49,6 @@ const Tile = ({ tile }: TileProps) => {
   // Icon based on type
   const tileIcon = useMemo(() => {
     if (tile.space.name === '전쟁') return '⚔️';
-    if (tile.space.name === '올림픽') return '🏅';
     if (tile.space.name === '월드컵') return '🏆';
     if (tile.space.name === '우주여행') return '🏆';
     switch (tile.space.type) {

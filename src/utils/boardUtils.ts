@@ -63,9 +63,9 @@ export const BOARD_DATA: BoardSpace[] = [
 
   // ============================================
   // ➡️ 3. 상단 라인 (16~23번) / 유럽
-  // 월드컵/올림픽(좌상 코너) → 오른쪽으로 진행
+  // 월드컵(좌상 코너) → 오른쪽으로 진행
   // ============================================
-  { id: 16, name: '월드컵/올림픽', type: 'EXPO', description: '월드컵·올림픽 개최—전 플레이어 이동 이벤트.' },
+  { id: 16, name: '월드컵', type: 'EXPO', description: '월드컵 개최—전 플레이어 이동 이벤트.' },
   { id: 17, name: '러시아', type: 'COUNTRY', price: 661500, continent: 'EUROPE', description: '에너지·자원 대국—정치·외교 변수에 민감.' },
   { id: 18, name: '삼성전자', type: 'STOCK', description: '반도체·전자 대기업—글로벌 IT 수요와 연동.' },
   { id: 19, name: '스위스', type: 'COUNTRY', price: 1001000, continent: 'EUROPE', description: '금융·제약·정밀 산업—프리미엄/안정 이미지.' },
