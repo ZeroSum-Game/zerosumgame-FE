@@ -256,6 +256,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
     useGameStore.setState({
       landPrices: nextLandPrices,
+      prevLandPrices: { ...nextLandPrices }, // Reset prev to current for 0% initial change
       landTolls: nextLandTolls,
       lands: nextLands,
     });
@@ -264,14 +265,16 @@ export const useGameSocket = (roomId: number = 1) => {
   const syncMarket = useCallback(async () => {
     const market = await apiGetMarket();
     if (!market) return;
+    const nextPrices = {
+      SAMSUNG: market.samsung,
+      TESLA: market.tesla,
+      LOCKHEED: market.lockheed,
+      GOLD: market.gold,
+      BITCOIN: market.bitcoin,
+    };
     useGameStore.setState({
-      assetPrices: {
-        SAMSUNG: market.samsung,
-        TESLA: market.tesla,
-        LOCKHEED: market.lockheed,
-        GOLD: market.gold,
-        BITCOIN: market.bitcoin,
-      },
+      assetPrices: nextPrices,
+      prevAssetPrices: { ...nextPrices }, // Reset prev to current for 0% initial change
     });
   }, []);
 

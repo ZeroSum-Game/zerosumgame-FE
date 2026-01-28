@@ -258,8 +258,10 @@ const GameOverlay = () => {
 
   const lands = useGameStore((state) => state.lands);
   const landPrices = useGameStore((state) => state.landPrices);
+  const prevLandPrices = useGameStore((state) => state.prevLandPrices);
   const war = useGameStore((state) => state.war);
   const assetPrices = useGameStore((state) => state.assetPrices);
+  const prevAssetPrices = useGameStore((state) => state.prevAssetPrices);
 
   const activeModal = useGameStore((state) => state.activeModal);
   const closeModal = useGameStore((state) => state.closeModal);
@@ -580,10 +582,30 @@ const GameOverlay = () => {
 
   const [selectedAsset, setSelectedAsset] = useState<number | null>(null);
 
-  const prevAssetPricesRef = useRef(assetPrices);
-  const prevLandPricesRef = useRef(landPrices);
-  const [assetChange, setAssetChange] = useState<Partial<Record<StockSymbol, PriceChange>>>({});
-  const [landChange, setLandChange] = useState<Record<number, PriceChange>>({});
+  // Use store-based prev prices for accurate change calculations
+  const assetChange = useMemo(() => {
+    const result: Partial<Record<StockSymbol, PriceChange>> = {};
+    STOCK_SYMBOLS.forEach((symbol) => {
+      const current = assetPrices[symbol];
+      const previous = prevAssetPrices[symbol] ?? current;
+      const delta = current - previous;
+      const pct = previous ? (delta / previous) * 100 : 0;
+      result[symbol] = { prev: previous, current, delta, pct };
+    });
+    return result;
+  }, [assetPrices, prevAssetPrices]);
+
+  const landChange = useMemo(() => {
+    const result: Record<number, PriceChange> = {};
+    Object.entries(landPrices).forEach(([id, price]) => {
+      const tileId = Number(id);
+      const previous = prevLandPrices[tileId] ?? price;
+      const delta = price - previous;
+      const pct = previous ? (delta / previous) * 100 : 0;
+      result[tileId] = { prev: previous, current: price, delta, pct };
+    });
+    return result;
+  }, [landPrices, prevLandPrices]);
 
   const [tradeQty, setTradeQty] = useState(1);
   const [minigameSecret, setMinigameSecret] = useState<number | null>(null);
@@ -601,34 +623,6 @@ const GameOverlay = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedAsset]);
-
-  useEffect(() => {
-    const prev = prevAssetPricesRef.current;
-    const next: Partial<Record<StockSymbol, PriceChange>> = {};
-    STOCK_SYMBOLS.forEach((symbol) => {
-      const current = assetPrices[symbol];
-      const previous = prev[symbol] ?? current;
-      const delta = current - previous;
-      const pct = previous ? (delta / previous) * 100 : 0;
-      next[symbol] = { prev: previous, current, delta, pct };
-    });
-    setAssetChange(next);
-    prevAssetPricesRef.current = { ...assetPrices };
-  }, [assetPrices]);
-
-  useEffect(() => {
-    const prev = prevLandPricesRef.current;
-    const next: Record<number, PriceChange> = {};
-    Object.entries(landPrices).forEach(([id, price]) => {
-      const tileId = Number(id);
-      const previous = prev[tileId] ?? price;
-      const delta = price - previous;
-      const pct = previous ? (delta / previous) * 100 : 0;
-      next[tileId] = { prev: previous, current: price, delta, pct };
-    });
-    setLandChange(next);
-    prevLandPricesRef.current = { ...landPrices };
-  }, [landPrices]);
 
   useEffect(() => {
     if (!activeModal) return;
