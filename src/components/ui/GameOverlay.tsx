@@ -155,13 +155,13 @@ const GameOverlay = () => {
 
       if (actionRaw === 'TAKEOVER') {
         type = 'takeover';
-        message = `${name} | ${spaceName} | 인수 성공!`;
-        subMsg = `통행료 상승 및 소유권 확보`;
+        message = `${name} ${spaceName} 인수 성공!`;
+        subMsg = `소유권 확보`;
         playSound('takeover');
         setParticle({ type: 'lightning', active: true }); // ⚡ Takeover Effect
       } else if (actionRaw === 'LANDMARK') {
         type = 'purchase';
-        message = `${name} | ${spaceName} | 랜드마크 건설`;
+        message = `${name} ${spaceName} 랜드마크 건설`;
         subMsg = `통행료 대폭 상승!`;
         playSound('purchase');
         setParticle({ type: 'coins', active: true }); // 💰 Landmark Effect
@@ -186,7 +186,7 @@ const GameOverlay = () => {
       setBoardNotif({
         type: 'worldcup',
         message: `${name} 월드컵 개최!`,
-        subMessage: `${spaceName} 통행료 2배!`,
+        subMessage: `모두 개최지로 모입니다.`,
         active: true
       });
     };
