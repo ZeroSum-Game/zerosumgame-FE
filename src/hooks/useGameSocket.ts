@@ -342,6 +342,9 @@ export const useGameSocket = (roomId: number = 1) => {
           return;
         }
         socketRef.current = socket;
+        useGameStore.getState().setGoldenKeyEmitter((card) => {
+          socket.emit('golden_key_apply', { card });
+        });
 
         const clearHandlers = () => {
           const events = [

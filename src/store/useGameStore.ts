@@ -266,6 +266,8 @@ type GameState = {
   chooseWarTarget: (defenderId: number) => void;
   handleGoldenKey: () => Promise<void>;
   applyGoldenKeyCard: (card: GoldenKeyCardPayload) => void;
+  goldenKeyEmitter: ((card: GoldenKeyCardPayload) => void) | null;
+  setGoldenKeyEmitter: (emitter: ((card: GoldenKeyCardPayload) => void) | null) => void;
 
   setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
   showModal: (modal: ModalState) => void;
@@ -562,11 +564,15 @@ const useGameStore = create<GameState>((set, get) => {
 
   const applyGoldenKeyCard = (card: GoldenKeyCardPayload) => {
     const state = get();
+    const emitGoldenKey = state.goldenKeyEmitter;
     const currentPlayer = state.players[state.currentPlayerIndex];
     if (!currentPlayer) return;
 
     const alive = state.players.filter((p) => !p.isBankrupt);
-    const getNetWorth = (p: Player) => computeNetWorth(p, state.assetPrices, state.landPrices, state.lands);
+    const getNetWorth = (p: Player) =>
+      Number.isFinite(p.totalAsset ?? NaN)
+        ? Number(p.totalAsset)
+        : computeNetWorth(p, state.assetPrices, state.landPrices, state.lands);
     const sortedByWorth = alive.slice().sort((a, b) => getNetWorth(b) - getNetWorth(a));
     const richest = sortedByWorth[0] ?? null;
     const poorest = sortedByWorth[sortedByWorth.length - 1] ?? null;
@@ -581,6 +587,7 @@ const useGameStore = create<GameState>((set, get) => {
             [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
           },
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 2: {
@@ -595,6 +602,7 @@ const useGameStore = create<GameState>((set, get) => {
           });
           return { landTolls: next };
         });
+        emitGoldenKey?.(card);
         return;
       }
       case 3: {
@@ -606,6 +614,7 @@ const useGameStore = create<GameState>((set, get) => {
             [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
           },
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 4: {
@@ -617,11 +626,13 @@ const useGameStore = create<GameState>((set, get) => {
             [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
           },
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 5: {
         if (!card.playerId || card.amount == null) return;
         transferCash(card.playerId, null, card.amount, card.title);
+        emitGoldenKey?.(card);
         return;
       }
       case 6: {
@@ -629,6 +640,7 @@ const useGameStore = create<GameState>((set, get) => {
         set((s) => ({
           players: s.players.map((p) => (p.id === poorest.id ? { ...p, cash: p.cash + card.amount! } : p)),
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 7: {
@@ -642,11 +654,13 @@ const useGameStore = create<GameState>((set, get) => {
           });
           return { landPrices: next };
         });
+        emitGoldenKey?.(card);
         return;
       }
       case 8: {
         const rate = card.effectValue ?? 0.2;
         set((s) => ({ dividendOverrides: { ...s.dividendOverrides, SAMSUNG: rate } }));
+        emitGoldenKey?.(card);
         return;
       }
       case 9: {
@@ -658,6 +672,7 @@ const useGameStore = create<GameState>((set, get) => {
             [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
           },
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 10: {
@@ -669,6 +684,7 @@ const useGameStore = create<GameState>((set, get) => {
             [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
           },
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 11: {
@@ -685,6 +701,7 @@ const useGameStore = create<GameState>((set, get) => {
           });
           return { landTolls: next };
         });
+        emitGoldenKey?.(card);
         return;
       }
       case 12: {
@@ -705,6 +722,7 @@ const useGameStore = create<GameState>((set, get) => {
           if (count <= 0) return;
           transferCash(p.id, null, count * card.amount!, card.title);
         });
+        emitGoldenKey?.(card);
         return;
       }
       case 14: {
@@ -712,6 +730,7 @@ const useGameStore = create<GameState>((set, get) => {
         set((s) => ({
           players: s.players.map((p) => (p.id === currentPlayer.id ? { ...p, cash: p.cash + card.amount! } : p)),
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 15: {
@@ -725,6 +744,7 @@ const useGameStore = create<GameState>((set, get) => {
           });
           return { landTolls: next };
         });
+        emitGoldenKey?.(card);
         return;
       }
       case 16: {
@@ -732,6 +752,7 @@ const useGameStore = create<GameState>((set, get) => {
         set((s) => ({
           players: s.players.map((p) => (p.id === currentPlayer.id ? { ...p, cash: p.cash + card.amount! } : p)),
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 17: {
@@ -743,6 +764,7 @@ const useGameStore = create<GameState>((set, get) => {
             [card.symbol!]: Math.max(1, Math.round(s.assetPrices[card.symbol!] * (1 + pct))),
           },
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 18: {
@@ -752,6 +774,7 @@ const useGameStore = create<GameState>((set, get) => {
             p.id === currentPlayer.id ? { ...p, warWinChanceBonus: p.warWinChanceBonus + bonus } : p
           ),
         }));
+        emitGoldenKey?.(card);
         return;
       }
       case 19: {
@@ -764,6 +787,7 @@ const useGameStore = create<GameState>((set, get) => {
           }
           return { landTolls: next };
         });
+        emitGoldenKey?.(card);
         return;
       }
       case 20: {
@@ -773,6 +797,7 @@ const useGameStore = create<GameState>((set, get) => {
         set((s) => ({
           players: s.players.map((p) => (p.id === currentPlayer.id ? { ...p, cash: p.cash + gain } : p)),
         }));
+        emitGoldenKey?.(card);
         return;
       }
       default:
@@ -1985,6 +2010,11 @@ const useGameStore = create<GameState>((set, get) => {
       if (modal) {
         set({ activeModal: modal, modalData: data, phase: 'MODAL' });
       }
+    },
+
+    goldenKeyEmitter: null,
+    setGoldenKeyEmitter: (emitter) => {
+      set({ goldenKeyEmitter: emitter });
     },
 
     syncPlayerFromBackend: (data) => {
