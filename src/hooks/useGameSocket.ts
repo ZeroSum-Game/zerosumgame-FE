@@ -801,13 +801,13 @@ export const useGameSocket = (roomId: number = 1) => {
           const currentPos = useGameStore.getState().players.find((p) => p.id === playerId)?.position ?? newLocation;
           const startPos = Number.isFinite(oldLocation) ? oldLocation : currentPos;
           const explicitSteps = toInt(data?.steps, 0);
-          const safeDice1 = clampDiceValue(data?.dice1);
-          const safeDice2 = clampDiceValue(data?.dice2);
-          const diceSteps = safeDice1 + safeDice2;
-          const deltaSteps = totalTiles > 0 ? (newLocation - startPos + totalTiles) % totalTiles : 0;
 
-          // Prefer explicit steps from server, then delta from old/new locations, then dice sum.
-          const steps = explicitSteps > 0 ? explicitSteps : (deltaSteps > 0 ? deltaSteps : diceSteps);
+          // 스토어에서 주사위 값 가져오기 (dice_rolled에서 설정된 값)
+          const storeDice = useGameStore.getState().dice;
+          const diceSteps = storeDice[0] + storeDice[1];
+
+          // 주사위 값을 우선 사용, 그 다음 서버 명시 값
+          const steps = diceSteps > 0 ? diceSteps : (explicitSteps > 0 ? explicitSteps : 0);
 
           if (!totalTiles || steps <= 0) {
             useGameStore.setState((st) => ({
