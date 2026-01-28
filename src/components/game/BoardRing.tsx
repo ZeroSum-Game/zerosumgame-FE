@@ -61,7 +61,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
     });
     return map;
   }, [players]);
-  
+
 
   return (
     <div className="board-ring relative">
@@ -134,7 +134,7 @@ const BoardRing = ({ center, selectedAssetId, onSelectAsset, assetChange, landCh
 
           const changePct =
             space.type === 'COUNTRY'
-              ? landChange[space.id]?.pct ?? 0
+              ? null // Don't show change % for country tiles - only show name
               : symbol
                 ? assetChange[symbol]?.pct ?? 0
                 : null;
