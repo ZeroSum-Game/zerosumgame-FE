@@ -1115,7 +1115,8 @@ export const useGameSocket = (roomId: number = 1) => {
             },
           });
           appendEventLog('SYSTEM', '게임 종료', `${data.maxTurn ?? ''}턴이 종료되었습니다.`);
-          storeRef.current.setCurrentPage('result');
+          // Use getState() directly to ensure all clients navigate to result page
+          useGameStore.getState().setCurrentPage('result');
         });
 
         socket.on('dice_roll_cancelled', (data: any) => {
