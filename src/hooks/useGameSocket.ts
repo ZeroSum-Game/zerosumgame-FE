@@ -645,15 +645,18 @@ export const useGameSocket = (roomId: number = 1) => {
             if (!me) return;
             const currentSocket = socketRef.current;
 
+            const space = BOARD_DATA[newLocation];
+            if (!space) return;
+
             const isSpaceTravel = data?.type === 'SPACE';
-            if (isSpaceTravel) {
-              useGameStore.setState({ activeModal: null });
+            const isMinigame = space.type === 'MINIGAME';
+
+            // 우주여행이나 미니게임은 모달 강제 초기화
+            if (isSpaceTravel || isMinigame) {
+              useGameStore.setState({ activeModal: null, modalData: null });
             } else if (snap.activeModal) {
               return;
             }
-
-            const space = BOARD_DATA[newLocation];
-            if (!space) return;
 
             if (space.type === 'START') {
               useGameStore.setState({
