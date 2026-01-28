@@ -94,8 +94,8 @@ const GameOverlay = () => {
         setParticle({ type: 'rocket', active: true });
         setBoardNotif({
           type: 'space',
-          message: `${name} 우주여행!`,
-          subMessage: '다음 턴에 원하는 곳으로 이동합니다.',
+          message: `${name} 우주여행 도착!`,
+          subMessage: '원하는 곳으로 이동합니다.',
           active: true
         });
         return;
@@ -108,8 +108,8 @@ const GameOverlay = () => {
         playSound('taxPayment'); // Assuming tax sound exists or reuse coin
         setBoardNotif({
           type: 'tax',
-          message: `${name} 국세청 방문`,
-          subMessage: taxAmount ? `세금 ${taxAmount} 납부` : '세금 납부',
+          message: `${name} 국세청 세금 납부!`,
+          subMessage: taxAmount ? `세금 ${taxAmount} 납부` : '자산의 20%를 납부합니다.',
           active: true
         });
         return;
@@ -119,8 +119,8 @@ const GameOverlay = () => {
       if (spaceName === '미니게임') {
         setBoardNotif({
           type: 'minigame',
-          message: `${name} 미니게임`,
-          subMessage: '초성 퀴즈 도전!',
+          message: `${name} 오락실 도착!`,
+          subMessage: '곧 미니게임을 시작합니다.',
           active: true
         });
         return;
@@ -140,15 +140,19 @@ const GameOverlay = () => {
 
       if (actionRaw === 'TAKEOVER') {
         type = 'takeover';
-        message = `${name} ${spaceName} 인수!`;
+        message = `${name} | ${spaceName} | 인수 성공!`;
+        subMsg = `통행료 상승 및 소유권 확보`;
         playSound('takeover');
         setParticle({ type: 'lightning', active: true }); // ⚡ Takeover Effect
       } else if (actionRaw === 'LANDMARK') {
         type = 'purchase';
-        message = `${name} ${spaceName} 랜드마크!`;
+        message = `${name} | ${spaceName} | 랜드마크 건설`;
+        subMsg = `통행료 대폭 상승!`;
         playSound('purchase');
         setParticle({ type: 'coins', active: true }); // 💰 Landmark Effect
       } else {
+        message = `${name} ${spaceName} 구매!`;
+        subMsg = `자산 목록에 추가됩니다`;
         playSound('purchase');
         setParticle({ type: 'coins', active: true }); // 💰 Purchase Effect
       }
@@ -177,8 +181,8 @@ const GameOverlay = () => {
       setParticle({ type: 'explosion', active: true }); // 💥 War Effect
       setBoardNotif({
         type: 'war',
-        message: '전쟁 발발!',
-        subMessage: '생존을 위한 전투가 시작됩니다!',
+        message: `${name} 전쟁 선포!`,
+        subMessage: '곧 전투가 시작됩니다.',
         active: true
       });
     };
@@ -234,7 +238,9 @@ const GameOverlay = () => {
 
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [warRates, setWarRates] = useState<Record<number, number>>({});
   const [selectedSpoilsLand, setSelectedSpoilsLand] = useState<number | null>(null);
+
   const fightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshMap = async () => {
@@ -270,15 +276,15 @@ const GameOverlay = () => {
         players: state.players.map((p) =>
           p.id === result.playerId
             ? {
-                ...p,
-                cash: Number(result.cash),
-                totalAsset: computePlayerTotalAsset(
-                  { ...p, cash: Number(result.cash) },
-                  state.assetPrices,
-                  state.landPrices,
-                  state.lands
-                ),
-              }
+              ...p,
+              cash: Number(result.cash),
+              totalAsset: computePlayerTotalAsset(
+                { ...p, cash: Number(result.cash) },
+                state.assetPrices,
+                state.landPrices,
+                state.lands
+              ),
+            }
             : p
         ),
       }));
@@ -306,15 +312,15 @@ const GameOverlay = () => {
         players: state.players.map((p) =>
           p.id === result.playerId
             ? {
-                ...p,
-                cash: Number(result.cash),
-                totalAsset: computePlayerTotalAsset(
-                  { ...p, cash: Number(result.cash) },
-                  state.assetPrices,
-                  state.landPrices,
-                  state.lands
-                ),
-              }
+              ...p,
+              cash: Number(result.cash),
+              totalAsset: computePlayerTotalAsset(
+                { ...p, cash: Number(result.cash) },
+                state.assetPrices,
+                state.landPrices,
+                state.lands
+              ),
+            }
             : p
         ),
       }));
@@ -343,15 +349,15 @@ const GameOverlay = () => {
         players: state.players.map((p) =>
           p.id === result.playerId
             ? {
-                ...p,
-                cash: Number(result.cash),
-                totalAsset: computePlayerTotalAsset(
-                  { ...p, cash: Number(result.cash) },
-                  state.assetPrices,
-                  state.landPrices,
-                  state.lands
-                ),
-              }
+              ...p,
+              cash: Number(result.cash),
+              totalAsset: computePlayerTotalAsset(
+                { ...p, cash: Number(result.cash) },
+                state.assetPrices,
+                state.landPrices,
+                state.lands
+              ),
+            }
             : p
         ),
       }));
@@ -472,6 +478,36 @@ const GameOverlay = () => {
   const confirmTax = useGameStore((state) => state.confirmTax);
 
   const currentPlayer = players[currentPlayerIndex] ?? null;
+
+
+  useEffect(() => {
+    if (!activeModal || activeModal.type !== 'WAR_SELECT') return;
+    if (!currentPlayer) return;
+    let alive = true;
+
+    const targets = players.filter((p) => !p.isBankrupt && p.id !== currentPlayer.id);
+    const fetchRates = async () => {
+      try {
+        const entries = await Promise.all(
+          targets.map(async (p) => {
+            const result = await apiGetWarRate(p.userId);
+            const rate = Number(result?.winRate ?? 0);
+            return [p.userId, Number.isFinite(rate) ? rate : 0] as const;
+          })
+        );
+        if (!alive) return;
+        setWarRates(Object.fromEntries(entries));
+      } catch {
+        if (!alive) return;
+        setWarRates({});
+      }
+    };
+
+    void fetchRates();
+    return () => {
+      alive = false;
+    };
+  }, [activeModal, currentPlayer, players]);
 
   const startWar = async (opponentUserId: number, opponentName: string) => {
     if (!currentPlayer) return;
@@ -665,7 +701,7 @@ const GameOverlay = () => {
           <div
             role="dialog"
             aria-modal="true"
-            className={`ui-modal${activeModal.type === "SPACE_TRAVEL" ? " ui-modal-wide ui-modal-space" : ""}${activeModal.type === "WAR_FIGHT" ? " ui-modal-war" : ""}${activeModal.type === "INITIAL_GAME" ? " ui-modal-minigame" : ""}`}
+            className={`ui-modal animate-zoom${activeModal.type === "SPACE_TRAVEL" ? " ui-modal-wide ui-modal-space" : ""}${activeModal.type === "WAR_FIGHT" ? " ui-modal-war" : ""}${activeModal.type === "INITIAL_GAME" ? " ui-modal-minigame" : ""}`}
             // 아래 style 속성을 추가해서 INITIAL_GAME일 때 너비를 강제로 넓혀줍니다!
             style={
               activeModal.type === "INITIAL_GAME"
@@ -749,11 +785,11 @@ const GameOverlay = () => {
                 const WORLD_CUP_COST = 800000;
                 const ownedTiles = currentPlayer
                   ? Object.entries(lands)
-                      .filter(([, land]) => land.ownerId === currentPlayer.id)
-                      .map(([tileId]) => Number(tileId))
-                      .sort(
-                        (a, b) => (landPrices[b] ?? 0) - (landPrices[a] ?? 0),
-                      )
+                    .filter(([, land]) => land.ownerId === currentPlayer.id)
+                    .map(([tileId]) => Number(tileId))
+                    .sort(
+                      (a, b) => (landPrices[b] ?? 0) - (landPrices[a] ?? 0),
+                    )
                   : [];
 
                 return (
@@ -852,7 +888,7 @@ const GameOverlay = () => {
                 );
                 return (
                   <>
-                    <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl lg:flex-row lg:gap-6 w-full">
+                    <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl lg:flex-row lg:gap-6 max-w-4xl mx-auto">
                       <div className="flex items-center justify-center lg:w-56 flex-shrink-0">
                         <img
                           src="/assets/characters/dogecoin.png"
@@ -867,12 +903,12 @@ const GameOverlay = () => {
                             🚀 우주여행
                           </h2>
                           <p className="mt-1 text-sm text-white/70">
-                            다음 턴에 이동할 위치를 선택하세요.
+                            이동할 위치를 선택하세요.
                           </p>
                         </div>
 
                         <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/70">
-                          선택한 위치로 다음 턴 시작 시 이동합니다.
+                          선택한 위치로 이동합니다.
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 overflow-y-auto max-h-96 sm:grid-cols-3 space-travel-grid pr-1">
@@ -1071,11 +1107,10 @@ const GameOverlay = () => {
                             key={sym}
                             type="button"
                             onClick={() => setTradeSymbol(sym)}
-                            className={`dash-action ${
-                              sym === symbol
-                                ? "dash-action-primary"
-                                : "dash-action-secondary"
-                            }`}
+                            className={`dash-action ${sym === symbol
+                              ? "dash-action-primary"
+                              : "dash-action-secondary"
+                              }`}
                           >
                             {STOCK_INFO[sym].nameKr}
                           </button>
@@ -1573,11 +1608,10 @@ const GameOverlay = () => {
                             key={land.id}
                             type="button"
                             onClick={() => handleSelectLand(land.id)}
-                            className={`w-full rounded-lg border p-3 text-left transition ${
-                              selectedSpoilsLand === land.id
-                                ? "border-amber-400 bg-amber-500/20"
-                                : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
-                            }`}
+                            className={`w-full rounded-lg border p-3 text-left transition ${selectedSpoilsLand === land.id
+                              ? "border-amber-400 bg-amber-500/20"
+                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                              }`}
                           >
                             <div className="flex items-center justify-between">
                               <div>
@@ -1603,11 +1637,10 @@ const GameOverlay = () => {
                       <button
                         onClick={handleConfirmSpoils}
                         disabled={selectedSpoilsLand === null}
-                        className={`dash-action flex-1 ${
-                          selectedSpoilsLand !== null
-                            ? "dash-action-primary"
-                            : "cursor-not-allowed bg-white/10 text-white/40"
-                        }`}
+                        className={`dash-action flex-1 ${selectedSpoilsLand !== null
+                          ? "dash-action-primary"
+                          : "cursor-not-allowed bg-white/10 text-white/40"
+                          }`}
                       >
                         영토 획득
                       </button>

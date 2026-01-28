@@ -883,10 +883,20 @@ export const useGameSocket = (roomId: number = 1) => {
           useGameStore.setState((st) => ({
             players: st.players.map((p) => {
               if (p.userId !== toInt(data?.userId)) return p;
+              const nextHoldings = data?.assets
+                ? {
+                    SAMSUNG: toInt(data.assets.samsung, p.stockHoldings.SAMSUNG ?? 0),
+                    TESLA: toInt(data.assets.tesla, p.stockHoldings.TESLA ?? 0),
+                    LOCKHEED: toInt(data.assets.lockheed, p.stockHoldings.LOCKHEED ?? 0),
+                    GOLD: toInt(data.assets.gold, p.stockHoldings.GOLD ?? 0),
+                    BITCOIN: toInt(data.assets.bitcoin, p.stockHoldings.BITCOIN ?? 0),
+                  }
+                : p.stockHoldings;
               return {
                 ...p,
                 cash: toNumber(data?.cash, p.cash),
                 totalAsset: data?.totalAsset != null ? toNumber(data.totalAsset) : p.totalAsset,
+                stockHoldings: nextHoldings,
               };
             }),
           }));

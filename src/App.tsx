@@ -81,10 +81,12 @@ const App = () => {
 
   return (
     <>
-      {currentPage === 'login' && <LoginPage />}
-      {currentPage === 'lobby' && <LobbyPage />}
-      {currentPage === 'game' && <GamePage />}
-      {currentPage === 'result' && <ResultPage />}
+      <div className="animate-rise w-full">
+        {currentPage === 'login' && <LoginPage />}
+        {currentPage === 'lobby' && <LobbyPage />}
+        {currentPage === 'game' && <GamePage />}
+        {currentPage === 'result' && <ResultPage />}
+      </div>
     </>
   );
 };
