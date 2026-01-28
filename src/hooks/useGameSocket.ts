@@ -967,10 +967,14 @@ export const useGameSocket = (roomId: number = 1) => {
           console.log('[GameSocket] war_start:', data);
           useGameStore.setState({
             war: parseWar(data),
-            activeModal: { type: 'INFO', title: '전쟁 시작!', description: `전쟁이 시작되었습니다. ${data.turnsLeft}턴 동안 전쟁이 진행됩니다.` },
+            activeModal: {
+              type: 'INFO',
+              title: 'War Started!',
+              description: `War has begun. ${data.turnsLeft} turn(s) remaining.`,
+            },
             phase: 'MODAL',
           });
-          appendEventLog('WAR', '전쟁 발발', '전쟁이 시작되었습니다.');
+          appendEventLog('WAR', 'War Started', 'A war has started.');
         });
 
         socket.on('war_end', (data: any) => {
@@ -1005,30 +1009,24 @@ export const useGameSocket = (roomId: number = 1) => {
           const myUserId = myUserIdRef.current;
           const isMyWin = myUserId === winnerUserId;
 
-          // WAR_FIGHT 애니메이션 후 표시할 모달을 queuedModal에 설정
+          // WAR_FIGHT animation result
           if (loserLands.length === 0) {
-            // 패자가 땅이 없으면 현금 전달 후 결과 표시
-            useGameStore.setState((s) => ({
-              players: s.players.map((p) => {
-                if (p.id === winner.id || p.userId === winnerUserId) {
-                  return { ...p, cash: p.cash + cashPenalty };
-                }
-                if (p.id === loser.id || p.userId === loserUserId) {
-                  return { ...p, cash: Math.max(0, p.cash - cashPenalty) };
-                }
-                return p;
-              }),
+            useGameStore.setState({
               queuedModal: {
                 type: 'WAR_RESULT',
-                title: isMyWin ? '전쟁 승리!' : '전쟁 패배...',
+                title: isMyWin ? 'Victory!' : 'Defeat...',
                 description: isMyWin
-                  ? `${loserName}에게서 ${(cashPenalty / 10000).toFixed(0)}만원을 획득했습니다! (승률 ${winRate.toFixed(1)}%)`
-                  : `${winnerName}에게 ${(cashPenalty / 10000).toFixed(0)}만원을 빼앗겼습니다. (승률 ${(100 - winRate).toFixed(1)}%)`,
+                  ? `${loserName} paid ${(cashPenalty / 10000).toFixed(0)} to ${winnerName}. (Win rate ${winRate.toFixed(1)}%)`
+                  : `${winnerName} took ${(cashPenalty / 10000).toFixed(0)} from ${loserName}. (Win rate ${(100 - winRate).toFixed(1)}%)`,
               },
-            }));
-            appendEventLog('WAR', '전쟁 배상금', `${winnerName}이(가) ${loserName}에게서 ${(cashPenalty / 10000).toFixed(0)}만원 획득`);
+            });
+            appendEventLog(
+              'WAR',
+              'War Result',
+              `${winnerName} gained ${(cashPenalty / 10000).toFixed(0)} from ${loserName}.`,
+            );
           } else {
-            // 패자가 땅이 있으면 승자가 선택할 수 있도록 WAR_SPOILS 모달 표시
+            // If loser has lands, allow winner to pick spoils
             useGameStore.setState({
               queuedModal: {
                 type: 'WAR_SPOILS',
@@ -1040,7 +1038,7 @@ export const useGameSocket = (roomId: number = 1) => {
                 cashPenalty,
               },
             });
-            appendEventLog('WAR', '전쟁 승리', `${winnerName}이(가) ${loserName}에게 승리! 전리품을 선택합니다.`);
+            appendEventLog('WAR', 'War Victory', `${winnerName} defeated ${loserName}. Choose a spoils tile.`);
           }
         });
 

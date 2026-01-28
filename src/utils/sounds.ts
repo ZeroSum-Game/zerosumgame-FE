@@ -10,6 +10,28 @@ const getAudioContext = () => {
     return audioContext;
 };
 
+const playGameEndSound = () => {
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      const start = now + i * 0.1;
+      gain.gain.setValueAtTime(0.2, start);
+      gain.gain.exponentialRampToValueAtTime(0.01, start + 0.4);
+      osc.start(start);
+      osc.stop(start + 0.4);
+    });
+  } catch (err) {
+    console.warn("Failed to play game end sound:", err);
+  }
+};
+
 // Generate a tax payment sound effect (coin/cash register sound)
 const playTaxPaymentSound = () => {
     try {
@@ -239,6 +261,7 @@ const SOUNDS = {
     click: playClickSound,
     hover: playHoverSound,
     step: playStepSound,
+    gameEnd: playGameEndSound,
 };
 
 export const playSound = (soundName: keyof typeof SOUNDS) => {
