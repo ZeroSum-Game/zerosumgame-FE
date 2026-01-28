@@ -1989,17 +1989,33 @@ const useGameStore = create<GameState>((set, get) => {
 
     syncPlayerFromBackend: (data) => {
       set((s) => ({
-        players: s.players.map((p) =>
-          p.id === data.playerId
-            ? (() => {
-              const updated = { ...p, cash: data.cash, position: data.location };
-              return {
-                ...updated,
-                totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
-              };
-            })()
-            : p
-        ),
+        players: s.players.map((p) => {
+          if (p.id !== data.playerId) return p;
+          const cashValue = Number(data.cash);
+          const locationValue = Number(data.location);
+          const nextCash = Number.isFinite(cashValue) ? cashValue : p.cash;
+          const nextPosition = Number.isFinite(locationValue) ? locationValue : p.position;
+
+          const hasCharacter = Object.prototype.hasOwnProperty.call(data, 'character');
+          const nextCharacter = hasCharacter ? (data.character as CharacterType | null) : p.character;
+
+          const updated = {
+            ...p,
+            cash: nextCash,
+            position: nextPosition,
+            character: nextCharacter,
+          };
+
+          const totalAssetValue = Number(data.totalAsset);
+          const nextTotalAsset = Number.isFinite(totalAssetValue)
+            ? totalAssetValue
+            : computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands);
+
+          return {
+            ...updated,
+            totalAsset: nextTotalAsset,
+          };
+        }),
       }));
     },
   };

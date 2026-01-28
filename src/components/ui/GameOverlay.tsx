@@ -193,28 +193,34 @@ const GameOverlay = () => {
     // Ideally we want to broadcast trades. If not available, we can only show for self or if backend broadcasts it.
     // Based on useGameSocket, 'asset_update' exists.
     const handleAssetUpdate = (data: any) => {
-      // This event might be personal only? Let's assume it broadcasts if we want notifications.
-      // If it's just updating prices, we ignore. If it has trade info:
-      // Checking backend code (not visible) -> assuming standard broadcast pattern or we interpret local actions? 
-      // Wait, 'asset_update' in socket.io usually for prices? No 'market_update' is prices.
-      // 'asset_update' seems to be player assets.
-      // We need a specific trade event. 
-      // Let's use 'player_trade' if it existed, but likely we need to rely on what we have.
-      // If we can't find a dedicated broadcast, we might miss other players' trades notification.
-      // BUT, user asked for it. 
-      // For now, let's hook what we definitely have.
+      const rawPlayerId = data?.playerId ?? data?.userId;
+      const playerId = Number(rawPlayerId);
+      if (!Number.isFinite(playerId)) return;
+
+      const store = useGameStore.getState();
+      const existing = store.players.find((p) => p.id === playerId) ?? null;
+      const cashValue = Number(data?.cash);
+      const locationValue = Number(data?.location);
+      const cash = Number.isFinite(cashValue) ? cashValue : (existing?.cash ?? 0);
+      const location = Number.isFinite(locationValue) ? locationValue : (existing?.position ?? 0);
+      const totalAssetValue = Number(data?.totalAsset);
+      const totalAsset = Number.isFinite(totalAssetValue) ? totalAssetValue : undefined;
+
+      store.syncPlayerFromBackend({ playerId, cash, location, totalAsset });
     };
 
     socket.on('playerMove', handlePlayerMove);
     socket.on('land_purchased', handleLandPurchased);
     socket.on('worldcup', handleWorldCup);
     socket.on('war_start', handleWarStart);
+    socket.on('asset_update', handleAssetUpdate);
 
     return () => {
       socket.off('playerMove', handlePlayerMove);
       socket.off('land_purchased', handleLandPurchased);
       socket.off('worldcup', handleWorldCup);
       socket.off('war_start', handleWarStart);
+      socket.off('asset_update', handleAssetUpdate);
     };
   }, [socket]);
 
@@ -704,9 +710,9 @@ const GameOverlay = () => {
             className={`ui-modal animate-zoom${activeModal.type === "SPACE_TRAVEL" ? " ui-modal-wide ui-modal-space" : ""}${activeModal.type === "WAR_FIGHT" ? " ui-modal-war" : ""}${activeModal.type === "INITIAL_GAME" ? " ui-modal-minigame" : ""}`}
             // 아래 style 속성을 추가해서 INITIAL_GAME일 때 너비를 강제로 넓혀줍니다!
             style={
-              activeModal.type === "INITIAL_GAME"
-                ? { maxWidth: "1000px", width: "90%" }
-                : {}
+              activeModal.type === "INITIAL_GAME" || activeModal.type === "SPACE_TRAVEL"
+                ? { maxWidth: "1200px", width: "95%" }
+                : undefined
             }
             onClick={(e) => e.stopPropagation()}
           >
