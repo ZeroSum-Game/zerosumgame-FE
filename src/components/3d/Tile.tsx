@@ -168,9 +168,17 @@ const Tile = ({ tile }: TileProps) => {
             {tile.space.name}
           </span>
           {tile.space.type === 'COUNTRY' && (
-            <span className="mt-0.5 text-[10px] font-semibold text-yellow-400 drop-shadow">
-              ₩{(((landPrices[tile.id] ?? tile.space.price ?? 0) as number) / 10000).toFixed(0)}만
-            </span>
+            <div className="flex flex-col items-center">
+              <span className="mt-0.5 text-[10px] font-semibold text-yellow-400 drop-shadow">
+                ₩{(((landPrices[tile.id] ?? tile.space.price ?? 0) as number) / 10000).toFixed(0)}만
+              </span>
+              {landInfo && landInfo.purchasePrice && landInfo.purchasePrice > 0 && (
+                <span className={`text-[9px] font-bold drop-shadow ${((landPrices[tile.id] ?? 0) - landInfo.purchasePrice) >= 0 ? 'text-red-400' : 'text-blue-400'
+                  }`}>
+                  {((((landPrices[tile.id] ?? 0) - landInfo.purchasePrice) / landInfo.purchasePrice) * 100).toFixed(0)}%
+                </span>
+              )}
+            </div>
           )}
         </div>
       </Html>

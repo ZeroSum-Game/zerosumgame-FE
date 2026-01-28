@@ -108,6 +108,7 @@ export type LandType = 'LAND' | 'LANDMARK';
 export type LandState = {
   ownerId: number;
   type: LandType;
+  purchasePrice?: number;
 };
 
 export type Player = {

@@ -238,7 +238,7 @@ export const useGameSocket = (roomId: number = 1) => {
 
     const nextLandPrices: Record<number, number> = {};
     const nextLandTolls: Record<number, number> = {};
-    const nextLands: Record<number, { ownerId: number; type: 'LAND' | 'LANDMARK' }> = {};
+    const nextLands: Record<number, { ownerId: number; type: 'LAND' | 'LANDMARK'; purchasePrice?: number }> = {};
 
     map.forEach((n) => {
       if (n.type === 'LAND') {
@@ -246,7 +246,11 @@ export const useGameSocket = (roomId: number = 1) => {
         nextLandTolls[n.nodeIdx] = n.baseToll;
       }
       if (n.ownerId != null) {
-        nextLands[n.nodeIdx] = { ownerId: n.ownerId, type: n.isLandmark ? 'LANDMARK' : 'LAND' };
+        nextLands[n.nodeIdx] = {
+          ownerId: n.ownerId,
+          type: n.isLandmark ? 'LANDMARK' : 'LAND',
+          purchasePrice: n.purchasePrice
+        };
       }
     });
 
@@ -896,12 +900,12 @@ export const useGameSocket = (roomId: number = 1) => {
               if (p.userId !== toInt(data?.userId)) return p;
               const nextHoldings = data?.assets
                 ? {
-                    SAMSUNG: toInt(data.assets.samsung, p.stockHoldings.SAMSUNG ?? 0),
-                    TESLA: toInt(data.assets.tesla, p.stockHoldings.TESLA ?? 0),
-                    LOCKHEED: toInt(data.assets.lockheed, p.stockHoldings.LOCKHEED ?? 0),
-                    GOLD: toInt(data.assets.gold, p.stockHoldings.GOLD ?? 0),
-                    BITCOIN: toInt(data.assets.bitcoin, p.stockHoldings.BITCOIN ?? 0),
-                  }
+                  SAMSUNG: toInt(data.assets.samsung, p.stockHoldings.SAMSUNG ?? 0),
+                  TESLA: toInt(data.assets.tesla, p.stockHoldings.TESLA ?? 0),
+                  LOCKHEED: toInt(data.assets.lockheed, p.stockHoldings.LOCKHEED ?? 0),
+                  GOLD: toInt(data.assets.gold, p.stockHoldings.GOLD ?? 0),
+                  BITCOIN: toInt(data.assets.bitcoin, p.stockHoldings.BITCOIN ?? 0),
+                }
                 : p.stockHoldings;
               return {
                 ...p,
