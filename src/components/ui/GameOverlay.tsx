@@ -852,7 +852,7 @@ const GameOverlay = () => {
                 );
                 return (
                   <>
-                    <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl lg:flex-row lg:gap-6 max-w-4xl mx-auto">
+                    <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl lg:flex-row lg:gap-6 w-full">
                       <div className="flex items-center justify-center lg:w-56 flex-shrink-0">
                         <img
                           src="/assets/characters/dogecoin.png"
