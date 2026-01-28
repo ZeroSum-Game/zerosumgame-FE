@@ -4,6 +4,7 @@ import useGameStore, {
   CHARACTER_INFO,
   CHARACTER_WORLDCUP_AVATAR,
   STOCK_INFO,
+  type CharacterType,
   type StockSymbol,
 } from '../../store/useGameStore';
 import { BOARD_DATA } from '../../utils/boardUtils';
@@ -29,6 +30,20 @@ const getBattleAvatar = (character: string | null | undefined, fallback: string)
     return CHARACTER_BATTLE_AVATAR[character as keyof typeof CHARACTER_BATTLE_AVATAR];
   }
   return fallback || '/assets/characters/default.png';
+};
+
+const SPACE_TRAVEL_AVATAR: Record<CharacterType, string> = {
+  ELON: '/assets/characters/space_musk.png',
+  SAMSUNG: '/assets/characters/space_lee.png',
+  TRUMP: '/assets/characters/space_trump.png',
+  PUTIN: '/assets/characters/space_putin.png',
+};
+
+const getSpaceTravelAvatar = (character: CharacterType | null | undefined) => {
+  if (character && SPACE_TRAVEL_AVATAR[character]) {
+    return SPACE_TRAVEL_AVATAR[character];
+  }
+  return '/assets/characters/default.png';
 };
 
 const computeLandValue = (_tileId: number, _landType: 'LAND' | 'LANDMARK', price: number) => {
@@ -892,13 +907,19 @@ const GameOverlay = () => {
                 const destinations = BOARD_DATA.filter(
                   (space) => space.name !== "우주여행",
                 );
+                const spaceTravelAvatarSrc = getSpaceTravelAvatar(
+                  currentPlayer?.character,
+                );
+                const spaceTravelAvatarAlt = currentPlayer?.character
+                  ? `${CHARACTER_INFO[currentPlayer.character].name} 우주여행`
+                  : "우주여행";
                 return (
                   <>
                     <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl lg:flex-row lg:gap-6 max-w-4xl mx-auto">
                       <div className="flex items-center justify-center lg:w-56 flex-shrink-0">
                         <img
-                          src="/assets/characters/dogecoin.png"
-                          alt="도지코인 우주여행"
+                          src={spaceTravelAvatarSrc}
+                          alt={spaceTravelAvatarAlt}
                           className="h-48 w-48 rounded-3xl border border-white/20 object-cover shadow-[0_25px_60px_rgba(249,115,22,0.45)]"
                         />
                       </div>
