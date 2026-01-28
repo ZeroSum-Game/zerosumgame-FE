@@ -4,10 +4,10 @@ import { formatKRWKo } from '../utils/formatKRW';
 import { drawGoldenKeyCard, type GoldenKeyCardPayload } from '../utils/goldenKey';
 
 export const GAME_RULES = {
-  START_CASH: 2000000,
-  START_SALARY: 500000,
+  START_CASH: 3000000,
+  START_SALARY: 2000000,
   MAX_ROUNDS: 20,
-  TAX_RATE: 0.15,
+  TAX_RATE: 0.2,
   TAKEOVER_MULTIPLIER: 1.5,
   STOCK_PRICE_CHANGE_MIN: -0.1,
   STOCK_PRICE_CHANGE_MAX: 0.15,
@@ -159,9 +159,9 @@ export type ModalState =
   | { type: 'WAR_FIGHT'; attackerName: string; attackerAvatar: string; defenderName: string; defenderAvatar: string; durationMs?: number }
   | { type: 'WAR_RESULT'; title: string; description: string }
   | { type: 'WAR_SPOILS'; winnerId: number; loserId: number; winnerName: string; loserName: string; loserLands: number[]; cashPenalty: number }
-  | { type: 'TAX'; due: number; paid?: number; beforeCash?: number; afterCash?: number; autoSales?: Array<{ asset: string; qty: number; price: number }>; isBankrupt?: boolean }
+  | { type: 'TAX'; due: number; paid?: number; beforeCash?: number; afterCash?: number; totalAsset?: number | bigint; autoSales?: Array<{ asset: string; qty: number; price: number }>; isBankrupt?: boolean }
   | { type: 'INFO'; title: string; description: string; imageSrc?: string; imageAlt?: string }
-  | { type: 'ASSET_SELL'; amountNeeded: number; reason: string; onComplete: 'PAY_TOLL' | 'PAY_TAX'; tollData?: { ownerId: number; toll: number } }
+  | { type: 'ASSET_SELL'; amountNeeded: number; reason: string; onComplete: 'PAY_TOLL' | 'PAY_TAX' | 'BUY_LAND'; tollData?: { ownerId: number; toll: number }; landData?: { tileId: number; price: number } }
   | { type: 'BUY_ASSET' }
   | { type: 'WAR_CHOICE' }
   | { type: 'WORLDCUP_HOST'; nodeIdx: number }
@@ -438,7 +438,7 @@ const useGameStore = create<GameState>((set, get) => {
         lands: Object.fromEntries(Object.entries(s.lands).filter(([, land]) => land.ownerId !== playerId)),
         players: s.players.map((p) =>
           p.id === playerId
-            ? { ...p, isBankrupt: true, cash: 0, stockHoldings: {}, position: 0 }
+            ? { ...p, isBankrupt: true, cash: 0, stockHoldings: {}, position: 0, totalAsset: 0 }
             : p
         ),
       }));
@@ -447,7 +447,14 @@ const useGameStore = create<GameState>((set, get) => {
 
     set((s) => ({
       lands: newLands,
-      players: s.players.map((p) => (p.id === playerId ? { ...p, cash, stockHoldings: holdings } : p)),
+      players: s.players.map((p) => {
+        if (p.id !== playerId) return p;
+        const updated = { ...p, cash, stockHoldings: holdings };
+        return {
+          ...updated,
+          totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, newLands),
+        };
+      }),
     }));
     return true;
   };
@@ -464,8 +471,20 @@ const useGameStore = create<GameState>((set, get) => {
 
     set((s) => ({
       players: s.players.map((p) => {
-        if (p.id === fromId) return { ...p, cash: p.cash - amt };
-        if (toId && p.id === toId) return { ...p, cash: p.cash + amt };
+        if (p.id === fromId) {
+          const updated = { ...p, cash: p.cash - amt };
+          return {
+            ...updated,
+            totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
+          };
+        }
+        if (toId && p.id === toId) {
+          const updated = { ...p, cash: p.cash + amt };
+          return {
+            ...updated,
+            totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
+          };
+        }
         return p;
       }),
     }));
@@ -1399,7 +1418,8 @@ const useGameStore = create<GameState>((set, get) => {
             const nextPlayers = s.players.map((p, idx) => {
               if (idx !== s.currentPlayerIndex) return p;
               const cash = passedStart ? p.cash + GAME_RULES.START_SALARY : p.cash;
-              return { ...p, position: nextPos, cash };
+              const updated = { ...p, position: nextPos, cash };
+              return { ...updated, totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands) };
             });
 
             return { players: nextPlayers };
@@ -1477,16 +1497,41 @@ const useGameStore = create<GameState>((set, get) => {
       const price = state.landPrices[tileId] ?? BOARD_DATA[tileId]?.price ?? 0;
 
       if (player.cash < price) {
-        set({ activeModal: { type: 'INFO', title: '잔액 부족', description: '현금이 부족합니다.' }, phase: 'MODAL' });
+        const totalAssets = computeNetWorth(player, state.assetPrices, state.landPrices, state.lands);
+        if (totalAssets < price) {
+          set({ activeModal: { type: 'INFO', title: '??? ????', description: '?????????????.' }, phase: 'MODAL' });
+          return;
+        }
+        set({
+          activeModal: {
+            type: 'ASSET_SELL',
+            amountNeeded: price,
+            reason: '?? ??',
+            onComplete: 'BUY_LAND',
+            landData: { tileId, price },
+          },
+          phase: 'MODAL',
+        });
         return;
       }
 
-      set((s) => ({
-        players: s.players.map((p, idx) => (idx === s.currentPlayerIndex ? { ...p, cash: p.cash - price } : p)),
-        lands: { ...s.lands, [tileId]: { ownerId: player.id, type: 'LAND' } },
-        activeModal: null,
-        phase: 'IDLE',
-      }));
+      set((s) => {
+        const nextLands = { ...s.lands, [tileId]: { ownerId: player.id, type: 'LAND' as LandType } };
+        const nextPlayers = s.players.map((p, idx) => {
+          if (idx !== s.currentPlayerIndex) return p;
+          const updated = { ...p, cash: p.cash - price };
+          return {
+            ...updated,
+            totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, nextLands),
+          };
+        });
+        return {
+          players: nextPlayers,
+          lands: nextLands,
+          activeModal: null,
+          phase: 'IDLE',
+        };
+      });
       pushLog('LAND', '땅 구매', `${player.name} ${BOARD_DATA[tileId]?.name ?? '땅'} 구매 (${formatMoney(price)})`);
       checkGameEnd();
     },
@@ -1566,11 +1611,26 @@ const useGameStore = create<GameState>((set, get) => {
           checkGameEnd();
           return;
         }
-        set((s) => ({
-          lands: { ...s.lands, [modal.tileId]: { ownerId: modal.buyerId, type: s.lands[modal.tileId]?.type ?? 'LAND' } },
-          activeModal: null,
-          phase: 'IDLE',
-        }));
+        set((s) => {
+          const nextLands = {
+            ...s.lands,
+            [modal.tileId]: { ownerId: modal.buyerId, type: s.lands[modal.tileId]?.type ?? 'LAND' },
+          };
+          const nextPlayers = s.players.map((p) => {
+            if (p.id !== modal.buyerId && p.id !== modal.ownerId) return p;
+            const updated = { ...p };
+            return {
+              ...updated,
+              totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, nextLands),
+            };
+          });
+          return {
+            lands: nextLands,
+            players: nextPlayers,
+            activeModal: null,
+            phase: 'IDLE',
+          };
+        });
         pushLog('LAND', '인수 성공', `${buyer.name} → ${owner.name} ${formatMoney(modal.price)} (타일: ${BOARD_DATA[modal.tileId]?.name ?? '땅'})`);
         checkGameEnd();
         return;
@@ -1607,15 +1667,18 @@ const useGameStore = create<GameState>((set, get) => {
       }
       const currentHolding = player.stockHoldings[modal.symbol] ?? 0;
       set((s) => ({
-        players: s.players.map((p, idx) =>
-          idx === s.currentPlayerIndex
-            ? {
-              ...p,
-              cash: p.cash - total,
-              stockHoldings: { ...p.stockHoldings, [modal.symbol]: currentHolding + qty },
-            }
-            : p
-        ),
+        players: s.players.map((p, idx) => {
+          if (idx !== s.currentPlayerIndex) return p;
+          const updated = {
+            ...p,
+            cash: p.cash - total,
+            stockHoldings: { ...p.stockHoldings, [modal.symbol]: currentHolding + qty },
+          };
+          return {
+            ...updated,
+            totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
+          };
+        }),
       }));
       pushLog('MARKET', '매수', `${player.name} ${STOCK_INFO[modal.symbol].nameKr} ${qty}개 매수 (${formatMoney(total)})`);
     },
@@ -1637,15 +1700,18 @@ const useGameStore = create<GameState>((set, get) => {
       const price = state.assetPrices[modal.symbol];
       const total = price * qty;
       set((s) => ({
-        players: s.players.map((p, idx) =>
-          idx === s.currentPlayerIndex
-            ? {
-              ...p,
-              cash: p.cash + total,
-              stockHoldings: { ...p.stockHoldings, [modal.symbol]: holding - qty },
-            }
-            : p
-        ),
+        players: s.players.map((p, idx) => {
+          if (idx !== s.currentPlayerIndex) return p;
+          const updated = {
+            ...p,
+            cash: p.cash + total,
+            stockHoldings: { ...p.stockHoldings, [modal.symbol]: holding - qty },
+          };
+          return {
+            ...updated,
+            totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
+          };
+        }),
       }));
       pushLog('MARKET', '매도', `${player.name} ${STOCK_INFO[modal.symbol].nameKr} ${qty}개 매도 (${formatMoney(total)})`);
     },
@@ -1666,15 +1732,18 @@ const useGameStore = create<GameState>((set, get) => {
       const price = state.assetPrices[symbol];
       const total = price * qty;
       set((s) => ({
-        players: s.players.map((p, idx) =>
-          idx === s.currentPlayerIndex
-            ? {
-              ...p,
-              cash: p.cash + total,
-              stockHoldings: { ...p.stockHoldings, [symbol]: holding - qty },
-            }
-            : p
-        ),
+        players: s.players.map((p, idx) => {
+          if (idx !== s.currentPlayerIndex) return p;
+          const updated = {
+            ...p,
+            cash: p.cash + total,
+            stockHoldings: { ...p.stockHoldings, [symbol]: holding - qty },
+          };
+          return {
+            ...updated,
+            totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
+          };
+        }),
       }));
       pushLog('MARKET', '긴급 매도', `${player.name} ${STOCK_INFO[symbol].nameKr} ${qty}개 매도 (${formatMoney(total)})`);
     },
@@ -1698,6 +1767,44 @@ const useGameStore = create<GameState>((set, get) => {
         pushLog('LAND', '통행료', `${player.name} → ${getPlayerById(state.players, modal.tollData.ownerId)?.name ?? '플레이어'} ${formatMoney(modal.tollData.toll)}`);
         set({ activeModal: null, phase: 'IDLE' });
         checkGameEnd();
+        return;
+      }
+
+      if (modal.onComplete === 'PAY_TAX') {
+        transferCash(player.id, null, modal.amountNeeded, modal.reason);
+        set({ activeModal: null, phase: 'IDLE' });
+        checkGameEnd();
+        return;
+      }
+
+      if (modal.onComplete === 'BUY_LAND' && modal.landData) {
+        const tileId = modal.landData.tileId;
+        const price = modal.landData.price ?? modal.amountNeeded;
+        const paid = transferCash(player.id, null, price, modal.reason);
+        if (!paid) {
+          set({ activeModal: { type: 'INFO', title: '땅 구매 실패', description: '현금이 부족합니다.' }, phase: 'MODAL' });
+          return;
+        }
+        set((s) => {
+          const nextLands = { ...s.lands, [tileId]: { ownerId: player.id, type: 'LAND' as LandType } };
+          const nextPlayers = s.players.map((p, idx) => {
+            if (idx !== s.currentPlayerIndex) return p;
+            const updated = { ...p };
+            return {
+              ...updated,
+              totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, nextLands),
+            };
+          });
+          return {
+            players: nextPlayers,
+            lands: nextLands,
+            activeModal: null,
+            phase: 'IDLE',
+          };
+        });
+        pushLog('LAND', '땅 구매', `${player.name} ${BOARD_DATA[tileId]?.name ?? '땅'} 구매 (${formatMoney(price)})`);
+        checkGameEnd();
+        return;
       }
     },
 
@@ -1710,10 +1817,15 @@ const useGameStore = create<GameState>((set, get) => {
 
       if (success) {
         set((s) => ({
-          players: s.players.map((p, idx) =>
-            idx === s.currentPlayerIndex ? { ...p, cash: p.cash + modal.salary } : p
-          ),
-          activeModal: { type: 'WAR_RESULT', title: '미니게임 성공!', description: `월급 ${formatMoney(modal.salary)} 지급!` },
+          players: s.players.map((p, idx) => {
+            if (idx !== s.currentPlayerIndex) return p;
+            const updated = { ...p, cash: p.cash + modal.salary };
+            return {
+              ...updated,
+              totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
+            };
+          }),
+          activeModal: { type: 'WAR_RESULT', title: '?????? ???!', description: `??? ${formatMoney(modal.salary)} ????` },
           phase: 'MODAL',
         }));
         pushLog('MINIGAME', '성공', `${player.name} 보상 ${formatMoney(modal.salary)}`);
@@ -1844,9 +1956,14 @@ const useGameStore = create<GameState>((set, get) => {
 
     // Backend sync helpers
     setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => {
-      set((s) => ({
-        assetPrices: { ...s.assetPrices, ...prices },
-      }));
+      set((s) => {
+        const nextPrices = { ...s.assetPrices, ...prices };
+        const nextPlayers = s.players.map((p) => ({
+          ...p,
+          totalAsset: computeNetWorth(p, nextPrices, s.landPrices, s.lands),
+        }));
+        return { assetPrices: nextPrices, players: nextPlayers };
+      });
     },
 
     showModal: (modal: ModalState) => {
@@ -1874,11 +1991,13 @@ const useGameStore = create<GameState>((set, get) => {
       set((s) => ({
         players: s.players.map((p) =>
           p.id === data.playerId
-            ? {
-              ...p,
-              cash: data.cash,
-              position: data.location,
-            }
+            ? (() => {
+              const updated = { ...p, cash: data.cash, position: data.location };
+              return {
+                ...updated,
+                totalAsset: computeNetWorth(updated, s.assetPrices, s.landPrices, s.lands),
+              };
+            })()
             : p
         ),
       }));

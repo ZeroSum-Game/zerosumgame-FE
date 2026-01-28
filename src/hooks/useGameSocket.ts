@@ -18,6 +18,7 @@ import { toInt, toNumber } from '../utils/parseNumber';
 import { apiDrawGoldenKey, apiGetMap, apiGetMarket, apiGetMe, apiGetPlayerAssets } from '../services/api';
 import { BOARD_DATA } from '../utils/boardUtils';
 import { applyWarMultiplier } from '../utils/warMultiplier';
+import { playSound } from '../utils/sounds';
 
 type SocketLike = Awaited<ReturnType<typeof connectSocket>>;
 
@@ -796,13 +797,17 @@ export const useGameSocket = (roomId: number = 1) => {
           const runId = moveRunIdRef.current;
 
           const totalTiles = BOARD_DATA.length || 0;
+          const oldLocation = toInt(data?.oldLocation, NaN);
           const currentPos = useGameStore.getState().players.find((p) => p.id === playerId)?.position ?? newLocation;
+          const startPos = Number.isFinite(oldLocation) ? oldLocation : currentPos;
           const explicitSteps = toInt(data?.steps, 0);
           const safeDice1 = clampDiceValue(data?.dice1);
           const safeDice2 = clampDiceValue(data?.dice2);
           const diceSteps = safeDice1 + safeDice2;
-          const deltaSteps = totalTiles > 0 ? (newLocation - currentPos + totalTiles) % totalTiles : Math.max(newLocation - currentPos, 0);
-          const steps = explicitSteps > 0 ? explicitSteps : diceSteps > 0 ? diceSteps : deltaSteps;
+          const deltaSteps = totalTiles > 0 ? (newLocation - startPos + totalTiles) % totalTiles : 0;
+
+          // Prefer explicit steps from server, then delta from old/new locations, then dice sum.
+          const steps = explicitSteps > 0 ? explicitSteps : (deltaSteps > 0 ? deltaSteps : diceSteps);
 
           if (!totalTiles || steps <= 0) {
             useGameStore.setState((st) => ({
@@ -822,13 +827,16 @@ export const useGameSocket = (roomId: number = 1) => {
           for (let i = 1; i <= steps; i += 1) {
             const timeoutId = setTimeout(() => {
               if (moveRunIdRef.current !== runId) return;
-              const nextPos = totalTiles > 0 ? (currentPos + i) % totalTiles : newLocation;
+              const nextPos = totalTiles > 0 ? (startPos + i) % totalTiles : newLocation;
               const isFinal = i >= steps;
 
               useGameStore.setState((st) => ({
                 players: st.players.map((p) => (p.id === playerId ? { ...p, position: isFinal ? newLocation : nextPos } : p)),
                 phase: isFinal ? 'IDLE' : 'MOVING',
               }));
+
+              // Play step sound
+              playSound('step');
 
               if (isFinal) {
                 const playerName = useGameStore.getState().players.find((p) => p.id === playerId)?.name ?? '플레이어';

@@ -93,6 +93,11 @@ const InitialSurvival = () => {
     if (!socket.connected) {
       joinedRef.current = false;
     }
+    // Cleanup: Reset joinedRef when component unmounts
+    return () => {
+      joinedRef.current = false;
+      rewardSentRef.current = false;
+    };
   }, [socket, socket?.connected]);
 
   useEffect(() => {
@@ -153,44 +158,54 @@ const InitialSurvival = () => {
     const progress = timeLimit > 0 ? Math.max(0, Math.min(100, (timeLeft / timeLimit) * 100)) : 0;
     return (
       <div className="flex w-full h-full min-h-[500px] relative">
-        <div className="absolute top-3 right-4 text-xs text-white/60">
+        <div className="absolute top-3 left-4 text-xs text-white/60">
           제한시간 {totalLeft}s
         </div>
 
-        <div className="absolute top-10 right-4 w-56 bg-black/60 border border-white/10 rounded-xl p-3 backdrop-blur-md z-10 shadow-xl">
-          <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
-            <span className="text-xs font-black text-white/60 tracking-wider">실시간 순위</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+        <div className="absolute top-10 -right-10 w-48 max-h-40 overflow-auto bg-black/60 border border-white/10 rounded-xl p-2.5 backdrop-blur-md z-10 shadow-xl">
+          <div className="flex items-center justify-between mb-1.5 pb-1.5 border-b border-white/10">
+            <span className="text-[10px] font-black text-white/60 tracking-wider">
+              실시간 순위
+            </span>
+            <div className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {scoreboardPlayers.map((p, index) => (
               <div
                 key={p.userId}
-                className={`flex items-center justify-between text-xs p-1.5 rounded ${
-                  p.userId === myUserId ? 'bg-white/10' : ''
+                className={`flex items-center justify-between text-[11px] p-1 rounded ${
+                  p.userId === myUserId ? "bg-white/10" : ""
                 }`}
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`w-4 text-center font-bold ${index < 3 ? 'text-yellow-400' : 'text-white/30'}`}>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span
+                    className={`w-3 text-center font-bold text-[10px] ${index < 3 ? "text-yellow-400" : "text-white/30"}`}
+                  >
                     {index + 1}
                   </span>
-                  <span className="text-white truncate max-w-[80px]">{p.nickname}</span>
-                  {p.isDropped && <span className="text-red-400">💀</span>}
+                  <span className="text-white truncate max-w-[88px] text-[10px]">
+                    {p.nickname}
+                  </span>
+                  {p.isDropped && (
+                    <span className="text-red-400 text-[10px]">💀</span>
+                  )}
                 </div>
-                <span className="font-mono font-bold text-white/90">{p.score}</span>
+                <span className="font-mono font-bold text-white/90 text-[11px]">
+                  {p.score}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center relative p-8">
-          <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
+          <div className="flex flex-col items-center gap-8 w-full max-w-5xl">
             <div className="w-full bg-white/5 px-8 py-6 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-sm text-center">
               <span className="text-sm text-white/40 block mb-5 uppercase tracking-[0.3em] font-light">
                 플레이어 초성을 입력하세요
               </span>
               <div className="flex justify-center gap-4">
-                {(currentChosung || '-').split('').map((char, i) => (
+                {(currentChosung || "-").split("").map((char, i) => (
                   <span
                     key={i}
                     className="text-4xl font-black text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] w-16 h-16 flex items-center justify-center bg-black/30 rounded-xl border border-white/5 shadow-inner"
@@ -217,14 +232,18 @@ const InitialSurvival = () => {
 
               <div className="absolute -bottom-8 left-0 right-0 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-1000 linear ${timeLeft < 2 ? 'bg-red-500' : 'bg-yellow-400'}`}
+                  className={`h-full transition-all duration-1000 linear ${timeLeft < 2 ? "bg-red-500" : "bg-yellow-400"}`}
                   style={{ width: `${progress}%` }}
                 />
               </div>
             </div>
 
-            {myPlayer?.isDropped && <p className="text-red-400 font-bold">오답으로 탈락했습니다.</p>}
-            {errorMessage && <p className="text-red-300 text-sm">{errorMessage}</p>}
+            {myPlayer?.isDropped && (
+              <p className="text-red-400 font-bold">오답으로 탈락했습니다.</p>
+            )}
+            {errorMessage && (
+              <p className="text-red-300 text-sm">{errorMessage}</p>
+            )}
           </div>
         </div>
       </div>
@@ -236,12 +255,12 @@ const InitialSurvival = () => {
     const sortedRanking = ranking.length
       ? ranking
       : scoreboardPlayers.map((p, idx) => ({
-          rank: idx + 1,
-          userId: p.userId,
-          nickname: p.nickname,
-          score: p.score,
-          isDropped: p.isDropped,
-        }));
+        rank: idx + 1,
+        userId: p.userId,
+        nickname: p.nickname,
+        score: p.score,
+        isDropped: p.isDropped,
+      }));
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] text-center animate-scale-in">
         <h2 className="text-4xl font-black text-white mb-2 font-pixel tracking-widest">최종 순위</h2>

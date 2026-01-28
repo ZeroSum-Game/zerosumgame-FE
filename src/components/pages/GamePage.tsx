@@ -1,4 +1,4 @@
-﻿import { createContext, useContext } from 'react';
+﻿import { createContext, useContext, useEffect, useRef } from 'react';
 import GameOverlay from '../ui/GameOverlay';
 import {
   useGameSocket,
@@ -19,6 +19,29 @@ import SpaceBackdrop from '../ui/SpaceBackdrop';
 
 const GamePage = () => {
   const gameSocket = useGameSocket(1);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = new Audio('/bgm.mp3');
+    audio.loop = true;
+    audio.volume = 0.5;
+
+    const playAudio = async () => {
+      try {
+        await audio.play();
+      } catch (err) {
+        console.warn('BGM autoplay failed:', err);
+      }
+    };
+
+    playAudio();
+    audioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
 
   const contextValue: GameSocketContextType = {
     ...gameSocket,
