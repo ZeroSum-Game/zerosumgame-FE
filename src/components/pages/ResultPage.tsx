@@ -1,4 +1,31 @@
+import { useEffect } from 'react';
 import useGameStore, { CHARACTER_INFO } from '../../store/useGameStore';
+import { playSound } from '../../utils/sounds';
+
+// Simple CSS Confetti Component
+const Confetti = () => {
+  const colors = ['#fbbf24', '#34d399', '#3b82f6', '#f472b6', '#a78bfa'];
+  return (
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      {Array.from({ length: 50 }).map((_, i) => (
+        <div
+          key={i}
+          className="particle-confetti absolute opacity-0"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `-5%`,
+            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
+            width: `${Math.random() * 10 + 5}px`,
+            height: `${Math.random() * 10 + 5}px`,
+            animation: `confetti-fall ${Math.random() * 3 + 2}s linear infinite`,
+            animationDelay: `${Math.random() * 2}s`,
+            transform: `rotate(${Math.random() * 360}deg)`,
+          } as React.CSSProperties}
+        />
+      ))}
+    </div>
+  );
+};
 
 const formatMoney = (n: number) => `₩${Math.max(0, Math.round(n)).toLocaleString()}`;
 const PLAYER_SLOT_ICON_CLASSES = [
@@ -21,16 +48,21 @@ const ResultPage = () => {
   const winnerIconClass =
     PLAYER_SLOT_ICON_CLASSES[(winnerSlotIndex === -1 ? 0 : winnerSlotIndex) % PLAYER_SLOT_ICON_CLASSES.length];
 
+  useEffect(() => {
+    playSound('gameEnd');
+  }, []);
+
   return (
-    <div className="ui-page flex items-center justify-center p-6">
+    <div className="ui-page flex items-center justify-center p-6 bg-black">
+      <Confetti />
       <div className="ui-bg-blobs" aria-hidden="true">
         <div className="ui-blob -left-40 top-1/4 bg-amber-400/10" />
         <div className="ui-blob -right-40 bottom-1/4 bg-emerald-400/10" />
         <div className="ui-blob left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-sky-500/10" />
       </div>
 
-      <div className="relative z-10 w-full max-w-3xl">
-        <div className="ui-card-lg">
+      <div className="relative z-10 w-full max-w-3xl animate-rise">
+        <div className="ui-card-lg border-amber-500/20 shadow-[0_0_100px_-20px_rgba(251,191,36,0.2)]">
           <p className="text-[10px] uppercase tracking-[0.35em] text-white/60">게임 종료</p>
           <h1 className="mt-2 text-4xl font-black text-white">결과</h1>
           <p className="mt-2 text-sm text-white/70">
@@ -62,16 +94,15 @@ const ResultPage = () => {
             <p className="mb-3 text-sm font-bold text-white/80">순위</p>
             <div className="space-y-2">
               {ranking.map((r, idx) => {
-                const p = players.find((x) => x.id === r.playerId) ?? null;
+                const p = players.find((x) => x.id === r.playerId) ?? players.find((x) => x.userId === r.playerId) ?? null;
                 const isWinner = r.playerId === winnerId;
                 const slotIndex = players.findIndex((x) => x.id === r.playerId);
                 const iconClass = PLAYER_SLOT_ICON_CLASSES[(slotIndex === -1 ? 0 : slotIndex) % PLAYER_SLOT_ICON_CLASSES.length];
                 return (
                   <div
                     key={r.playerId}
-                    className={`flex items-center justify-between rounded-2xl border px-4 py-3 ${
-                      isWinner ? 'border-amber-300/30 bg-amber-400/[0.08]' : 'border-white/10 bg-white/[0.04]'
-                    }`}
+                    className={`flex items-center justify-between rounded-2xl border px-4 py-3 ${isWinner ? 'border-amber-300/30 bg-amber-400/[0.08]' : 'border-white/10 bg-white/[0.04]'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-lg font-black">

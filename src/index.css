@@ -1617,3 +1617,166 @@ body {
   /* Slight tilt for "standing" look if parent preserves 3d */
   transform-origin: bottom center;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                               Particle Effects                             */
+/* -------------------------------------------------------------------------- */
+.particle-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.particle {
+  position: absolute;
+  font-size: 2rem;
+  opacity: 0;
+}
+
+/* Coins: Fall down */
+.particle-coins {
+  top: -10%;
+  animation: particle-fall 1.5s ease-out forwards;
+  animation-delay: var(--particle-delay, 0s);
+  left: calc(50% + (var(--particle-index) * 40px - 160px));
+}
+
+@keyframes particle-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Lightning: Flash */
+.particle-lightning {
+  font-size: 4rem;
+  top: 20%;
+  animation: particle-flash 0.8s ease-out forwards;
+  animation-delay: var(--particle-delay, 0s);
+  left: calc(50% + (var(--particle-index) * 60px - 240px));
+}
+
+@keyframes particle-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  20% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+
+  40% {
+    opacity: 0;
+    transform: scale(1);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Soccer: Bounce */
+.particle-soccer {
+  bottom: 10%;
+  animation: particle-bounce 1.5s ease-out forwards;
+  animation-delay: var(--particle-delay, 0s);
+  left: calc(50% + (var(--particle-index) * 50px - 200px));
+}
+
+@keyframes particle-bounce {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  50% {
+    transform: translateY(-300px) scale(1.2);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+}
+
+/* Explosion: Expand out */
+.particle-explosion {
+  font-size: 3rem;
+  top: 50%;
+  left: 50%;
+  animation: particle-explode 1s ease-out forwards;
+  --angle: calc(var(--particle-index) * 45deg);
+  transform: translate(-50%, -50%);
+}
+
+@keyframes particle-explode {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(300px);
+  }
+}
+
+/* Rocket: Fly up */
+.particle-rocket {
+  bottom: -10%;
+  animation: particle-fly-up 2s ease-out forwards;
+  animation-delay: var(--particle-delay, 0s);
+  left: calc(50% + (var(--particle-index) * 60px - 240px));
+}
+
+@keyframes particle-fly-up {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(-120vh);
+    opacity: 0;
+  }
+}
+
+/* Confetti Animation */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.particle-confetti {
+  border-radius: 2px;
+}

@@ -211,6 +211,8 @@ type GameState = {
 
   selectedTile: number | null;
   lands: Record<number, LandState>;
+  rooms: Record<string, any>; // Placeholder if needed, but not primarily used in FE logic directly
+  prevLandPrices: Record<number, number>; // For calculating change % correctly
   landPrices: Record<number, number>;
   landTolls: Record<number, number>;
   assetPrices: Record<StockSymbol, number>;
@@ -271,6 +273,7 @@ type GameState = {
   goldenKeyEmitter: ((card: GoldenKeyCardPayload) => void) | null;
   setGoldenKeyEmitter: (emitter: ((card: GoldenKeyCardPayload) => void) | null) => void;
 
+  setLandPrices: (prices: Record<number, number>) => void;
   setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
   showModal: (modal: ModalState) => void;
   setActiveModal: (type: ModalState['type'], data?: any) => void;

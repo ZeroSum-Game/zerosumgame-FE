@@ -207,13 +207,28 @@ const GameOverlay = () => {
     // However, usually trade results come back to the user. 
     // Ideally we want to broadcast trades. If not available, we can only show for self or if backend broadcasts it.
     // Based on useGameSocket, 'asset_update' exists.
-    const handleAssetUpdate = (data: any) => {
-      const rawPlayerId = data?.playerId ?? data?.userId;
-      const playerId = Number(rawPlayerId);
-      if (!Number.isFinite(playerId)) return;
+    const handleMapPriceUpdate = (data: any) => {
+      const prices = data?.prices && typeof data.prices === 'object' ? data.prices : null;
+      if (!prices) return;
+      useGameStore.setState((st) => ({
+        landPrices: { ...st.landPrices, ...prices },
+      }));
+    };
 
+    const handleAssetUpdate = (data: any) => {
       const store = useGameStore.getState();
-      const existing = store.players.find((p) => p.id === playerId) ?? null;
+      const rawPlayerId = data?.playerId ?? null;
+      const rawUserId = data?.userId ?? null;
+
+      let resolvedPlayerId = Number(rawPlayerId);
+      if (!Number.isFinite(resolvedPlayerId) && rawUserId != null) {
+        const userId = Number(rawUserId);
+        const matched = store.players.find((p) => p.userId === userId) ?? null;
+        resolvedPlayerId = matched?.id ?? NaN;
+      }
+      if (!Number.isFinite(resolvedPlayerId)) return;
+
+      const existing = store.players.find((p) => p.id === resolvedPlayerId) ?? null;
       const cashValue = Number(data?.cash);
       const locationValue = Number(data?.location);
       const cash = Number.isFinite(cashValue) ? cashValue : (existing?.cash ?? 0);
@@ -221,7 +236,7 @@ const GameOverlay = () => {
       const totalAssetValue = Number(data?.totalAsset);
       const totalAsset = Number.isFinite(totalAssetValue) ? totalAssetValue : undefined;
 
-      store.syncPlayerFromBackend({ playerId, cash, location, totalAsset });
+      store.syncPlayerFromBackend({ playerId: resolvedPlayerId, cash, location, totalAsset });
     };
 
     socket.on('playerMove', handlePlayerMove);
@@ -229,6 +244,7 @@ const GameOverlay = () => {
     socket.on('worldcup', handleWorldCup);
     socket.on('war_start', handleWarStart);
     socket.on('asset_update', handleAssetUpdate);
+    socket.on('map_price_update', handleMapPriceUpdate);
 
     return () => {
       socket.off('playerMove', handlePlayerMove);
@@ -236,6 +252,7 @@ const GameOverlay = () => {
       socket.off('worldcup', handleWorldCup);
       socket.off('war_start', handleWarStart);
       socket.off('asset_update', handleAssetUpdate);
+      socket.off('map_price_update', handleMapPriceUpdate);
     };
   }, [socket]);
 
@@ -706,6 +723,13 @@ const GameOverlay = () => {
         />
       )}
 
+      {/* ✨ Particle Effects */}
+      <ParticleEffect
+        type={particle.type}
+        active={particle.active}
+        onComplete={() => setParticle((prev) => ({ ...prev, active: false }))}
+      />
+
       {/* Modals */}
       {activeModal && (
         <>
@@ -725,11 +749,11 @@ const GameOverlay = () => {
             // 아래 style 속성을 추가해서 INITIAL_GAME일 때 너비를 강제로 넓혀줍니다!
             style={
               activeModal.type === "INITIAL_GAME" ||
-              activeModal.type === "SPACE_TRAVEL"
+                activeModal.type === "SPACE_TRAVEL"
                 ? { maxWidth: "1200px", width: "95%" } // 미니게임, 우주여행
                 : activeModal.type === "ASSET_TRADE" &&
-                    BOARD_DATA[players[currentPlayerIndex]?.position]?.type ===
-                      "START"
+                  BOARD_DATA[players[currentPlayerIndex]?.position]?.type ===
+                  "START"
                   ? { maxWidth: "800px", width: "90%" } // 시작 칸 모달
                   : undefined
             }
@@ -810,11 +834,11 @@ const GameOverlay = () => {
                 const WORLD_CUP_COST = 800000;
                 const ownedTiles = currentPlayer
                   ? Object.entries(lands)
-                      .filter(([, land]) => land.ownerId === currentPlayer.id)
-                      .map(([tileId]) => Number(tileId))
-                      .sort(
-                        (a, b) => (landPrices[b] ?? 0) - (landPrices[a] ?? 0),
-                      )
+                    .filter(([, land]) => land.ownerId === currentPlayer.id)
+                    .map(([tileId]) => Number(tileId))
+                    .sort(
+                      (a, b) => (landPrices[b] ?? 0) - (landPrices[a] ?? 0),
+                    )
                   : [];
 
                 return (
@@ -1138,11 +1162,10 @@ const GameOverlay = () => {
                             key={sym}
                             type="button"
                             onClick={() => setTradeSymbol(sym)}
-                            className={`dash-action ${
-                              sym === symbol
+                            className={`dash-action ${sym === symbol
                                 ? "dash-action-primary"
                                 : "dash-action-secondary"
-                            }`}
+                              }`}
                           >
                             {STOCK_INFO[sym].nameKr}
                           </button>
@@ -1640,11 +1663,10 @@ const GameOverlay = () => {
                             key={land.id}
                             type="button"
                             onClick={() => handleSelectLand(land.id)}
-                            className={`w-full rounded-lg border p-3 text-left transition ${
-                              selectedSpoilsLand === land.id
+                            className={`w-full rounded-lg border p-3 text-left transition ${selectedSpoilsLand === land.id
                                 ? "border-amber-400 bg-amber-500/20"
                                 : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center justify-between">
                               <div>
@@ -1670,11 +1692,10 @@ const GameOverlay = () => {
                       <button
                         onClick={handleConfirmSpoils}
                         disabled={selectedSpoilsLand === null}
-                        className={`dash-action flex-1 ${
-                          selectedSpoilsLand !== null
+                        className={`dash-action flex-1 ${selectedSpoilsLand !== null
                             ? "dash-action-primary"
                             : "cursor-not-allowed bg-white/10 text-white/40"
-                        }`}
+                          }`}
                       >
                         영토 획득
                       </button>
