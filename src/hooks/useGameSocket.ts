@@ -890,7 +890,8 @@ export const useGameSocket = (roomId: number = 1) => {
           console.log('[GameSocket] drawCard:', data);
           const card = data?.card ?? data;
           if (!card) return;
-          useGameStore.getState().applyGoldenKeyCard(card);
+          // NOTE: Do NOT call applyGoldenKeyCard here - backend applies effects via golden_key_apply
+          // and broadcasts updates via asset_update/market_update to avoid double processing
           const title = String(card?.title ?? '이벤트');
           const description = String(card?.message ?? card?.description ?? '');
           useGameStore.setState({ activeModal: { type: 'GOLDEN_KEY', title, description }, phase: 'MODAL' });

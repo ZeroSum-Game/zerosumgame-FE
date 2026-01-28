@@ -822,12 +822,12 @@ const useGameStore = create<GameState>((set, get) => {
         assetPrices: state.assetPrices,
       });
 
-      applyGoldenKeyCard(card); // Local update (optimistic)
-
-      // Backend Sync
-      apiApplyGoldenKey(card).catch(err => {
-        console.error("Golden Key Verify Failed:", err);
-      });
+      // NOTE: Do NOT call applyGoldenKeyCard here - backend applies effects
+      // via golden_key_apply and broadcasts updates to avoid double processing
+      const emitGoldenKey = state.goldenKeyEmitter;
+      if (emitGoldenKey) {
+        emitGoldenKey(card);
+      }
 
       pushLog('KEY', `황금열쇠: ${card.title}`, card.message);
       set({
