@@ -3,256 +3,125 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  perspective: 800px;
-  /* Enhanced perspective for 3D */
-}
-
-.dice-roller-holding .scene {
-  animation: shake 0.1s infinite;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  isolation: isolate;
+  z-index: 10;
+  position: relative;
 }
 
 .dice-row {
   display: flex;
-  gap: 30px;
-  /* Increased gap for 3D cubes */
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 3D cube dice (CSS) */
+/* 간단한 2D 주사위 스타일 */
 .dice-cube-shell {
-  width: 56px;
-  height: 56px;
-  perspective: 600px;
+  width: 52px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .dice-cube-shell.settling {
-  animation: diceCubeSettle 220ms ease-out;
+  animation: diceSettle 200ms ease-out;
 }
 
 .dice-cube {
-  width: 56px;
-  height: 56px;
-  position: relative;
-  transform-style: preserve-3d;
-  transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-.dice-cube.rolling {
-  animation: diceCubeRoll 0.8s ease-in-out infinite;
-}
-
-.dice-face {
-  position: absolute;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.95));
-  box-shadow: 0 18px 60px -40px rgba(0, 0, 0, 0.9), inset 0 0 12px rgba(255, 255, 255, 0.04);
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #ffffff, #e6e6e6);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 2px 4px rgba(255, 255, 255, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  backface-visibility: hidden;
+  transition: transform 0.15s ease-out;
+}
+
+.dice-cube.rolling {
+  animation: diceShake 0.12s ease-in-out infinite;
+}
+
+/* 주사위 눈 표시 - 앞면만 보이게 */
+.dice-face {
+  display: none;
 }
 
 .dice-face--front {
-  transform: translateZ(28px);
-}
-
-.dice-face--back {
-  transform: rotateY(180deg) translateZ(28px);
-}
-
-.dice-face--right {
-  transform: rotateY(90deg) translateZ(28px);
-}
-
-.dice-face--left {
-  transform: rotateY(-90deg) translateZ(28px);
-}
-
-.dice-face--top {
-  transform: rotateX(90deg) translateZ(28px);
-}
-
-.dice-face--bottom {
-  transform: rotateX(-90deg) translateZ(28px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .dice-pip-grid {
-  width: 70%;
-  height: 70%;
+  width: 36px;
+  height: 36px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  gap: 4px;
+  gap: 2px;
 }
 
 .dice-pip {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: transparent;
   justify-self: center;
   align-self: center;
 }
 
 .dice-pip.on {
-  background: #f8fafc;
-  box-shadow: 0 0 6px rgba(248, 250, 252, 0.7);
+  background: #1e293b;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-@keyframes diceCubeRoll {
-  0% {
-    transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
-  }
-
-  25% {
-    transform: rotateX(90deg) rotateY(90deg) rotateZ(0deg);
-  }
-
-  50% {
-    transform: rotateX(180deg) rotateY(180deg) rotateZ(90deg);
-  }
-
-  75% {
-    transform: rotateX(270deg) rotateY(270deg) rotateZ(180deg);
-  }
-
-  100% {
-    transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg);
-  }
+@keyframes diceShake {
+  0%, 100% { transform: rotate(-3deg) scale(1.02); }
+  50% { transform: rotate(3deg) scale(0.98); }
 }
 
-@keyframes diceCubeSettle {
-  0% {
-    transform: scale(1.08);
-  }
-
-  100% {
-    transform: scale(1);
-  }
-}
-
-/* 3D Cube Styles */
-.scene {
-  width: 60px;
-  height: 60px;
-  perspective: 400px;
-}
-
-.cube {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
-  /* Smooth settle */
-  will-change: transform;
-}
-
-.cube__face {
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  line-height: 56px;
-  font-size: 28px;
-  font-weight: 900;
-  color: #1e293b;
-  text-align: center;
-  background: white;
-  /* White dice */
-  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  backface-visibility: hidden;
-  /* Hide back face for better performance/look */
-}
-
-/* Make dots instead of numbers? User asked for "dice eyes" (주사위 눈). 
-   Let's stick to numbers for now as in code, but maybe styled like dots later if needed.
-   Code used numbers. */
-
-.cube__face--front {
-  transform: rotateY(0deg) translateZ(30px);
-}
-
-.cube__face--right {
-  transform: rotateY(90deg) translateZ(30px);
-}
-
-.cube__face--back {
-  transform: rotateY(180deg) translateZ(30px);
-}
-
-.cube__face--left {
-  transform: rotateY(-90deg) translateZ(30px);
-}
-
-.cube__face--top {
-  transform: rotateX(90deg) translateZ(30px);
-}
-
-.cube__face--bottom {
-  transform: rotateX(-90deg) translateZ(30px);
+@keyframes diceSettle {
+  0% { transform: scale(1.1); }
+  50% { transform: scale(0.95); }
+  100% { transform: scale(1); }
 }
 
 .dice-meta {
-  height: 24px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.8);
   text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  margin-top: 10px;
+  min-height: 20px;
 }
 
-@keyframes shake {
-  0% {
-    transform: translate(1px, 1px) rotate(0deg);
-  }
+/* 주사위 결과 표시 */
+.dice-result-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+}
 
-  10% {
-    transform: translate(-1px, -2px) rotate(-1deg);
-  }
-
-  20% {
-    transform: translate(-3px, 0px) rotate(1deg);
-  }
-
-  30% {
-    transform: translate(3px, 2px) rotate(0deg);
-  }
-
-  40% {
-    transform: translate(1px, -1px) rotate(1deg);
-  }
-
-  50% {
-    transform: translate(-1px, 2px) rotate(-1deg);
-  }
-
-  60% {
-    transform: translate(-3px, 1px) rotate(0deg);
-  }
-
-  70% {
-    transform: translate(3px, 1px) rotate(-1deg);
-  }
-
-  80% {
-    transform: translate(-1px, -1px) rotate(1deg);
-  }
-
-  90% {
-    transform: translate(1px, 2px) rotate(0deg);
-  }
-
-  100% {
-    transform: translate(1px, -2px) rotate(-1deg);
-  }
+.dice-result-display .dice-sum {
+  color: #fbbf24;
+  font-size: 22px;
 }
