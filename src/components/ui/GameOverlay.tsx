@@ -434,7 +434,7 @@ const GameOverlay = () => {
     setApiError(null);
     try {
       await apiSpaceMove(nodeIdx);
-      // 모달은 playerMove 소켓 이벤트에서 처리됨 (새 위치의 모달로 전환)
+      closeModal(); // 즉시 모달 닫기
     } catch (e: any) {
       setApiError(e.message || '이동 실패');
     } finally {
@@ -1163,8 +1163,8 @@ const GameOverlay = () => {
                             type="button"
                             onClick={() => setTradeSymbol(sym)}
                             className={`dash-action ${sym === symbol
-                                ? "dash-action-primary"
-                                : "dash-action-secondary"
+                              ? "dash-action-primary"
+                              : "dash-action-secondary"
                               }`}
                           >
                             {STOCK_INFO[sym].nameKr}
@@ -1664,8 +1664,8 @@ const GameOverlay = () => {
                             type="button"
                             onClick={() => handleSelectLand(land.id)}
                             className={`w-full rounded-lg border p-3 text-left transition ${selectedSpoilsLand === land.id
-                                ? "border-amber-400 bg-amber-500/20"
-                                : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                              ? "border-amber-400 bg-amber-500/20"
+                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
                               }`}
                           >
                             <div className="flex items-center justify-between">
@@ -1693,8 +1693,8 @@ const GameOverlay = () => {
                         onClick={handleConfirmSpoils}
                         disabled={selectedSpoilsLand === null}
                         className={`dash-action flex-1 ${selectedSpoilsLand !== null
-                            ? "dash-action-primary"
-                            : "cursor-not-allowed bg-white/10 text-white/40"
+                          ? "dash-action-primary"
+                          : "cursor-not-allowed bg-white/10 text-white/40"
                           }`}
                       >
                         영토 획득
