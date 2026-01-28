@@ -1024,23 +1024,27 @@ export const useGameSocket = (roomId: number = 1) => {
           const isMyWin = myUserId === winnerUserId;
 
           // WAR_FIGHT animation result
+          const isParticipant = myUserId === winnerUserId || myUserId === loserUserId;
           if (loserLands.length === 0) {
-            useGameStore.setState({
-              queuedModal: {
-                type: 'WAR_RESULT',
-                title: isMyWin ? 'Victory!' : 'Defeat...',
-                description: isMyWin
-                  ? `${loserName} paid ${(cashPenalty / 10000).toFixed(0)} to ${winnerName}. (Win rate ${winRate.toFixed(1)}%)`
-                  : `${winnerName} took ${(cashPenalty / 10000).toFixed(0)} from ${loserName}. (Win rate ${(100 - winRate).toFixed(1)}%)`,
-              },
-            });
-            appendEventLog(
-              'WAR',
-              'War Result',
-              `${winnerName} gained ${(cashPenalty / 10000).toFixed(0)} from ${loserName}.`,
-            );
-          } else {
-            // If loser has lands, allow winner to pick spoils
+            if (isParticipant) {
+              useGameStore.setState({
+                queuedModal: {
+                  type: 'WAR_RESULT',
+                  title: isMyWin ? 'Victory!' : 'Defeat...',
+                  description: isMyWin
+                    ? `${loserName} paid ${(cashPenalty / 10000).toFixed(0)} to ${winnerName}. (Win rate ${winRate.toFixed(1)}%)`
+                    : `${winnerName} took ${(cashPenalty / 10000).toFixed(0)} from ${loserName}. (Win rate ${(100 - winRate).toFixed(1)}%)`,
+                },
+              });
+            } else {
+              appendEventLog(
+                'WAR',
+                'War Result',
+                `${winnerName} defeated ${loserName}.`,
+              );
+            }
+          } else if (isMyWin) {
+            // Only winner gets spoils modal
             useGameStore.setState({
               queuedModal: {
                 type: 'WAR_SPOILS',
@@ -1053,6 +1057,16 @@ export const useGameSocket = (roomId: number = 1) => {
               },
             });
             appendEventLog('WAR', 'War Victory', `${winnerName} defeated ${loserName}. Choose a spoils tile.`);
+          } else if (isParticipant) {
+            useGameStore.setState({
+              queuedModal: {
+                type: 'WAR_RESULT',
+                title: isMyWin ? 'Victory!' : 'Defeat...',
+                description: `${winnerName} defeated ${loserName}.`,
+              },
+            });
+          } else {
+            appendEventLog('WAR', 'War Result', `${winnerName} defeated ${loserName}.`);
           }
         });
 

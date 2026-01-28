@@ -183,16 +183,18 @@ const AssetCard = ({
         {name}
       </div>
       {/* Only show stats if NOT a special type (icon type) */}
-      {!specialType && (
+      {!specialType && (showPrice || typeof changePct === 'number') && (
         <div className="asset-card-bottom">
           {showPrice && (
             <div className="asset-card-price" title={price === null ? '—' : formatKRW(price)}>
               {price === null ? '—' : formatKRWKoShort(price)}
             </div>
           )}
-          <div className={`asset-card-change ${isUp ? 'dash-up' : isDown ? 'dash-down' : 'dash-flat'}`} title={changeLabel}>
-            {changeLabel}
-          </div>
+          {typeof changePct === 'number' && (
+            <div className={`asset-card-change ${isUp ? 'dash-up' : isDown ? 'dash-down' : 'dash-flat'}`} title={changeLabel}>
+              {changeLabel}
+            </div>
+          )}
         </div>
       )}
     </>
