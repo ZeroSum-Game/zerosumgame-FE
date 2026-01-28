@@ -187,6 +187,21 @@ export const apiDrawGoldenKey = async (context: GoldenKeyContext): Promise<Golde
   return drawGoldenKeyCard(context);
 };
 
+export const apiApplyGoldenKey = async (card: GoldenKeyCardPayload) => {
+  const res = await fetch('/api/game/golden-key', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ card }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    // We log but don't crash the game; let local optimistic update show (or not)
+    console.error('Failed to sync golden key:', err);
+    return null;
+  }
+  return res.json();
+};
+
 export const apiRollDice = async () => {
   const res = await fetch('/api/test/roll', {
     headers: getAuthHeaders(),

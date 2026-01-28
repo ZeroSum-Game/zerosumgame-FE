@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { BOARD_DATA, TILE_COUNT, type Continent } from '../utils/boardUtils';
 import { formatKRWKo } from '../utils/formatKRW';
 import { drawGoldenKeyCard, type GoldenKeyCardPayload } from '../utils/goldenKey';
+import { apiApplyGoldenKey } from '../services/api';
 
 export const GAME_RULES = {
   START_CASH: 3000000,
@@ -815,7 +816,13 @@ const useGameStore = create<GameState>((set, get) => {
         assetPrices: state.assetPrices,
       });
 
-      applyGoldenKeyCard(card);
+      applyGoldenKeyCard(card); // Local update (optimistic)
+
+      // Backend Sync
+      apiApplyGoldenKey(card).catch(err => {
+        console.error("Golden Key Verify Failed:", err);
+      });
+
       pushLog('KEY', `황금열쇠: ${card.title}`, card.message);
       set({
         phase: 'MODAL',
