@@ -216,6 +216,7 @@ type GameState = {
   landPrices: Record<number, number>;
   landTolls: Record<number, number>;
   assetPrices: Record<StockSymbol, number>;
+  prevAssetPrices: Record<StockSymbol, number>;
   takeoverMultipliers: Record<number, number>;
   dividendOverrides: Partial<Record<StockSymbol, number>>;
   extraTurnTokens: Record<number, number>;
@@ -275,6 +276,7 @@ type GameState = {
 
   setLandPrices: (prices: Record<number, number>) => void;
   setAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
+  setPrevAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => void;
   showModal: (modal: ModalState) => void;
   setActiveModal: (type: ModalState['type'], data?: any) => void;
   syncPlayerFromBackend: (data: {
@@ -1119,9 +1121,12 @@ const useGameStore = create<GameState>((set, get) => {
 
     selectedTile: null,
     lands: {},
+    rooms: {},
+    prevLandPrices: getBaseLandPrices(),
     landPrices: getBaseLandPrices(),
     landTolls: {},
     assetPrices: getInitialAssetPrices(),
+    prevAssetPrices: getInitialAssetPrices(),
     takeoverMultipliers: {},
     dividendOverrides: {},
     extraTurnTokens: {},
@@ -2000,6 +2005,14 @@ const useGameStore = create<GameState>((set, get) => {
         }));
         return { assetPrices: nextPrices, players: nextPlayers };
       });
+    },
+
+    setPrevAssetPrices: (prices: Partial<Record<StockSymbol, number>>) => {
+      set((s) => ({ prevAssetPrices: { ...s.prevAssetPrices, ...prices } }));
+    },
+
+    setLandPrices: (prices: Record<number, number>) => {
+      set({ landPrices: prices });
     },
 
     showModal: (modal: ModalState) => {

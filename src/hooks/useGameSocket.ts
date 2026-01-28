@@ -867,12 +867,22 @@ export const useGameSocket = (roomId: number = 1) => {
         socket.on('market_update', (data: any) => {
           console.log('[GameSocket] market_update:', data);
           const newPrices: Partial<Record<StockSymbol, number>> = {};
+          const newPrevPrices: Partial<Record<StockSymbol, number>> = {};
           if (data?.samsung != null) newPrices.SAMSUNG = toNumber(data.samsung);
           if (data?.tesla != null) newPrices.TESLA = toNumber(data.tesla);
           if (data?.lockheed != null) newPrices.LOCKHEED = toNumber(data.lockheed);
           if (data?.gold != null) newPrices.GOLD = toNumber(data.gold);
           if (data?.bitcoin != null) newPrices.BITCOIN = toNumber(data.bitcoin);
-          useGameStore.setState((st) => ({ assetPrices: { ...st.assetPrices, ...newPrices } }));
+          // prev prices from backend
+          if (data?.prevSamsung != null) newPrevPrices.SAMSUNG = toNumber(data.prevSamsung);
+          if (data?.prevTesla != null) newPrevPrices.TESLA = toNumber(data.prevTesla);
+          if (data?.prevLockheed != null) newPrevPrices.LOCKHEED = toNumber(data.prevLockheed);
+          if (data?.prevGold != null) newPrevPrices.GOLD = toNumber(data.prevGold);
+          if (data?.prevBtc != null) newPrevPrices.BITCOIN = toNumber(data.prevBtc);
+          useGameStore.setState((st) => ({
+            assetPrices: { ...st.assetPrices, ...newPrices },
+            prevAssetPrices: { ...st.prevAssetPrices, ...newPrevPrices },
+          }));
           appendEventLog('MARKET', '시장 변동', '주요 자산 가격이 업데이트되었습니다.');
         });
 

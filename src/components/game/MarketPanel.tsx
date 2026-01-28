@@ -8,22 +8,20 @@ const MAJOR_SYMBOLS: StockSymbol[] = ['SAMSUNG', 'LOCKHEED', 'TESLA', 'BITCOIN',
 
 const MarketPanel = () => {
   const assetPrices = useGameStore((s) => s.assetPrices);
+  const prevAssetPrices = useGameStore((s) => s.prevAssetPrices);
   const eventLog = useGameStore((s) => s.eventLog);
   const currentRound = useGameStore((s) => s.round);
 
-  const prevPricesRef = useRef<Record<StockSymbol, number>>(assetPrices);
-  const [changes, setChanges] = useState<Record<StockSymbol, number>>({} as Record<StockSymbol, number>);
-
-  useEffect(() => {
-    const next: Record<StockSymbol, number> = {} as Record<StockSymbol, number>;
+  // Calculate changes from backend prev prices
+  const changes = useMemo(() => {
+    const result: Record<StockSymbol, number> = {} as Record<StockSymbol, number>;
     MAJOR_SYMBOLS.forEach((symbol) => {
-      const prev = prevPricesRef.current[symbol];
+      const prev = prevAssetPrices[symbol];
       const current = assetPrices[symbol];
-      next[symbol] = prev ? ((current - prev) / prev) * 100 : 0;
+      result[symbol] = prev ? ((current - prev) / prev) * 100 : 0;
     });
-    setChanges(next);
-    prevPricesRef.current = { ...assetPrices };
-  }, [assetPrices]);
+    return result;
+  }, [assetPrices, prevAssetPrices]);
 
   const rounds = useMemo(() => {
     const byRound = new Map<number, (typeof eventLog)[number][]>();
@@ -86,9 +84,9 @@ const MarketPanel = () => {
             [round]: result?.headline && result?.summary
               ? { headline: result.headline, summary: result.summary }
               : {
-                  headline: fallback?.title ?? `턴 ${round}`,
-                  summary: fallback?.message ?? '',
-                },
+                headline: fallback?.title ?? `턴 ${round}`,
+                summary: fallback?.message ?? '',
+              },
           }));
         })
         .finally(() => {
