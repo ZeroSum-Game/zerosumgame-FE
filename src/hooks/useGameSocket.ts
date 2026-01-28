@@ -511,7 +511,11 @@ export const useGameSocket = (roomId: number = 1) => {
         });
 
         socket.on('minigame_start', () => {
-          useGameStore.setState({ activeModal: { type: 'INITIAL_GAME' }, phase: 'MODAL' });
+          // 다른 플레이어가 미니게임 시작했을 때도 모달 열기
+          const current = useGameStore.getState().activeModal;
+          if (!current || current.type !== 'INITIAL_GAME') {
+            useGameStore.setState({ activeModal: { type: 'INITIAL_GAME' }, phase: 'MODAL', modalData: null });
+          }
         });
 
         socket.on('pick_error', (data: any) => {
@@ -737,11 +741,11 @@ export const useGameSocket = (roomId: number = 1) => {
             }
 
             if (space.type === 'MINIGAME') {
+              // 미니게임 모달 직접 열기 (소켓 이벤트 대기 없이)
+              useGameStore.setState({ activeModal: { type: 'INITIAL_GAME' }, phase: 'MODAL', modalData: null });
               if (currentSocket) {
                 currentSocket.emit('minigame_start');
-                return;
               }
-              useGameStore.setState({ activeModal: { type: 'INITIAL_GAME' }, phase: 'MODAL', modalData: null });
               return;
             }
 
